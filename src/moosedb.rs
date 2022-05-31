@@ -30,11 +30,54 @@ pub enum Author {
     Local(String),
 }
 
+/// width, height
+pub const DEFAULT_SIZE: (usize, usize, usize) = (26, 15, 26 * 15);
+pub const HD_SIZE: (usize, usize, usize) = (36, 22, 36 * 22);
+// this is for PNG output, technically the line output is variable based on font x-height
+pub const PIX_FMT_WIDTH: u32 = 16;
+pub const PIX_FMT_HEIGHT: u32 = 24;
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum Dimensions {
+    Default,
+    HD,
+    Custom(usize, usize),
+}
+
+impl Dimensions {
+    /// Get the width and height of the given dimension.
+    pub fn width_height(&self) -> (usize, usize, usize) {
+        match self {
+            Dimensions::Default => DEFAULT_SIZE,
+            Dimensions::HD => HD_SIZE,
+            Dimensions::Custom(width, height) => (*width, *height, *width * *height - 1),
+        }
+    }
+
+    /// Decipher the likely dimensions of a moose by their 1-D Image size.
+    pub fn from_len(image: &[u8]) -> Option<Self> {
+        if image.len() == DEFAULT_SIZE.2 {
+            Some(Self::Default)
+        } else if image.len() == HD_SIZE.2 {
+            Some(Self::HD)
+        } else {
+            None
+        }
+    }
+}
+
+impl Default for Dimensions {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Moose {
     pub name: String,
     #[serde(serialize_with = "as_base64", deserialize_with = "from_base64")]
     pub image: Vec<u8>,
+    pub dimensions: Dimensions,
     pub created: DateTime<Utc>,
     pub author: Author,
 }
@@ -50,20 +93,38 @@ fn from_base64<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D:
 }
 
 /// Turn Meese string into byte values.
+/// use flat_map and make sure to map dimension by explicitly defining it.
 fn parse_hexish(hex: u8) -> u8 {
     match hex {
         b'0'..=b'9' => hex - 48,
         b'a'..=b'f' => hex - (97 - 9),
         b'A'..=b'F' => hex - (65 - 9),
-        b't' => 16,
-        b'\n' => 17,
-        _ => 0,
+        b't' => 99,
+        // invalid color, including \n
+        _ => 100,
+    }
+}
+
+fn parse_hexish_opt(hex: u8) -> Option<u8> {
+    let phex = parse_hexish(hex);
+    if phex == 100 {
+        None
+    } else {
+        Some(phex)
     }
 }
 
 /// IRC Extended Color Code -> 0..=99
-fn extended_color_code(color: u8, shade: u8) -> u8 {
-    16 + parse_hexish(color) + (12 * parse_hexish(shade))
+/// optional because newlines do not belong in our data.
+/// use flat_map and make sure to map dimension by explicitly defining it.
+fn extended_color_code(color: u8, shade: u8) -> Option<u8> {
+    if color == b't' && shade == b't' {
+        Some(99u8)
+    } else if color == b'\n' && shade == b'\n' {
+        None
+    } else {
+        Some(16 + parse_hexish(color) + (12 * parse_hexish(shade)))
+    }
 }
 
 impl From<MooseLegacy> for Moose {
@@ -71,18 +132,23 @@ impl From<MooseLegacy> for Moose {
         if old.shaded {
             panic!("CONVERT TO EXTENDED PALETTE FIRST USING https://github.com/adedomin/moose `moose import < moose`");
         }
-        let new_image = if old.extended {
+        let new_image: Vec<u8> = if old.extended {
             old.image
                 .bytes()
                 .zip(old.shade.bytes())
-                .map(|(pix, shade)| extended_color_code(pix, shade))
+                .flat_map(|(pix, shade)| extended_color_code(pix, shade))
                 .collect()
         } else {
-            old.image.bytes().map(parse_hexish).collect()
+            old.image.bytes().flat_map(parse_hexish_opt).collect()
         };
+
+        let dimensions =
+            Dimensions::from_len(&new_image).expect("expected moose to be HD or default size.");
+
         Moose {
             name: old.name,
             image: new_image,
+            dimensions,
             created: old.created,
             author: Author::Anonymous,
         }
@@ -92,6 +158,20 @@ impl From<MooseLegacy> for Moose {
 impl From<&Moose> for Vec<u8> {
     fn from(moose: &Moose) -> Self {
         serde_json::to_vec(moose).unwrap()
+    }
+}
+
+impl From<Moose> for Vec<u8> {
+    fn from(moose: Moose) -> Self {
+        serde_json::to_vec(&moose).unwrap()
+    }
+}
+
+pub struct MoosePage<'m>(&'m [Moose]);
+
+impl<'m> From<MoosePage<'m>> for Vec<u8> {
+    fn from(meese: MoosePage) -> Self {
+        serde_json::to_vec(meese.0).unwrap()
     }
 }
 
@@ -180,35 +260,27 @@ fn reindex_db(meese: &[Moose]) -> (HashMap<String, usize>, HashMap<String, Roari
 }
 
 impl MooseDb {
-    pub fn get(&self, name: &str) -> Option<Moose> {
-        self.meese_idx.get(name).map(|&idx| self[idx].clone())
-    }
-
-    pub fn get_bin(&self, name: &str) -> Option<Vec<u8>> {
-        self.get(name)
-            .map(|moose| serde_json::to_vec(&moose).unwrap())
+    pub fn get(&self, name: &str) -> Option<&Moose> {
+        self.meese_idx.get(name).map(|&idx| &self[idx])
     }
 
     pub fn page_count(&self) -> usize {
         self.meese.len() / PAGE_SIZE
     }
 
-    pub fn get_page(&self, page_num: usize) -> Vec<Moose> {
+    pub fn get_page(&self, page_num: usize) -> MoosePage {
         let start = page_num * PAGE_SIZE;
         let end = if start + PAGE_SIZE > self.meese.len() {
             self.meese.len()
         } else {
             start + PAGE_SIZE
         };
-        self.meese
-            .get(start..end)
-            .map(|slice| slice.to_vec())
-            .unwrap_or_else(Vec::new)
-    }
 
-    pub fn get_page_bin(&self, page_num: usize) -> Vec<u8> {
-        let meese = self.get_page(page_num);
-        serde_json::to_vec::<Vec<Moose>>(&meese).unwrap()
+        MoosePage(
+            self.meese
+                .get(start..end)
+                .unwrap_or_else(|| &[] as &[Moose]),
+        )
     }
 
     fn find(&self, query: &str) -> Option<RoaringBitmap> {
@@ -227,19 +299,18 @@ impl MooseDb {
             })
     }
 
-    pub fn find_page(&self, query: &str) -> Vec<Moose> {
+    pub fn find_page(&self, query: &str) -> Vec<&Moose> {
         self.find(query)
             .map(|bmap| {
                 bmap.iter()
                     .flat_map(|idx| self.meese.get(idx as usize))
-                    .cloned()
-                    .collect::<Vec<Moose>>()
+                    .collect::<Vec<&Moose>>()
             })
             .unwrap_or_else(Vec::new)
     }
 
     pub fn find_page_bin(&self, query: &str) -> Vec<u8> {
-        serde_json::to_vec::<Vec<Moose>>(&self.find_page(query)).unwrap()
+        serde_json::to_vec(&self.find_page(query)).unwrap()
     }
 
     pub fn open() -> std::io::Result<Self> {
