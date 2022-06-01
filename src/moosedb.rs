@@ -97,8 +97,8 @@ fn from_base64<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D:
 fn parse_hexish(hex: u8) -> u8 {
     match hex {
         b'0'..=b'9' => hex - 48,
-        b'a'..=b'f' => hex - (97 - 9),
-        b'A'..=b'F' => hex - (65 - 9),
+        b'a'..=b'f' => (hex - 97) + 10,
+        b'A'..=b'F' => (hex - 65) + 10,
         b't' => 99,
         // invalid color, including \n
         _ => 100,
@@ -279,7 +279,7 @@ impl MooseDb {
         MoosePage(
             self.meese
                 .get(start..end)
-                .unwrap_or_else(|| &[] as &[Moose]),
+                .unwrap_or(&[] as &[Moose]),
         )
     }
 
