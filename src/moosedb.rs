@@ -10,7 +10,7 @@ use std::{
     vec::Vec,
 };
 
-const PAGE_SIZE: usize = 12;
+pub const PAGE_SIZE: usize = 12;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MooseLegacy {
@@ -34,8 +34,8 @@ pub enum Author {
 pub const DEFAULT_SIZE: (usize, usize, usize) = (26, 15, 26 * 15);
 pub const HD_SIZE: (usize, usize, usize) = (36, 22, 36 * 22);
 // this is for PNG output, technically the line output is variable based on font x-height
-pub const PIX_FMT_WIDTH: u32 = 16;
-pub const PIX_FMT_HEIGHT: u32 = 24;
+pub const PIX_FMT_WIDTH: usize = 16;
+pub const PIX_FMT_HEIGHT: usize = 24;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum Dimensions {
@@ -123,7 +123,10 @@ fn extended_color_code(color: u8, shade: u8) -> Option<u8> {
     } else if color == b'\n' && shade == b'\n' {
         None
     } else {
-        Some(16 + parse_hexish(color) + (12 * parse_hexish(shade)))
+        match (parse_hexish_opt(color), parse_hexish_opt(shade)) {
+            (Some(color), Some(shade)) => Some(16 + color + (12 * shade)),
+            _ => None,
+        }
     }
 }
 
@@ -167,7 +170,7 @@ impl From<Moose> for Vec<u8> {
     }
 }
 
-pub struct MoosePage<'m>(&'m [Moose]);
+pub struct MoosePage<'m>(pub &'m [Moose]);
 
 impl<'m> From<MoosePage<'m>> for Vec<u8> {
     fn from(meese: MoosePage) -> Self {
@@ -276,11 +279,7 @@ impl MooseDb {
             start + PAGE_SIZE
         };
 
-        MoosePage(
-            self.meese
-                .get(start..end)
-                .unwrap_or(&[] as &[Moose]),
-        )
+        MoosePage(self.meese.get(start..end).unwrap_or(&[] as &[Moose]))
     }
 
     fn find(&self, query: &str) -> Option<RoaringBitmap> {

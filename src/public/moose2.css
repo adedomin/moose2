@@ -1,0 +1,95 @@
+body {
+    background-color: whitesmoke;
+}
+
+.cards {
+    clear: both;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+}
+
+.card {
+    margin: 12px;
+    padding: 12px;
+    background-color: white;
+    border: 1px solid black;
+    border-radius: 2%;
+    text-align: center;
+    justify-content: center;
+}
+
+.img {
+    background: repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 50% / 20px 20px;
+    max-width: 416px;
+    scale: integer;
+    max-height: 381.333px;
+}
+
+.float-right {
+    float: right;
+}
+
+.float-left {
+    float: left;
+}
+
+.black-link {
+    color: black;
+}
+
+.paddle {
+    text-align: center;
+    text-decoration: none;
+    color: white;
+    background-color: grey;
+    padding: 0.25em 1em 0.25em 1em;
+    margin: 1em 0.25em 1em 0.25em;
+}
+
+.arrow-right {
+    margin: 1em 0.25em 1em 0.25em;
+    padding: 0.25em 3em 0.25em 1em;
+    text-decoration: none;
+    color: white;
+    background:
+        linear-gradient(-120deg, transparent 1em,
+            grey 1.05em,
+            grey 1.5em,
+            transparent 1.45em,
+            transparent 2em,
+            grey 2.05em) top no-repeat,
+        linear-gradient(300deg,
+            transparent 1em,
+            grey 1.05em,
+            grey 1.5em,
+            transparent 1.45em,
+            transparent 2em,
+            grey 2.05em) bottom no-repeat;
+    text-align: left;
+    background-size: 100% 50%;
+}
+
+.arrow-left {
+    margin: 1em 0.25em 1em 0.25em;
+    padding: 0.25em 1em 0.25em 3em;
+    text-decoration: none;
+    color: white;
+    background:
+        linear-gradient(120deg, transparent 1em,
+            grey 1.05em,
+            grey 1.5em,
+            transparent 1.45em,
+            transparent 2em,
+            grey 2.05em) top no-repeat,
+        linear-gradient(-300deg,
+            transparent 1em,
+            grey 1.05em,
+            grey 1.5em,
+            transparent 1.45em,
+            transparent 2em,
+            grey 2.05em) bottom no-repeat;
+    text-align: right;
+    background-size: 100% 50%;
+}

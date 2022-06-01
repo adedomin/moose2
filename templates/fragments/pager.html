@@ -1,0 +1,10 @@
+<div>
+    {% if page != 0 %}
+    <a class="arrow-left float-left" href="/gallery/{{ page - 1 }}">Prev<br>{{ page - 1 }}</a>
+    <a class="paddle float-left" href="/gallery/0">Oldest<br>Page</a>
+    {% endif %}
+    {% if page < page_max %}
+    <a class="arrow-right float-right" href="/gallery/{{ page + 1 }}">Next<br>{{ page + 1 }}</a>
+    <a class="paddle float-right" href="/gallery/{{ page_max }}">Newest<br>Page</a>
+    {% endif %}
+</div>

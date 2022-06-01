@@ -237,14 +237,18 @@ impl From<&Moose> for IrcArt {
     }
 }
 
+fn idx_1dto2d(x: usize, y: usize, width: usize) -> usize {
+    x + y * width
+}
+
 pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
     let mut cursor = std::io::Cursor::new(vec![]);
     {
-        let (dim_x, dim_y, _total) = moose.dimensions.width_height();
+        let (dim_x, dim_y, total) = moose.dimensions.width_height();
         let mut encoder = png::Encoder::new(
             &mut cursor,
-            PIX_FMT_WIDTH * dim_x as u32,
-            PIX_FMT_HEIGHT * dim_y as u32,
+            (PIX_FMT_WIDTH * dim_x) as u32,
+            (PIX_FMT_HEIGHT * dim_y) as u32,
         );
         encoder.set_compression(png::Compression::Best);
         encoder.set_depth(png::BitDepth::Eight);
@@ -253,29 +257,20 @@ pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
         encoder.set_trns(&TRNS[..]);
         let mut writer = encoder.write_header()?;
 
-        let pixdata = moose
-            .image
-            .chunks_exact(dim_x)
-            .flat_map(|row| {
-                let mut rows: Vec<Vec<u8>> =
-                    vec![vec![0; PIX_FMT_WIDTH as usize * dim_x]; PIX_FMT_HEIGHT as usize];
-                for (idx, &pixel) in row.iter().enumerate() {
-                    rows.iter_mut().for_each(|r| {
-                        let real_idx = idx * PIX_FMT_WIDTH as usize;
-                        r.iter_mut()
-                            .skip(real_idx)
-                            .take(real_idx + PIX_FMT_WIDTH as usize)
-                            .for_each(|rc| {
-                                *rc = pixel;
-                            });
-                    });
-                }
-                rows
-            })
-            .flatten()
-            .collect::<Vec<u8>>();
+        let mut bitmap = vec![0x99u8; total * PIX_FMT_HEIGHT * PIX_FMT_WIDTH];
+        for (idx, &pixel) in moose.image.iter().enumerate() {
+            let base_y = (idx / dim_x) * PIX_FMT_HEIGHT;
+            let base_x = (idx % dim_x) * PIX_FMT_WIDTH;
 
-        writer.write_image_data(&pixdata)?;
+            // Each pixel needs to occupy a (w * h) square around its position.
+            for y in base_y..(base_y + PIX_FMT_HEIGHT) {
+                for x in base_x..(base_x + PIX_FMT_WIDTH) {
+                    bitmap[idx_1dto2d(x, y, PIX_FMT_WIDTH * dim_x)] = pixel;
+                }
+            }
+        }
+
+        writer.write_image_data(&bitmap)?;
     }
     Ok(cursor.into_inner())
 }
