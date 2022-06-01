@@ -1,5 +1,4 @@
 use crate::moosedb::{Dimensions, Moose, PIX_FMT_HEIGHT, PIX_FMT_WIDTH};
-use lazy_static::lazy_static;
 
 pub struct RGBA(u8, u8, u8, u8);
 
@@ -111,13 +110,29 @@ pub const EXTENDED_COLORS: [RGBA; 100] = [
     RGBA(0x00, 0x00, 0x00, 0x00), // transparent (code 99)
 ];
 
-lazy_static! {
-    pub static ref PLTE: Vec<u8> = EXTENDED_COLORS
-        .iter()
-        .flat_map(|col| [col.0, col.1, col.2])
-        .collect::<Vec<u8>>();
-    pub static ref TRNS: Vec<u8> = EXTENDED_COLORS.iter().map(|col| col.3).collect::<Vec<u8>>();
-}
+/// PNG Indexed color palette
+const PLTE: [u8; EXTENDED_COLORS.len() * 3] = {
+    let mut a = [0x00u8; EXTENDED_COLORS.len() * 3];
+    let mut i = 0;
+    loop {
+        if i == EXTENDED_COLORS.len() {
+            break a;
+        }
+        let j = i * 3;
+        a[j] = EXTENDED_COLORS[i].0;
+        a[j + 1] = EXTENDED_COLORS[i].1;
+        a[j + 2] = EXTENDED_COLORS[i].2;
+        i += 1;
+    }
+};
+
+/// PNG section that defines indexed colors' 8bit alpha channel.
+const TRNS: [u8; EXTENDED_COLORS.len()] = {
+    let mut a = [0xFFu8; EXTENDED_COLORS.len()];
+    // only the last color is transparent
+    a[EXTENDED_COLORS.len() - 1] = 0x00u8;
+    a
+};
 
 pub const TRANSPARENT: u8 = 99u8;
 
@@ -226,7 +241,7 @@ impl From<&Moose> for IrcArt {
 pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
     let mut cursor = std::io::Cursor::new(vec![]);
     {
-        let (dim_x, dim_y, total) = moose.dimensions.width_height();
+        let (dim_x, dim_y, _total) = moose.dimensions.width_height();
         let mut encoder = png::Encoder::new(
             &mut cursor,
             PIX_FMT_WIDTH * dim_x as u32,
@@ -235,8 +250,8 @@ pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
         encoder.set_compression(png::Compression::Best);
         encoder.set_depth(png::BitDepth::Eight);
         encoder.set_color(png::ColorType::Indexed);
-        encoder.set_palette(&*PLTE);
-        encoder.set_trns(&*TRNS);
+        encoder.set_palette(&PLTE[..]);
+        encoder.set_trns(&TRNS[..]);
         let mut writer = encoder.write_header()?;
 
         let pixdata = moose

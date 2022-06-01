@@ -16,4 +16,3 @@ rouille = "3.5.0"
 rand = { version = "0.8.5", features = ["std", "std_rng"], default-features = false }
 base64 = { version = "0.20.0-alpha.1" }
 png = "0.17.5"
-lazy_static = "1.4.0"

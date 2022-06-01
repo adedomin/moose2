@@ -385,7 +385,6 @@ dependencies = [
  "base64 0.20.0-alpha.1",
  "chrono",
  "clap",
- "lazy_static",
  "png",
  "rand",
  "roaring",
