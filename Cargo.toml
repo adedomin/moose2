@@ -17,3 +17,5 @@ rand = { version = "0.8.5", features = ["std", "std_rng"], default-features = fa
 base64 = { version = "0.20.0-alpha.1" }
 png = "0.17.5"
 askama = "0.11.1"
+crc32fast = "1.3.2"
+lazy_static = "1.4.0"

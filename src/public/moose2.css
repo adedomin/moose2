@@ -27,6 +27,17 @@ body {
     max-height: 381.333px;
 }
 
+.nav-block {
+    display: flex;
+    justify-content: center;
+    margin: 1em 1em;
+}
+
+.nav-block>a {
+    margin-left: 0.1em;
+    margin-right: 0.1em;
+}
+
 .float-right {
     float: right;
 }
@@ -44,12 +55,17 @@ body {
     text-decoration: none;
     color: white;
     background-color: grey;
-    padding: 0.25em 1em 0.25em 1em;
-    margin: 1em 0.25em 1em 0.25em;
+    padding: 0.25em 0.5em 0.25em 0.5em;
+    /* margin: 1em 0.05em 1em 0.05em; */
+}
+
+
+.selected {
+    background-color: burlywood;
 }
 
 .arrow-right {
-    margin: 1em 0.25em 1em 0.25em;
+    /* margin: 1em 0.25em 1em 0.05em; */
     padding: 0.25em 3em 0.25em 1em;
     text-decoration: none;
     color: white;
@@ -72,7 +88,7 @@ body {
 }
 
 .arrow-left {
-    margin: 1em 0.25em 1em 0.25em;
+    /* margin: 1em 0.05em 1em 0.25em; */
     padding: 0.25em 1em 0.25em 3em;
     text-decoration: none;
     color: white;

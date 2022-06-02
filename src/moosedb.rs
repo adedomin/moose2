@@ -268,7 +268,7 @@ impl MooseDb {
     }
 
     pub fn page_count(&self) -> usize {
-        self.meese.len() / PAGE_SIZE
+        self.meese.len() / PAGE_SIZE + if self.meese.len() % PAGE_SIZE > 0 { 1 } else { 0 }
     }
 
     pub fn get_page(&self, page_num: usize) -> MoosePage {

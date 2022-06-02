@@ -1,6 +1,7 @@
 use crate::html;
 use crate::moosedb::{Moose, MooseDb};
 use crate::render::{moose_png, IrcArt};
+use lazy_static::lazy_static;
 use rand::Rng;
 use rouille::{
     percent_encoding::{percent_encode, NON_ALPHANUMERIC},
@@ -36,22 +37,43 @@ fn simple_get<'m>(
 const APP_CSS: &[u8] = include_bytes!("public/moose2.css");
 const APP_ICON: &[u8] = include_bytes!("public/favicon.ico");
 
+lazy_static! {
+    pub static ref APP_CSS_CRC32: u32 = crc32fast::hash(APP_CSS);
+    pub static ref APP_CSS_CRC32_STR: String = APP_CSS_CRC32.to_string();
+    pub static ref APP_ICON_CRC32: u32 = crc32fast::hash(APP_ICON);
+    pub static ref APP_ICON_CRC32_STR: String = APP_ICON_CRC32.to_string();
+}
+
 pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
-    // hard coded paths.
-    if req.url() == "/public/moose2.css" {
-        return Response::from_data("text/css", APP_CSS);
-    } else if req.url() == "/favicon.ico" {
-        return Response::from_data("image/x-icon", APP_ICON);
+    // static paths and redirects
+    if req.method() == "GET" {
+        match req.url().as_str() {
+            "/public/moose2.css" => {
+                return Response::from_data("text/css", APP_CSS).with_etag(req, &*APP_CSS_CRC32_STR)
+            }
+            "favicon.ico" => {
+                return Response::from_data("image/x-icon", APP_ICON)
+                    .with_etag(req, &*APP_ICON_CRC32_STR)
+            }
+            "/" | "/gallery" => return Response::redirect_303("/gallery/0"),
+            "/gallery/random" => {
+                let max_page = { db.read().unwrap().page_count() };
+                let rand_idx = rand::thread_rng().gen_range(0..max_page);
+                return Response::redirect_303(format!("/gallery/{}", rand_idx));
+            }
+            "/page" => {
+                let page_count = { db.read().unwrap().page_count() };
+                return Response::from_data("application/json", format!("{}", page_count));
+            }
+            _ => (),
+        }
     }
 
     router!(req,
-        (GET) (/public/moose2-css) => {
-            Response::from_data("text/css", APP_CSS)
-        },
         (GET) (/moose/{moose_name: String}) => {
             let db_locked = db.read().unwrap();
             match simple_get(&db_locked, &moose_name) {
-                Ok(Some(moose)) => Response::from_data("application/json", moose),
+                Ok(Some(moose)) => Response::from_data("application/json", moose).with_public_cache(3600),
                 Ok(None) => {
                     let mut e = Response::text(format!("no such moose: {}", moose_name));
                     e.status_code = 404u16;
@@ -63,7 +85,7 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
         (GET) (/irc/{moose_name: String}) => {
             let db_locked = db.read().unwrap();
             match simple_get(&db_locked, &moose_name) {
-                Ok(Some(moose)) => Response::from_data("text/irc-art", IrcArt::from(moose)),
+                Ok(Some(moose)) => Response::from_data("text/irc-art", IrcArt::from(moose)).with_public_cache(3600),
                 Ok(None) => {
                     let mut e = Response::text(format!("no such moose: {}", moose_name));
                     e.status_code = 404u16;
@@ -77,7 +99,7 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
             match simple_get(&db_locked, &moose_name) {
                 Ok(Some(moose)) => {
                     match moose_png(moose) {
-                        Ok(png) => Response::from_data("image/png", png),
+                        Ok(png) => Response::from_data("image/png", png).with_public_cache(3600),
                         Err(e) => {
                             // bad error...
                             let mut e = Response::text(e.to_string());
@@ -94,10 +116,14 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
                 Err(redir) => Response::redirect_303(format!("/img/{}", redir)),
             }
         },
-        (GET) (/page) => {
+        (GET) (/gallery/{pid: usize}) => {
             let db_locked = db.read().unwrap();
-            Response::from_data("application/json", format!("{}", db_locked.page_count()))
+            let meese = db_locked.get_page(pid);
+            let html = html::gallery_page(meese, pid, db_locked.page_count());
+            let html_crc = crc32fast::hash(html.as_bytes()).to_string();
+            Response::from_data("text/html", html).with_etag(req, html_crc)
         },
+
         (GET) (/page/{pid: usize}) => {
             let db_locked = db.read().unwrap();
             let meese = db_locked.get_page(pid);
@@ -117,12 +143,6 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
                 let meese = unlocked.find_page_bin(&query);
                 Response::from_data("application/json", meese)
             }
-        },
-        (GET) (/gallery/{pid: usize}) => {
-            let db_locked = db.read().unwrap();
-            let meese = db_locked.get_page(pid);
-            let html = html::gallery_page(meese, pid, db_locked.page_count());
-            Response::from_data("text/html", html)
         },
         _ => Response::empty_404(),
     )

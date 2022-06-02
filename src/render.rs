@@ -242,7 +242,8 @@ fn idx_1dto2d(x: usize, y: usize, width: usize) -> usize {
 }
 
 pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
-    let mut cursor = std::io::Cursor::new(vec![]);
+    // 4KiB
+    let mut cursor = std::io::Cursor::new(Vec::with_capacity(4096usize));
     {
         let (dim_x, dim_y, total) = moose.dimensions.width_height();
         let mut encoder = png::Encoder::new(
