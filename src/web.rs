@@ -102,7 +102,8 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
                 } else {
                     let unlocked = db.read().unwrap();
                     let meese = unlocked.find_page_with_link_bin(&query);
-                    return Response::from_data("application/json", meese);
+                    let meese_crc = crc32fast::hash(&meese).to_string();
+                    return Response::from_data("application/json", meese).with_etag(req, meese_crc);
                 }
             }
             _ => (),
