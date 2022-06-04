@@ -61,7 +61,8 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
                 return Response::from_data("text/css", APP_CSS).with_etag(req, &*APP_CSS_CRC32_STR)
             }
             "/public/moose2.js" => {
-                return Response::from_data("text/css", APP_JS).with_etag(req, &*APP_JS_CRC32_STR)
+                return Response::from_data("application/javascript", APP_JS)
+                    .with_etag(req, &*APP_JS_CRC32_STR)
             }
             "/favicon.ico" => {
                 return Response::from_data("image/x-icon", APP_ICON)
