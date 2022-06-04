@@ -65,6 +65,17 @@ body {
     margin-left: -2px;
 }
 
+.center-banner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 40px;
+}
+
+.hidden {
+    display: none;
+}
+
 .paddle {
     text-align: center;
     text-decoration: none;

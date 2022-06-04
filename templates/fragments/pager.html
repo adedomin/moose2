@@ -6,7 +6,7 @@
     {% for pnum in page_range.iter().cloned() %}
     <a class="paddle {% if pnum == page %}selected{% endif %}" href="/gallery/{{ pnum }}">{{ pnum }}</a>
     {% endfor %}
-    {% if page < page_count-1 %}
+    {% if page+1 < page_count %}
     <a class="paddle" href="/gallery/{{ page_count - 1 }}">Newest<br>Page</a>
     <a class="arrow-right" href="/gallery/{{ page + 1 }}">Next</a>
     {% endif %}
