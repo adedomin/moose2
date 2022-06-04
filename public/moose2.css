@@ -50,6 +50,21 @@ body {
     color: black;
 }
 
+.full-width {
+    display: flex;
+    justify-content: center;
+}
+
+.full-width>input[type="text"] {
+    width: 80%;
+    padding: 0.25em 0.5em 0.25em 0.5em;
+}
+
+.full-width>input[type="submit"] {
+    padding: 0.25em 0.5em 0.25em 0.5em;
+    margin-left: -2px;
+}
+
 .paddle {
     text-align: center;
     text-decoration: none;

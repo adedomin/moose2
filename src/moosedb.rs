@@ -229,6 +229,17 @@ impl Index<usize> for MooseDb {
     }
 }
 
+/// Break up every name into parts that consist only of ASCII Alphanumeric characters (values higher than 7bit ignored),
+/// then convert to lowercase.
+/// Do we care about utf-8 "spaces?" probably not; what about moose with only characters like "/"?
+fn search_tokenize_words(s: &str) -> impl Iterator<Item = String> + '_ {
+    s.as_bytes()
+        .split(|&chr| matches!(chr, 0_u8..=b'/' | b':'..=b'@' | b'['..=b'`' | b'{'..=127_u8))
+        // since this is already valid unicode, since we aren't taking out >127 chars, this should be safe.
+        .map(|byte_slice| unsafe { std::str::from_utf8_unchecked(byte_slice) })
+        .map(|s| s.to_ascii_lowercase())
+}
+
 fn reindex_db(meese: &[Moose]) -> (HashMap<String, usize>, HashMap<String, RoaringBitmap>) {
     let meese_idx = meese
         .iter()
@@ -239,13 +250,7 @@ fn reindex_db(meese: &[Moose]) -> (HashMap<String, usize>, HashMap<String, Roari
     let meese_fts = meese
         .iter()
         .enumerate()
-        .flat_map(|(pos, moose)| {
-            moose
-                .name
-                .split_ascii_whitespace()
-                .map(|s| (s.to_ascii_lowercase(), pos))
-                .collect::<Vec<(String, usize)>>()
-        })
+        .flat_map(|(pos, moose)| search_tokenize_words(&moose.name).map(move |s| (s, pos)))
         .fold(
             HashMap::new(),
             |mut acc: HashMap<String, RoaringBitmap>, (word, pos)| {
@@ -268,7 +273,12 @@ impl MooseDb {
     }
 
     pub fn page_count(&self) -> usize {
-        self.meese.len() / PAGE_SIZE + if self.meese.len() % PAGE_SIZE > 0 { 1 } else { 0 }
+        self.meese.len() / PAGE_SIZE
+            + if self.meese.len() % PAGE_SIZE > 0 {
+                1
+            } else {
+                0
+            }
     }
 
     pub fn get_page(&self, page_num: usize) -> MoosePage {
@@ -283,9 +293,7 @@ impl MooseDb {
     }
 
     fn find(&self, query: &str) -> Option<RoaringBitmap> {
-        query
-            .split_ascii_whitespace()
-            .map(|word| word.to_ascii_lowercase())
+        search_tokenize_words(query)
             .flat_map(|word| self.meese_fts.get(&word)) // We're removing words with no hits to the reverse index.... good?
             .cloned()
             .reduce(|acc, next| acc & next)
@@ -302,14 +310,34 @@ impl MooseDb {
         self.find(query)
             .map(|bmap| {
                 bmap.iter()
+                    .take(PAGE_SIZE * 5)
                     .flat_map(|idx| self.meese.get(idx as usize))
                     .collect::<Vec<&Moose>>()
             })
             .unwrap_or_else(Vec::new)
     }
 
+    pub fn find_page_with_link(&self, query: &str) -> Vec<(usize, &Moose)> {
+        self.find(query)
+            .map(|bmap| {
+                bmap.iter()
+                    .take(PAGE_SIZE * 5)
+                    .flat_map(|idx| {
+                        self.meese
+                            .get(idx as usize)
+                            .map(|moose| (idx as usize / PAGE_SIZE, moose))
+                    })
+                    .collect::<Vec<(usize, &Moose)>>()
+            })
+            .unwrap_or_else(Vec::new)
+    }
+
     pub fn find_page_bin(&self, query: &str) -> Vec<u8> {
         serde_json::to_vec(&self.find_page(query)).unwrap()
+    }
+
+    pub fn find_page_with_link_bin(&self, query: &str) -> Vec<u8> {
+        serde_json::to_vec(&self.find_page_with_link(query)).unwrap()
     }
 
     pub fn open() -> std::io::Result<Self> {

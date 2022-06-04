@@ -3,6 +3,7 @@ use crate::moosedb::{Moose, MooseDb};
 use crate::render::{moose_png, IrcArt};
 use lazy_static::lazy_static;
 use rand::Rng;
+use rouille::percent_encoding::percent_decode;
 use rouille::{
     percent_encoding::{percent_encode, NON_ALPHANUMERIC},
     router, Request, Response,
@@ -11,6 +12,11 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 const RANDOM: &str = "random";
 const LATEST: &str = "latest";
+
+fn get_query_params(q: &str) -> impl Iterator<Item = (&str, &str)> {
+    q.split_terminator('&')
+        .map(|kv| kv.split_once('=').unwrap_or((kv, "")))
+}
 
 fn simple_get<'m>(
     db_locked: &'m RwLockReadGuard<MooseDb>,
@@ -34,14 +40,17 @@ fn simple_get<'m>(
     }
 }
 
-const APP_CSS: &[u8] = include_bytes!("public/moose2.css");
-const APP_ICON: &[u8] = include_bytes!("public/favicon.ico");
+const APP_CSS: &[u8] = include_bytes!("../public/moose2.css");
+const APP_ICON: &[u8] = include_bytes!("../public/favicon.ico");
+const APP_JS: &[u8] = include_bytes!("../public/moose2.js");
 
 lazy_static! {
-    pub static ref APP_CSS_CRC32: u32 = crc32fast::hash(APP_CSS);
-    pub static ref APP_CSS_CRC32_STR: String = APP_CSS_CRC32.to_string();
-    pub static ref APP_ICON_CRC32: u32 = crc32fast::hash(APP_ICON);
-    pub static ref APP_ICON_CRC32_STR: String = APP_ICON_CRC32.to_string();
+    static ref APP_CSS_CRC32: u32 = crc32fast::hash(APP_CSS);
+    static ref APP_CSS_CRC32_STR: String = APP_CSS_CRC32.to_string();
+    static ref APP_ICON_CRC32: u32 = crc32fast::hash(APP_ICON);
+    static ref APP_ICON_CRC32_STR: String = APP_ICON_CRC32.to_string();
+    static ref APP_JS_CRC32: u32 = crc32fast::hash(APP_JS);
+    static ref APP_JS_CRC32_STR: String = APP_JS_CRC32.to_string();
 }
 
 pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
@@ -51,9 +60,12 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
             "/public/moose2.css" => {
                 return Response::from_data("text/css", APP_CSS).with_etag(req, &*APP_CSS_CRC32_STR)
             }
-            "favicon.ico" => {
+            "/public/moose2.js" => {
+                return Response::from_data("text/css", APP_JS).with_etag(req, &*APP_JS_CRC32_STR)
+            }
+            "/favicon.ico" => {
                 return Response::from_data("image/x-icon", APP_ICON)
-                    .with_etag(req, &*APP_ICON_CRC32_STR)
+                    .with_etag(req, &*APP_ICON_CRC32_STR);
             }
             "/" | "/gallery" => return Response::redirect_303("/gallery/0"),
             "/gallery/random" => {
@@ -64,6 +76,33 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
             "/page" => {
                 let page_count = { db.read().unwrap().page_count() };
                 return Response::from_data("application/json", format!("{}", page_count));
+            }
+            "/search" => {
+                let query = get_query_params(req.raw_query_string())
+                    .find(|(key, _)| *key == "q")
+                    .map(|(_, val)| val)
+                    .unwrap_or("");
+                let query = percent_decode(query.as_bytes()).decode_utf8_lossy();
+
+                if query.len() > 50 {
+                    let mut e = Response::from_data(
+                        "application/json",
+                        r#"{"status":"error","msg":"query length too long"}"#.to_owned(),
+                    );
+                    e.status_code = 400u16;
+                    return e;
+                } else if query.is_empty() {
+                    let mut e = Response::from_data(
+                        "application/json",
+                        r#"{"status":"error","msg":"query is empty"}"#.to_owned(),
+                    );
+                    e.status_code = 400u16;
+                    return e;
+                } else {
+                    let unlocked = db.read().unwrap();
+                    let meese = unlocked.find_page_with_link_bin(&query);
+                    return Response::from_data("application/json", meese);
+                }
             }
             _ => (),
         }
@@ -128,21 +167,6 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
             let db_locked = db.read().unwrap();
             let meese = db_locked.get_page(pid);
             Response::from_data("application/json", meese)
-        },
-        (GET) (/search/{query: String}) => {
-            if query.len() > 50 {
-                let mut e = Response::from_data("application/json", r#"{"status":"error","msg":"query length too long"}"#.to_owned());
-                e.status_code = 400u16;
-                e
-            } else if query.is_empty() {
-                let mut e = Response::from_data("application/json", r#"{"status":"error","msg":"query is empty"}"#.to_owned());
-                e.status_code = 400u16;
-                e
-            } else {
-                let unlocked = db.read().unwrap();
-                let meese = unlocked.find_page_bin(&query);
-                Response::from_data("application/json", meese)
-            }
         },
         _ => Response::empty_404(),
     )
