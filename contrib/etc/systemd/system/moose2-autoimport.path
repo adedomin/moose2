@@ -3,5 +3,5 @@
 Description=Auto import new moose from moose.ghetty.space on change
 
 [Path]
-PathModified=/home/moose/.local/var/dump.json
+PathChanged=/home/moose/.local/var/dump.json
 Unit=moose2-autoimport.service
