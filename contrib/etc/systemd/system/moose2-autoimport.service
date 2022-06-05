@@ -1,0 +1,6 @@
+# Example service to automatically import new Moose from the old Moose application dumps.
+[Unit]
+Description=Auto import moose changes
+
+[Service]
+ExecStart=/usr/local/bin/moose2-autoimport.sh

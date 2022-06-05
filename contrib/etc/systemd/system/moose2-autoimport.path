@@ -1,0 +1,7 @@
+# Example path unit to automatically import new Moose from the old Moose application dumps.
+[Unit]
+Description=Auto import new moose from moose.ghetty.space on change
+
+[Path]
+PathModified=/home/moose/.local/var/dump.json
+Unit=moose2-autoimport.service
