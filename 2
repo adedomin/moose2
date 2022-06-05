@@ -1,0 +1,12 @@
+[Unit]
+Description=Next Generation Moose Service
+
+[Service]
+DynamicUser=yes
+User=moose2
+Group=moose2
+ExecStart=/usr/local/bin/moose2 run
+StateDirectory=moose2
+
+[Install]
+WantedBy=multi-user.target
