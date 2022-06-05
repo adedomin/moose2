@@ -4,7 +4,7 @@ use roaring::RoaringBitmap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     collections::HashMap,
-    io::{BufReader, BufWriter, Read},
+    io::{BufReader, BufWriter, Read, Write},
     ops::Index,
     path::PathBuf,
     vec::Vec,
@@ -342,9 +342,29 @@ impl MooseDb {
 
     pub fn open() -> std::io::Result<Self> {
         let conf = <config::Args as clap::Parser>::parse();
+        let moose_path = conf.get_moose_path();
         let mut moose_json = Vec::with_capacity(2usize.pow(21));
         // partial read failure will likely result in invalid json read anyhow.
-        let _ = std::fs::File::open(conf.get_moose_path())?.read_to_end(&mut moose_json)?;
+        let mut db_file = match std::fs::File::open(&moose_path) {
+            Ok(file) => file,
+            Err(err) => {
+                println!(
+                    "Warning: No Moose JSON found at {:?}, creating empty one. Reload with SIGHUP.",
+                    &moose_path
+                );
+                if let std::io::ErrorKind::NotFound = err.kind() {
+                    std::fs::create_dir_all(moose_path.parent().expect("path with parent dir"))?;
+                    {
+                        let mut file = std::fs::File::create(&moose_path)?;
+                        file.write_all(b"[]")?;
+                    }
+                    std::fs::File::open(moose_path)?
+                } else {
+                    return Err(err);
+                }
+            }
+        };
+        let _ = db_file.read_to_end(&mut moose_json)?;
 
         let mut meese = serde_json::from_slice::<Vec<Moose>>(&moose_json)?;
         // make sure they are ordered by date
