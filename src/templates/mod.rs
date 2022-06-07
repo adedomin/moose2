@@ -64,7 +64,7 @@ pub fn pager(page: usize, page_count: usize) -> Markup {
 pub fn moose_card(moose: &str, href_pre: &str) -> Markup {
     let moose_enc = percent_encode(moose.as_bytes(), NON_ALPHANUMERIC);
     html! {
-       #(moose) .card {
+       #(moose_enc) .card {
             a href={"/img/" (moose_enc)} {
                 img .img src={"/img/" (moose_enc)};
             }

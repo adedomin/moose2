@@ -24,18 +24,24 @@ function build_cards(meese) {
     if (meese.length > 0) {
         error_banner.classList.add('hidden');
         for ([page, moose] of meese) {
+
             const card = document.createElement('div');
             card.classList.add('card');
+
+            const img_link_a = document.createElement('a');
             const img_link = document.createElement('img');
+            img_link_a.appendChild(img_link);
+
             img_link.classList.add('img');
             const text_node = document.createElement('a');
 
             card.id = encodeURIComponent(moose.name);
             img_link.src = `/img/${encodeURIComponent(moose.name)}`;
+            img_link_a.href = img_link.src;
             text_node.href = `/gallery/${page}#${encodeURIComponent(moose.name)}`;
             text_node.textContent = moose.name;
 
-            card.appendChild(img_link);
+            card.appendChild(img_link_a);
             card.appendChild(document.createElement('br'));
             card.appendChild(text_node);
             moose_cards.appendChild(card);
