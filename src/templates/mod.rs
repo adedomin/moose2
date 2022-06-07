@@ -1,4 +1,5 @@
 use maud::{html, Markup};
+use rouille::percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 
 pub mod gallery;
 
@@ -61,13 +62,14 @@ pub fn pager(page: usize, page_count: usize) -> Markup {
 
 /// the moose HTML card to display, only need the name.
 pub fn moose_card(moose: &str, href_pre: &str) -> Markup {
+    let moose_enc = percent_encode(moose.as_bytes(), NON_ALPHANUMERIC);
     html! {
        #(moose) .card {
-            a href={"/img/" (moose)} {
-                img .img src={"/img/" (moose)};
+            a href={"/img/" (moose_enc)} {
+                img .img src={"/img/" (moose_enc)};
             }
             br;
-            a .black-link href={(href_pre) "#" (moose)} { (moose) }
+            a .black-link href={(href_pre) "#" (moose_enc)} { (moose) }
         }
     }
 }
