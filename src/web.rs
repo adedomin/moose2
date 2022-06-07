@@ -1,6 +1,6 @@
-use crate::html;
-use crate::moosedb::{Moose, MooseDb, MoosePage};
+use crate::moosedb::{Moose, MooseDb};
 use crate::render::{moose_png, IrcArt};
+use crate::templates::gallery;
 use lazy_static::lazy_static;
 use rand::Rng;
 use rouille::percent_encoding::percent_decode;
@@ -107,13 +107,8 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
             "/gallery/nojs-search" => {
                 let query = get_query_param_value(req.raw_query_string(), "q");
                 let unlocked = db.read().unwrap();
-                let meese = unlocked
-                    .find_page(&query)
-                    .iter()
-                    .cloned()
-                    .cloned()
-                    .collect::<Vec<Moose>>();
-                let html = html::gallery_page(MoosePage(&meese[..]), 0, 0);
+                let meese = unlocked.find_page_with_link(&query);
+                let html = gallery::nojs_search("Search Results", meese).into_string();
                 let html_crc = crc32fast::hash(html.as_bytes()).to_string();
                 return Response::from_data("text/html", html).with_etag(req, html_crc);
             }
@@ -182,7 +177,7 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
         (GET) (/gallery/{pid: usize}) => {
             let db_locked = db.read().unwrap();
             let meese = db_locked.get_page(pid);
-            let html = html::gallery_page(meese, pid, db_locked.page_count());
+            let html = gallery::gallery(&format!("Page {}", pid), pid, db_locked.page_count(), meese).into_string();
             let html_crc = crc32fast::hash(html.as_bytes()).to_string();
             Response::from_data("text/html", html).with_etag(req, html_crc)
         },

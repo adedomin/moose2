@@ -7,9 +7,9 @@ use std::{
 };
 
 pub mod config;
-pub mod html;
 pub mod moosedb;
 pub mod render;
+pub mod templates;
 pub mod web;
 
 fn main() {
