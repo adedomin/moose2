@@ -1,6 +1,6 @@
 use crate::{
     moosedb::{Moose, MoosePage},
-    templates::{header, moose_card, pager, search_bar},
+    templates::{ebanner, header, moose_card, pager, search_bar},
 };
 use maud::{html, Markup, DOCTYPE};
 
@@ -13,7 +13,9 @@ pub fn gallery(page_title: &str, page: usize, page_count: usize, meese: MoosePag
                 // we duplicate this top and bottom, might as well reuse it?
                 @let p = pager(page, page_count);
                 (p)
-                .cards {
+                (search_bar())
+                (ebanner(meese.0.is_empty()))
+                #moose-cards .cards {
                     @for moose in meese.0 {
                         (moose_card(&moose.name, ""))
                     }
@@ -31,7 +33,8 @@ pub fn nojs_search(page_title: &str, meese: Vec<(usize, &Moose)>) -> Markup {
             (header(page_title))
             body {
                 (search_bar())
-                .cards {
+                (ebanner(meese.is_empty()))
+                #moose-cards .cards {
                     @for (page, moose) in meese {
                         (moose_card(&moose.name, &format!("/gallery/{}", page)))
                     }

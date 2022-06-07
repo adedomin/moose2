@@ -13,6 +13,10 @@ pub fn header(page_title: &str) -> Markup {
     }
 }
 
+pub fn ebanner(is_empty: bool) -> Markup {
+    html!(h1 #hidden-banner-error .center-banner .hidden[!is_empty] { "No Moose!" })
+}
+
 pub fn pager(page: usize, page_count: usize) -> Markup {
     let page_start_range = if let Some(start) = page.checked_sub(5) {
         start
