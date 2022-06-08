@@ -64,12 +64,26 @@ pub fn pager(page: usize, page_count: usize) -> Markup {
 pub fn moose_card(moose: &str, href_pre: &str) -> Markup {
     let moose_enc = percent_encode(moose.as_bytes(), NON_ALPHANUMERIC);
     html! {
-       #(moose_enc) .card {
+       #{"-m-" (moose_enc)} .card {
             a href={"/img/" (moose_enc)} {
                 img .img src={"/img/" (moose_enc)};
             }
             br;
-            a .black-link href={(href_pre) "#" (moose_enc)} { (moose) }
+            a .black-link href={(href_pre) "#-m-" (moose_enc)} { (moose) }
+        }
+    }
+}
+
+pub fn moose_card_template() -> Markup {
+    html! {
+        template #moose-card-template {
+            .card {
+                a .nil {
+                    img .img;
+                }
+                br;
+                a .black-link {}
+            }
         }
     }
 }

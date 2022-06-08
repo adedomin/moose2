@@ -1,6 +1,6 @@
 use crate::{
     moosedb::{Moose, MoosePage},
-    templates::{ebanner, header, moose_card, pager, search_bar},
+    templates::{ebanner, header, moose_card, pager, search_bar, moose_card_template},
 };
 use maud::{html, Markup, DOCTYPE};
 
@@ -21,6 +21,7 @@ pub fn gallery(page_title: &str, page: usize, page_count: usize, meese: MoosePag
                     }
                 }
                 (p)
+                (moose_card_template())
             }
         }
     }

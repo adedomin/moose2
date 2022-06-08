@@ -1,7 +1,9 @@
 const search_form = document.getElementById('search-form');
 const search_field = document.getElementById('search-field');
 const moose_cards = document.getElementById('moose-cards');
+const moose_card_template = document.getElementById('moose-card-template');
 const error_banner = document.getElementById('hidden-banner-error');
+const NO_MOOSE_ERR = "No Moose!";
 
 const page_cards = Array.from(moose_cards.querySelectorAll('.card'));
 
@@ -25,29 +27,23 @@ function build_cards(meese) {
         error_banner.classList.add('hidden');
         for ([page, moose] of meese) {
 
-            const card = document.createElement('div');
-            card.classList.add('card');
+            const template = moose_card_template.content.cloneNode(true);
 
-            const img_link_a = document.createElement('a');
-            const img_link = document.createElement('img');
-            img_link_a.appendChild(img_link);
+            const card = template.querySelector('.card');
+            const img_link_a = template.querySelector('a.nil');
+            const img_link = template.querySelector('img.img');
+            const text_node = template.querySelector('a.black-link');
 
-            img_link.classList.add('img');
-            const text_node = document.createElement('a');
-
-            card.id = encodeURIComponent(moose.name);
+            card.id = `-m-${encodeURIComponent(moose.name)}`;
             img_link.src = `/img/${encodeURIComponent(moose.name)}`;
             img_link_a.href = img_link.src;
-            text_node.href = `/gallery/${page}#${encodeURIComponent(moose.name)}`;
+            text_node.href = `/gallery/${page}#-m-${encodeURIComponent(moose.name)}`;
             text_node.textContent = moose.name;
 
-            card.appendChild(img_link_a);
-            card.appendChild(document.createElement('br'));
-            card.appendChild(text_node);
             moose_cards.appendChild(card);
         }
     } else {
-        error_banner.classList.remove('hidden');
+        throw NO_MOOSE_ERR;
     }
 }
 
@@ -68,7 +64,6 @@ function debounce_ev(func, bypass = false, event) {
 }
 
 function search() {
-    error_banner.textContent = 'No Moose!';
     let form = new URLSearchParams(new FormData(search_form));
     if (form.get('q') !== '') {
         fetch(`/search?${form.toString()}`).then(resp => {
