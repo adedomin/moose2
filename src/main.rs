@@ -25,9 +25,7 @@ fn main() {
 
     thread::spawn(move || {
         println!("Attempting to listen on: http://{}/", listen_addr);
-        astra::Server::bind(listen_addr)
-            .serve(move |req| web::handler(db.clone(), req))
-            .expect("expected Server to start");
+        rouille::start_server(listen_addr, move |req| web::handler(db.clone(), req));
     });
 
     let mut signals = Signals::new([SIGHUP]).expect("expected to listen on sighup");

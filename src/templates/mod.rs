@@ -1,5 +1,5 @@
 use maud::{html, Markup};
-use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
+use rouille::percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 
 pub mod gallery;
 
