@@ -83,6 +83,6 @@ function search() {
     }
 }
 
-search_form.addEventListener('submit', debounce_ev.bind(null, search, true))
+search_form.addEventListener('submit', debounce_ev.bind(null, search, true));
 search_field.addEventListener('input', debounce_ev.bind(null, search, false));
 if (search_field.value != '') search();

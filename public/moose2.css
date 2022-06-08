@@ -1,5 +1,12 @@
 body {
     background-color: whitesmoke;
+    font-family: sans-serif;
+}
+
+@media only screen and (max-device-width: 480px) {
+    body {
+        font-size: 1.5em;
+    }
 }
 
 .cards {
@@ -55,16 +62,28 @@ body {
 .full-width {
     display: flex;
     justify-content: center;
+    margin-left: 2em;
+    margin-right: 2em;
 }
 
 .full-width>input[type="text"] {
-    width: 80%;
+    flex: 1;
     padding: 0.25em 0.5em 0.25em 0.5em;
 }
 
 .full-width>input[type="submit"] {
     padding: 0.25em 0.5em 0.25em 0.5em;
-    margin-left: -2px;
+}
+
+
+@media only screen and (max-device-width: 480px) {
+    .full-width>input[type="text"] {
+        font-size: 1.5em;
+    }
+
+    .full-width>input[type="submit"] {
+        font-size: 1.5em;
+    }
 }
 
 .center-banner {
@@ -85,11 +104,6 @@ body {
     background-color: grey;
     padding: 0.25em 0.5em 0.25em 0.5em;
     /* margin: 1em 0.05em 1em 0.05em; */
-}
-
-
-.selected {
-    background-color: burlywood;
 }
 
 .arrow-right {
@@ -136,4 +150,23 @@ body {
             grey 2.05em) bottom no-repeat;
     text-align: right;
     background-size: 100% 50%;
+}
+
+@media only screen and (max-device-width: 480px) {
+
+    .arrow-left,
+    .arrow-right,
+    .paddle {
+        text-align: center;
+        text-decoration: none;
+        color: white;
+        background-color: grey;
+        padding: 0.25em 0.2em 0.25em 0.2em;
+        margin: 0.1em;
+        /* margin: 1em 0.05em 1em 0.05em; */
+    }
+}
+
+.selected {
+    background-color: burlywood;
 }
