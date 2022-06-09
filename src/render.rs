@@ -1,6 +1,14 @@
 use crate::moosedb::{Dimensions, Moose, PIX_FMT_HEIGHT, PIX_FMT_WIDTH};
+use std::cmp::Ordering::{Equal, Greater, Less};
 
+#[derive(Copy, Clone)]
 pub struct RGBA(u8, u8, u8, u8);
+
+impl From<RGBA> for (u8, u8, u8) {
+    fn from(r: RGBA) -> Self {
+        (r.0, r.1, r.2)
+    }
+}
 
 pub const EXTENDED_COLORS: [RGBA; 100] = [
     // legacy mIRC colors
@@ -135,19 +143,20 @@ const TRNS: [u8; EXTENDED_COLORS.len()] = {
 
 pub const TRANSPARENT: u8 = 99u8;
 
-pub struct IrcArt(pub Vec<u8>);
-
-impl From<IrcArt> for Vec<u8> {
-    fn from(i: IrcArt) -> Self {
-        i.0
-    }
-}
-
 fn pix_char(pixel: u8) -> u8 {
     if pixel == TRANSPARENT {
         b' '
     } else {
         b'@'
+    }
+}
+
+fn single_pixel_term(pixel: u8) -> Vec<u8> {
+    if pixel == TRANSPARENT {
+        b"\x1b[0m ".to_vec()
+    } else {
+        let (r, g, b) = EXTENDED_COLORS[pixel as usize].into();
+        format!("\x1b[48:2:{0}:{1}:{2}m ", r, g, b).into()
     }
 }
 
@@ -193,7 +202,17 @@ fn trim_moose<'m>(image: &'m [u8], dim: &Dimensions) -> Vec<&'m [u8]> {
                 .count();
             (left, right)
         })
-        .min()
+        .reduce(|(l1, r1), (l2, r2)| {
+            let lret = match l1.cmp(&l2) {
+                Less | Equal => l1,
+                Greater => l2,
+            };
+            let rret = match r1.cmp(&r2) {
+                Less | Equal => r1,
+                Greater => r2,
+            };
+            (lret, rret)
+        })
     {
         partials
             .iter()
@@ -204,15 +223,28 @@ fn trim_moose<'m>(image: &'m [u8], dim: &Dimensions) -> Vec<&'m [u8]> {
     }
 }
 
-impl From<&Moose> for IrcArt {
-    fn from(moose: &Moose) -> Self {
-        let mut moose_image = trim_moose(&moose.image, &moose.dimensions);
+pub enum LineType {
+    IrcArt,
+    TrueColorTerm,
+}
 
-        let mut ret = moose_image
-            .drain(..)
-            .flat_map(|row| {
-                let mut out_row = vec![]; // worst case size.
-                let mut last_pix = 100u8;
+pub fn moose_irc(moose: &Moose) -> Vec<u8> {
+    moose_line(moose, LineType::IrcArt)
+}
+
+pub fn moose_term(moose: &Moose) -> Vec<u8> {
+    moose_line(moose, LineType::TrueColorTerm)
+}
+
+pub fn moose_line(moose: &Moose, l: LineType) -> Vec<u8> {
+    let mut moose_image = trim_moose(&moose.image, &moose.dimensions);
+
+    let mut ret = moose_image
+        .drain(..)
+        .flat_map(|row| {
+            let mut out_row = vec![];
+            let mut last_pix = 100u8;
+            if let LineType::IrcArt = l {
                 for &pixel in row {
                     if pixel == last_pix {
                         out_row.push(pix_char(pixel))
@@ -221,20 +253,30 @@ impl From<&Moose> for IrcArt {
                         out_row.extend(single_pixel(pixel));
                     }
                 }
-                out_row.push(b'\n');
-                out_row
-            })
-            .collect::<Vec<u8>>();
+            } else {
+                for &pixel in row {
+                    if pixel == last_pix {
+                        out_row.push(b' ');
+                    } else {
+                        last_pix = pixel;
+                        out_row.extend(single_pixel_term(pixel));
+                    }
+                }
+                out_row.extend(single_pixel_term(TRANSPARENT));
+            }
+            out_row.push(b'\n');
+            out_row
+        })
+        .collect::<Vec<u8>>();
 
-        ret.extend(
-            format!(
-                "\x02{}\x02 by \x02{:?}\x02; created {}.\n",
-                moose.name, moose.author, moose.created
-            )
-            .as_bytes(),
-        );
-        IrcArt(ret)
-    }
+    ret.extend(
+        format!(
+            "\x02{}\x02 by \x02{:?}\x02; created {}.\n",
+            moose.name, moose.author, moose.created
+        )
+        .as_bytes(),
+    );
+    ret
 }
 
 fn idx_1dto2d(x: usize, y: usize, width: usize) -> usize {

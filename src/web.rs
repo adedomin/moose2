@@ -1,5 +1,5 @@
 use crate::moosedb::{Moose, MooseDb};
-use crate::render::{moose_png, IrcArt};
+use crate::render::{moose_irc, moose_png, moose_term};
 use crate::templates::gallery;
 use lazy_static::lazy_static;
 use rand::Rng;
@@ -149,7 +149,17 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
         (GET) (/irc/{moose_name: String}) => {
             let db_locked = db.read().unwrap();
             match simple_get(&db_locked, &moose_name) {
-                Ok(Some(moose)) => Response::from_data("text/irc-art", IrcArt::from(moose)).with_public_cache(3600),
+                Ok(Some(moose)) => Response::from_data("text/irc-art", moose_irc(moose)).with_public_cache(3600),
+                Ok(None) => {
+                    moose_404(&moose_name)
+                },
+                Err(redir) => Response::redirect_303(format!("/irc/{}", redir)),
+            }
+        },
+        (GET) (/term/{moose_name: String}) => {
+            let db_locked = db.read().unwrap();
+            match simple_get(&db_locked, &moose_name) {
+                Ok(Some(moose)) => Response::from_data("text/term-truecolor", moose_term(moose)).with_public_cache(3600),
                 Ok(None) => {
                     moose_404(&moose_name)
                 },
