@@ -159,7 +159,7 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
         (GET) (/term/{moose_name: String}) => {
             let db_locked = db.read().unwrap();
             match simple_get(&db_locked, &moose_name) {
-                Ok(Some(moose)) => Response::from_data("text/term-truecolor", moose_term(moose)).with_public_cache(3600),
+                Ok(Some(moose)) => Response::from_data("text/ansi-truecolor", moose_term(moose)).with_public_cache(3600),
                 Ok(None) => {
                     moose_404(&moose_name)
                 },
