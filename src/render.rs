@@ -1,14 +1,7 @@
 use crate::moosedb::{Dimensions, Moose, PIX_FMT_HEIGHT, PIX_FMT_WIDTH};
 use std::cmp::Ordering::{Equal, Greater, Less};
 
-#[derive(Copy, Clone)]
 pub struct RGBA(u8, u8, u8, u8);
-
-impl From<RGBA> for (u8, u8, u8) {
-    fn from(r: RGBA) -> Self {
-        (r.0, r.1, r.2)
-    }
-}
 
 pub const EXTENDED_COLORS: [RGBA; 100] = [
     // legacy mIRC colors
@@ -137,6 +130,7 @@ const PLTE: [u8; EXTENDED_COLORS.len() * 3] = {
 const TRNS: [u8; EXTENDED_COLORS.len()] = {
     let mut a = [0xFFu8; EXTENDED_COLORS.len()];
     // only the last color is transparent
+    // last() is non const
     a[EXTENDED_COLORS.len() - 1] = 0x00u8;
     a
 };
@@ -155,7 +149,7 @@ fn single_pixel_term(pixel: u8) -> Vec<u8> {
     if pixel == TRANSPARENT {
         b"\x1b[0m ".to_vec()
     } else {
-        let (r, g, b) = EXTENDED_COLORS[pixel as usize].into();
+        let RGBA(r, g, b, _) = EXTENDED_COLORS[pixel as usize];
         format!("\x1b[48;2;{0};{1};{2}m ", r, g, b).into()
     }
 }
@@ -293,6 +287,7 @@ pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
             (PIX_FMT_WIDTH * dim_x) as u32,
             (PIX_FMT_HEIGHT * dim_y) as u32,
         );
+        // Rle is similar to how terminal and irc meese are drawn.
         encoder.set_compression(png::Compression::Best);
         encoder.set_depth(png::BitDepth::Eight);
         encoder.set_color(png::ColorType::Indexed);

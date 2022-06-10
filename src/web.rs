@@ -146,8 +146,13 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
             "/" | "/gallery" | "/gallery/" => return Response::redirect_303("/gallery/0"),
             "/gallery/random" => {
                 let max_page = { db.read().unwrap().page_count() };
-                let rand_idx = rand::thread_rng().gen_range(0..max_page);
-                return Response::redirect_303(format!("/gallery/{}", rand_idx));
+                let range = 0..max_page;
+                if range.is_empty() {
+                    return Response::redirect_303("/gallery/0");
+                } else {
+                    let rand_idx = rand::thread_rng().gen_range(range);
+                    return Response::redirect_303(format!("/gallery/{}", rand_idx));
+                }
             }
             "/gallery/nojs-search" | "/search" => {
                 let query = get_query_param_value(req.raw_query_string(), "q");
@@ -181,6 +186,7 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
         }
     }
 
+    // Parameterized examples.
     router!(req,
         (GET) (/{moose_type: TypeRoutes}/{moose_name: String}) => {
             let db_locked = db.read().unwrap();
@@ -214,6 +220,6 @@ pub fn handler(db: Arc<RwLock<MooseDb>>, req: &Request) -> Response {
             let crc = crc32fast::hash(&meese).to_string();
             Response::from_data("application/json", meese).with_etag(req, crc)
         },
-        _ => json_err_res(404, "path not routable"),
+        _ => json_err_res(404, "no such route"),
     )
 }
