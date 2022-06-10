@@ -178,6 +178,14 @@ impl<'m> From<MoosePage<'m>> for Vec<u8> {
     }
 }
 
+pub struct MooseSearchPage<'m>(pub Vec<(usize, &'m Moose)>);
+
+impl<'m> From<MooseSearchPage<'m>> for Vec<u8> {
+    fn from(meese: MooseSearchPage) -> Self {
+        serde_json::to_vec(&meese.0).unwrap()
+    }
+}
+
 pub fn moose_bulk_transform(moose_in: Option<PathBuf>, moose_out: Option<PathBuf>) {
     let mut moose_in = match moose_in {
         Some(path) => {
@@ -317,8 +325,9 @@ impl MooseDb {
             .unwrap_or_else(Vec::new)
     }
 
-    pub fn find_page_with_link(&self, query: &str) -> Vec<(usize, &Moose)> {
-        self.find(query)
+    pub fn find_page_with_link(&self, query: &str) -> MooseSearchPage {
+        let ret = self
+            .find(query)
             .map(|bmap| {
                 bmap.iter()
                     .take(PAGE_SIZE * 5)
@@ -329,15 +338,12 @@ impl MooseDb {
                     })
                     .collect::<Vec<(usize, &Moose)>>()
             })
-            .unwrap_or_else(Vec::new)
+            .unwrap_or_else(Vec::new);
+        MooseSearchPage(ret)
     }
 
     pub fn find_page_bin(&self, query: &str) -> Vec<u8> {
         serde_json::to_vec(&self.find_page(query)).unwrap()
-    }
-
-    pub fn find_page_with_link_bin(&self, query: &str) -> Vec<u8> {
-        serde_json::to_vec(&self.find_page_with_link(query)).unwrap()
     }
 
     pub fn open() -> std::io::Result<Self> {
