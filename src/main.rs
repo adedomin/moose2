@@ -1,42 +1,44 @@
 // use moosedb::MooseDb;
+use actix_web::{App, HttpServer};
 use moosedb::MooseDb;
-use signal_hook::{consts::SIGHUP};
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, RwLock,
-    },
-};
+use std::{io, sync::RwLock};
 
 pub mod config;
 pub mod moosedb;
 pub mod render;
 pub mod templates;
-pub mod web;
+pub mod web_handlers;
 
-fn main() {
+#[actix_web::main]
+async fn main() -> io::Result<()> {
     let args = <config::Args as clap::Parser>::parse();
     if let config::SubArg::Import { file, output } = args.command {
         moosedb::moose_bulk_transform(file, output);
-        return;
+        return Ok(());
     }
 
-    let db = Arc::new(RwLock::new(MooseDb::open().unwrap()));
-    let reload_signal = Arc::new(AtomicBool::new(false));
-    let _ = signal_hook::flag::register(SIGHUP, reload_signal.clone())
-        .expect("expected to register SIGHUP handler");
     let listen_addr = args.get_bind_addr();
 
     println!("Attempting to listen on: http://{}/", listen_addr);
-    rouille::start_server(listen_addr, move |req| {
-        if let Ok(true) =
-            reload_signal.compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
-        {
-            println!("Reloading Moose database...");
-            let mut db = db.write().unwrap();
-            *db = MooseDb::open().unwrap();
-            println!("Reloaded");
-        }
-        web::handler(db.clone(), req)
-    });
+    HttpServer::new(move || {
+        App::new()
+            .app_data(actix_web::web::Data::new(RwLock::new(
+                MooseDb::open().unwrap(),
+            )))
+            .service(web_handlers::static_files::static_file)
+            .service(web_handlers::static_files::favicon)
+            .service(web_handlers::api::get_moose)
+            .service(web_handlers::api::get_moose_img)
+            .service(web_handlers::api::get_moose_irc)
+            .service(web_handlers::api::get_moose_term)
+            .service(web_handlers::api::get_page_count)
+            .service(web_handlers::api::get_page)
+            .service(web_handlers::api::get_search_res)
+            .service(web_handlers::display::gallery_redir)
+            .service(web_handlers::display::gallery_random_redir)
+            .service(web_handlers::display::gallery_page)
+    })
+    .bind(listen_addr)?
+    .run()
+    .await
 }
