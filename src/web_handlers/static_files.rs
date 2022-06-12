@@ -1,5 +1,13 @@
-use actix_web::{get, web, Responder, body::BoxBody, HttpRequest, HttpResponse, http::{StatusCode, header::{EntityTag, ETag}}};
 use super::if_none_match;
+use actix_web::{
+    body::BoxBody,
+    get,
+    http::{
+        header::{CacheControl, CacheDirective, ETag, EntityTag},
+        StatusCode,
+    },
+    web, HttpRequest, HttpResponse, Responder,
+};
 
 const APP_CSS: &[u8] = include_bytes!("../../public/moose2.css");
 const APP_ICON: &[u8] = include_bytes!("../../public/favicon.ico");
@@ -32,12 +40,20 @@ impl Responder for StaticResp {
             HttpResponse::Ok()
                 .insert_header(etag_head)
                 .insert_header(ctype_head)
+                .insert_header(CacheControl(vec![
+                    CacheDirective::Public,
+                    CacheDirective::MaxAge(3600),
+                ]))
                 .status(StatusCode::NOT_MODIFIED)
                 .body(())
         } else {
             HttpResponse::Ok()
                 .insert_header(etag_head)
                 .insert_header(ctype_head)
+                .insert_header(CacheControl(vec![
+                    CacheDirective::Public,
+                    CacheDirective::MaxAge(3600),
+                ]))
                 .body(body)
         }
     }

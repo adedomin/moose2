@@ -16,6 +16,8 @@ use rand::Rng;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::sync::{RwLock, RwLockReadGuard};
 
+type MooseWebDb = web::Data<RwLock<MooseDb>>;
+
 pub enum ApiResp {
     Body(Vec<u8>, &'static str),
     Redirect(String),
@@ -87,72 +89,64 @@ fn simple_get<'m>(
 pub fn get_all_moose_types<'m>(
     db: &'m RwLockReadGuard<MooseDb>,
     moose_name: &str,
-) -> Result<&'m Moose, ApiResp> {
+    func: fn(&'m Moose) -> ApiResp,
+) -> ApiResp {
     match simple_get(db, moose_name) {
-        Ok(Some(moose)) => Ok(moose),
-        Ok(None) => Err(ApiResp::NotFound(moose_name.to_string())),
-        Err(redir) => Err(ApiResp::Redirect(redir)),
+        Ok(Some(moose)) => func(moose),
+        Ok(None) => ApiResp::NotFound(moose_name.to_string()),
+        Err(redir) => ApiResp::Redirect(redir),
     }
 }
 
 #[get("/moose/{moose_name}")]
-pub async fn get_moose(db: web::Data<RwLock<MooseDb>>, moose_name: web::Path<String>) -> ApiResp {
-    let db_locked = db.read().unwrap();
+pub async fn get_moose(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
+    let db = db.read().unwrap();
     let moose_name = moose_name.into_inner();
-    get_all_moose_types(&db_locked, &moose_name)
-        .and_then::<(), _>(|moose| Err(ApiResp::Body(moose.into(), "application/json")))
-        .unwrap_err()
+    get_all_moose_types(&db, &moose_name, |moose| {
+        ApiResp::Body(moose.into(), "application/json")
+    })
 }
 
 #[get("/img/{moose_name}")]
-pub async fn get_moose_img(
-    db: web::Data<RwLock<MooseDb>>,
-    moose_name: web::Path<String>,
-) -> ApiResp {
-    let db_locked = db.read().unwrap();
+pub async fn get_moose_img(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
+    let db = db.read().unwrap();
     let moose_name = moose_name.into_inner();
-    get_all_moose_types(&db_locked, &moose_name)
-        .and_then::<(), _>(|moose| Err(ApiResp::Body(moose_png(moose).unwrap(), "image/png")))
-        .unwrap_err()
+    get_all_moose_types(&db, &moose_name, |moose| {
+        ApiResp::Body(moose_png(moose).unwrap(), "image/png")
+    })
 }
 
 #[get("/irc/{moose_name}")]
-pub async fn get_moose_irc(
-    db: web::Data<RwLock<MooseDb>>,
-    moose_name: web::Path<String>,
-) -> ApiResp {
-    let db_locked = db.read().unwrap();
+pub async fn get_moose_irc(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
+    let db = db.read().unwrap();
     let moose_name = moose_name.into_inner();
-    get_all_moose_types(&db_locked, &moose_name)
-        .and_then::<(), _>(|moose| Err(ApiResp::Body(moose_irc(moose), "text/irc-art")))
-        .unwrap_err()
+    get_all_moose_types(&db, &moose_name, |moose| {
+        ApiResp::Body(moose_irc(moose), "text/irc-art")
+    })
 }
 
 #[get("/term/{moose_name}")]
-pub async fn get_moose_term(
-    db: web::Data<RwLock<MooseDb>>,
-    moose_name: web::Path<String>,
-) -> ApiResp {
-    let db_locked = db.read().unwrap();
+pub async fn get_moose_term(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
+    let db = db.read().unwrap();
     let moose_name = moose_name.into_inner();
-    get_all_moose_types(&db_locked, &moose_name)
-        .and_then::<(), _>(|moose| Err(ApiResp::Body(moose_term(moose), "text/ansi-truecolor")))
-        .unwrap_err()
+    get_all_moose_types(&db, &moose_name, |moose| {
+        ApiResp::Body(moose_term(moose), "text/ansi-truecolor")
+    })
 }
 
 #[get("/page")]
-pub async fn get_page_count(db: web::Data<RwLock<MooseDb>>) -> HttpResponse {
-    let db_locked = db.read().unwrap();
-    let count = db_locked.page_count();
+pub async fn get_page_count(db: MooseWebDb) -> HttpResponse {
+    let db = db.read().unwrap();
+    let count = db.page_count();
     HttpResponse::Ok()
         .insert_header(("Content-Type", "application/json"))
         .json(count)
 }
 
 #[get("/page/{page_num}")]
-pub async fn get_page(db: web::Data<RwLock<MooseDb>>, page_id: web::Path<usize>) -> HttpResponse {
-    let db_locked = db.read().unwrap();
-    let meese: Vec<u8> = db_locked.get_page(page_id.into_inner()).into();
+pub async fn get_page(db: MooseWebDb, page_id: web::Path<usize>) -> HttpResponse {
+    let db = db.read().unwrap();
+    let meese: Vec<u8> = db.get_page(page_id.into_inner()).into();
     HttpResponse::Ok()
         .insert_header(("Content-Type", "application/json"))
         .body(meese)
@@ -177,12 +171,9 @@ fn from_qstring<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D:
 }
 
 #[get("/search")]
-pub async fn get_search_res(
-    db: web::Data<RwLock<MooseDb>>,
-    query: web::Query<SearchQuery>,
-) -> HttpResponse {
-    let db_locked = db.read().unwrap();
-    let meese: Vec<u8> = db_locked.find_page_with_link(&query.query).into();
+pub async fn get_search_res(db: MooseWebDb, query: web::Query<SearchQuery>) -> HttpResponse {
+    let db = db.read().unwrap();
+    let meese: Vec<u8> = db.find_page_with_link(&query.query).into();
     HttpResponse::Ok()
         .insert_header(("Content-Type", "application/json"))
         .body(meese)
