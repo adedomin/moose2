@@ -42,20 +42,16 @@ pub fn pager(page: usize, page_count: usize) -> Markup {
         .collect::<Vec<usize>>();
 
     html! {
-        .nav-block {
-            @if page != 0 {
-                 a .arrow-left href={"/gallery/" (&(page - 1))} { "Prev" }
-                 a .paddle     href="/gallery/0"             { "Oldest" br; "Page" }
-            }
+        .nav-block data-page-count=(page_count) {
+            a .arrow-left .hidden[page == 0] href={"/gallery/" (&(page.saturating_sub(1)))} { "Prev" }
+            a .paddle     .hidden[page == 0] href="/gallery/0"                              { "Oldest" br; "Page" }
 
             @for pnum in page_range {
                 a .paddle .selected[pnum == page] href={"/gallery/" (pnum)} { (pnum) }
             }
 
-           @if page+1 < page_count {
-               a .paddle      href={"/gallery/" (&(page_count - 1))} { "Newest" br; "Page"}
-               a .arrow-right href={"/gallery/" (&(page       + 1))} { "Next" }
-           }
+            a .paddle      .hidden[page+1 >= page_count] href={"/gallery/" (&(page_count.saturating_sub(1)))} { "Newest" br; "Page"}
+            a .arrow-right .hidden[page+1 >= page_count] href={"/gallery/" (&(page       + 1))}               { "Next" }
         }
     }
 }
