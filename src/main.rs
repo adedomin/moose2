@@ -7,6 +7,7 @@ use std::{io, sync::RwLock, thread};
 pub mod config;
 pub mod moosedb;
 pub mod render;
+pub mod shared_data;
 pub mod templates;
 pub mod web_handlers;
 
@@ -44,6 +45,7 @@ fn main() -> io::Result<()> {
                 .app_data(moosedb.clone())
                 .service(web_handlers::static_files::static_file)
                 .service(web_handlers::static_files::favicon)
+                .service(web_handlers::static_files::color_module)
                 .service(web_handlers::api::get_moose)
                 .service(web_handlers::api::get_moose_img)
                 .service(web_handlers::api::get_moose_irc)

@@ -92,6 +92,6 @@ pub fn search_bar() -> Markup {
                 input #submit                type="submit" value="Search";
             }
         }
-        script defer src="/public/moose2.js" {}
+        script type="module" src="/public/moose2.js" {}
     }
 }

@@ -1,7 +1,8 @@
 use crate::moosedb::{Dimensions, Moose, PIX_FMT_HEIGHT, PIX_FMT_WIDTH};
 use std::cmp::Ordering::{Equal, Greater, Less};
 
-pub struct RGBA(u8, u8, u8, u8);
+#[derive(Copy, Clone)]
+pub struct RGBA(pub u8, pub u8, pub u8, pub u8);
 
 pub const EXTENDED_COLORS: [RGBA; 100] = [
     // legacy mIRC colors
