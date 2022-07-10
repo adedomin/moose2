@@ -1,4 +1,5 @@
-import EXTENDED_COLORS from './colors.js';
+import EXTENDED_COLORS from '/public/const/colors.js';
+import { PIX_FMT_WIDTH, PIX_FMT_HEIGHT, MOOSE_SIZES } from '/public/const/sizes.js';
 
 const search_form = document.getElementById('search-form');
 const search_field = document.getElementById('search-field');
@@ -31,19 +32,9 @@ function restore_page() {
     }
 }
 
-// UGH. src/moosedb.rs:37
-// keep this up to date (probably won't change ever.)
-//
-const PIX_FMT_WIDTH = 16;
-const PIX_FMT_HEIGHT = 24;
-const dimensions = new Map([
-    [26 * 15, [26, 15]],
-    [36 * 22, [36, 22]],
-]);
-
 function draw_moose(image) {
     const painting = atob(image);
-    const [width, height] = dimensions.get(painting.length);
+    const [width, height] = MOOSE_SIZES.get(painting.length);
     const c = document.createElement('canvas');
     c.width = width * PIX_FMT_WIDTH;
     c.height = height * PIX_FMT_HEIGHT;

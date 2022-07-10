@@ -45,7 +45,7 @@ fn main() -> io::Result<()> {
                 .app_data(moosedb.clone())
                 .service(web_handlers::static_files::static_file)
                 .service(web_handlers::static_files::favicon)
-                .service(web_handlers::static_files::color_module)
+                .service(web_handlers::static_files::const_js_modules)
                 .service(web_handlers::api::get_moose)
                 .service(web_handlers::api::get_moose_img)
                 .service(web_handlers::api::get_moose_irc)

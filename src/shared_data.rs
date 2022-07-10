@@ -1,4 +1,7 @@
-use crate::render::{EXTENDED_COLORS, RGBA};
+use crate::{
+    moosedb::{DEFAULT_SIZE, HD_SIZE, PIX_FMT_HEIGHT, PIX_FMT_WIDTH},
+    render::{EXTENDED_COLORS, RGBA},
+};
 
 const COLOR_PREAMBLE: &[u8] = b"export default [";
 const COLOR_END: &[u8] = b"];\n";
@@ -13,7 +16,11 @@ macro_rules! const_write_bytes {
             $target[i + $off] = source[i];
             i += 1;
         }
-        $off += i;
+        // ....the block is for this annotation.
+        #[allow(unused_assignments)]
+        {
+            $off += i;
+        }
     };
 }
 
@@ -40,11 +47,10 @@ const fn hex_color(RGBA(r, g, b, a): RGBA) -> [u8; 8] {
 
 pub const COLORS_JS: [u8; SOURCE_LEN] = {
     let mut module_file: [u8; SOURCE_LEN] = [b' '; SOURCE_LEN];
-    let mut i = 0usize;
     let mut off = 0usize;
-
     const_write_bytes!(module_file, COLOR_PREAMBLE, off);
 
+    let mut i = 0usize;
     while i < EXTENDED_COLORS.len() {
         const_write_bytes!(module_file, b"'#", off);
         const_write_bytes!(module_file, hex_color(EXTENDED_COLORS[i]), off);
@@ -53,5 +59,71 @@ pub const COLORS_JS: [u8; SOURCE_LEN] = {
     }
 
     const_write_bytes!(module_file, COLOR_END, off);
+    module_file
+};
+
+const fn usize_to_u16hex(num: usize) -> [u8; 6] {
+    let mut ret = [0; 6];
+    ret[0] = b'0';
+    ret[1] = b'x';
+
+    let num = num & (0xFFFF);
+    ret[2] = hex((num >> 12) as u8);
+    ret[3] = hex(((num & 0x0FFF) >> 8) as u8);
+    ret[4] = hex(((num & 0x00FF) >> 4) as u8);
+    ret[5] = hex((num & 0x000F) as u8);
+    ret
+}
+
+const SIZ_NAMED_FIELD_1: &[u8] = b"const PIX_FMT_WIDTH=";
+const SIZ_NAMED_FIELD_2: &[u8] = b";const PIX_FMT_HEIGHT=";
+const SIZ_NAMED_FIELD_3: &[u8] = b";const MOOSE_SIZES=new Map([";
+const SIZ_END: &[u8] = b"]);export {PIX_FMT_WIDTH,PIX_FMT_HEIGHT,MOOSE_SIZES};\n";
+// 0x00000000 = 10
+// 8 numbers
+// 5 : + 1
+// 2 [ , ] { }
+// 9 * 10 + 1
+const SIZ_LEN: usize = 6 * 8 // size of number and the number of them
+    + 13 // extra syntax [,] for MOOSE_SIZES field.
+    + SIZ_END.len()
+    + SIZ_NAMED_FIELD_1.len()
+    + SIZ_NAMED_FIELD_2.len()
+    + SIZ_NAMED_FIELD_3.len();
+pub const SIZ_JS: [u8; SIZ_LEN] = {
+    let mut module_file = [b' '; SIZ_LEN];
+    let mut off = 0usize;
+
+    const_write_bytes!(module_file, SIZ_NAMED_FIELD_1, off);
+    const_write_bytes!(module_file, usize_to_u16hex(PIX_FMT_WIDTH), off);
+
+    const_write_bytes!(module_file, SIZ_NAMED_FIELD_2, off);
+    const_write_bytes!(module_file, usize_to_u16hex(PIX_FMT_HEIGHT), off);
+
+    const_write_bytes!(module_file, SIZ_NAMED_FIELD_3, off);
+    // for visual aid only
+    {
+        let (small_w, small_h, small_l) = DEFAULT_SIZE;
+        module_file[off] = b'[';
+        off += 1;
+        const_write_bytes!(module_file, usize_to_u16hex(small_l), off);
+        const_write_bytes!(module_file, b",[", off);
+        const_write_bytes!(module_file, usize_to_u16hex(small_w), off);
+        module_file[off] = b',';
+        off += 1;
+        const_write_bytes!(module_file, usize_to_u16hex(small_h), off);
+        const_write_bytes!(module_file, b"]],[", off);
+
+        let (hd_w, hd_h, hd_l) = HD_SIZE;
+        const_write_bytes!(module_file, usize_to_u16hex(hd_l), off);
+        const_write_bytes!(module_file, b",[", off);
+        const_write_bytes!(module_file, usize_to_u16hex(hd_w), off);
+        module_file[off] = b',';
+        off += 1;
+        const_write_bytes!(module_file, usize_to_u16hex(hd_h), off);
+        const_write_bytes!(module_file, b"]]", off);
+    }
+    const_write_bytes!(module_file, SIZ_END, off);
+
     module_file
 };

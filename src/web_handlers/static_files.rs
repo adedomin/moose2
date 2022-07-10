@@ -1,5 +1,5 @@
 use super::if_none_match;
-use crate::shared_data;
+use crate::shared_data::{COLORS_JS, SIZ_JS};
 use actix_web::{
     body::BoxBody,
     get,
@@ -75,10 +75,12 @@ pub async fn static_file(t: web::Path<String>) -> StaticResp {
     StaticResp(Static::Body(body, ctype))
 }
 
-#[get("/public/colors.js")]
-pub async fn color_module() -> StaticResp {
-    StaticResp(Static::Body(
-        &shared_data::COLORS_JS,
-        "application/javascript",
-    ))
+#[get("/public/const/{const}.js")]
+pub async fn const_js_modules(c: web::Path<String>) -> StaticResp {
+    let body = match c.into_inner().as_str() {
+        "colors" => COLORS_JS.as_ref(),
+        "sizes" => SIZ_JS.as_ref(),
+        _ => return StaticResp(Static::NotFound),
+    };
+    StaticResp(Static::Body(body, "application/javascript"))
 }
