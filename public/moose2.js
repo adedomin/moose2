@@ -6,30 +6,18 @@ const search_field = document.getElementById('search-field');
 const moose_cards = document.getElementById('moose-cards');
 const moose_card_template = document.getElementById('moose-card-template');
 const error_banner = document.getElementById('hidden-banner-error');
-const page_count = document.querySelector('.nav-block').dataset.pageCount;
-const query_obj = new URLSearchParams(window.location.search);
+
 const NO_MOOSE_ERR = "No Moose!";
 
 function current_page() {
-    window.location.pathname.slice('/gallery/'.length);
+    return window.location.pathname.slice('/gallery/'.length);
 }
-
-const page_cards = Array.from(moose_cards.querySelectorAll('.card'));
 
 const blob_urls = [];
 function del_old_search() {
     moose_cards.innerHTML = '';
     blob_urls.forEach(URL.revokeObjectURL);
     blob_urls.length = 0;
-}
-
-function restore_page() {
-    moose_cards.append(...page_cards);
-    if (page_cards.length > 0) {
-        error_banner.classList.add('hidden');
-    } else {
-        error_banner.classList.remove('hidden');
-    }
 }
 
 function draw_moose(image) {
@@ -53,13 +41,16 @@ function draw_moose(image) {
     return c;
 }
 
-function build_cards(meese) {
-    del_old_search();
-
+function build_cards(meese_) {
+    let meese = meese_;
     if (meese.length > 0) {
         error_banner.classList.add('hidden');
+        if (!Array.isArray(meese[0])) {
+            const curr = current_page();
+            meese = meese.map(moose => [curr, moose]);
+        }
+        const new_els = [];
         for (const [page, moose] of meese) {
-
             const template = moose_card_template.content.cloneNode(true);
 
             const card = template.querySelector('.card');
@@ -77,8 +68,10 @@ function build_cards(meese) {
             text_node.href = `/gallery/${page}#-m-${encodeURIComponent(moose.name)}`;
             text_node.textContent = moose.name;
 
-            moose_cards.appendChild(card);
+            new_els.push(card);
         }
+        del_old_search();
+        moose_cards.append(...new_els);
     } else {
         throw NO_MOOSE_ERR;
     }
@@ -100,26 +93,37 @@ function debounce_ev(func, bypass = false, event) {
     }
 }
 
+function fetch_moose_arr(path) {
+    fetch(path).then(resp => {
+        if (resp.ok) return resp.json();
+        else throw Error(`Got non-OK status code: ${resp.status}`);
+    }).then(meese => {
+        build_cards(meese);
+    }).catch(e => {
+        del_old_search();
+        error_banner.classList.remove('hidden');
+        error_banner.textContent = e.toString();
+        console.error(e);
+    })
+}
+
 function search() {
     let form = new URLSearchParams(new FormData(search_form));
     if (form.get('q') !== '') {
-        fetch(`/search?${form.toString()}`).then(resp => {
-            if (resp.ok) return resp.json();
-            else throw Error(`Got non-OK status code: ${resp.status}`);
-        }).then(meese => {
-            build_cards(meese);
-        }).catch(e => {
-            del_old_search();
-            error_banner.classList.remove('hidden');
-            error_banner.textContent = e.toString();
-            console.error(e);
-        })
+        history.replaceState(null, '', `${window.location.pathname}?${form.toString()}`);
+        fetch_moose_arr(`/search?${form.toString()}`);
     } else {
-        del_old_search();
-        restore_page();
+        history.replaceState(null, '', `${window.location.pathname}`);
+        fetch_moose_arr(`/page/${current_page()}`);
     }
 }
 
 search_form.addEventListener('submit', debounce_ev.bind(null, search, true));
 search_field.addEventListener('input', debounce_ev.bind(null, search, false));
-if (search_field.value != '') search();
+// if (search_field.value != '') search();
+const query_obj = new URLSearchParams(window.location.search);
+if (query_obj.has('q')) {
+    const q = query_obj.get('q');
+    search_field.value = q;
+}
+search();

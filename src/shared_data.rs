@@ -79,12 +79,7 @@ const SIZ_NAMED_FIELD_1: &[u8] = b"const PIX_FMT_WIDTH=";
 const SIZ_NAMED_FIELD_2: &[u8] = b";const PIX_FMT_HEIGHT=";
 const SIZ_NAMED_FIELD_3: &[u8] = b";const MOOSE_SIZES=new Map([";
 const SIZ_END: &[u8] = b"]);export {PIX_FMT_WIDTH,PIX_FMT_HEIGHT,MOOSE_SIZES};\n";
-// 0x00000000 = 10
-// 8 numbers
-// 5 : + 1
-// 2 [ , ] { }
-// 9 * 10 + 1
-const SIZ_LEN: usize = 6 * 8 // size of number and the number of them
+const SIZ_LEN: usize = 6 * 8 // size of number (0x0000) and the number of them (6)
     + 13 // extra syntax [,] for MOOSE_SIZES field.
     + SIZ_END.len()
     + SIZ_NAMED_FIELD_1.len()

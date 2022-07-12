@@ -1,3 +1,4 @@
+use super::SearchQuery;
 use crate::{moosedb::MooseDb, templates::gallery};
 use actix_web::{
     get,
@@ -30,6 +31,19 @@ pub async fn gallery_random_redir(db: web::Data<RwLock<MooseDb>>) -> HttpRespons
             .status(StatusCode::SEE_OTHER)
             .body(())
     }
+}
+
+#[get("/gallery/nojs-search")]
+pub async fn nojs_gallery_search(
+    db: web::Data<RwLock<MooseDb>>,
+    query: web::Query<SearchQuery>,
+) -> HttpResponse {
+    let db = db.read().unwrap();
+    let meese = db.find_page_with_link(&query.query);
+    let html = gallery::nojs_search(&query.query, meese).into_string();
+    HttpResponse::Ok()
+        .insert_header(("Content-Type", "text/html"))
+        .body(html)
 }
 
 #[get("/gallery/{page_id}")]

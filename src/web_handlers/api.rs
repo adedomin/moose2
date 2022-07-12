@@ -1,3 +1,4 @@
+use super::{if_none_match_md5, SearchQuery};
 use crate::{
     moosedb::{Moose, MooseDb},
     render::{moose_irc, moose_png, moose_term},
@@ -6,14 +7,14 @@ use actix_web::{
     body::BoxBody,
     get,
     http::{
-        header::{CacheControl, CacheDirective, LOCATION},
+        header::{CacheControl, CacheDirective, ETag, EntityTag, LOCATION},
         StatusCode,
     },
     web, HttpResponse, Responder,
 };
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use rand::Rng;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::Serialize;
 use std::sync::{RwLock, RwLockReadGuard};
 
 type MooseWebDb = web::Data<RwLock<MooseDb>>;
@@ -58,6 +59,42 @@ impl Responder for ApiResp {
             ApiResp::NotFound(moose_name) => HttpResponse::Ok()
                 .status(StatusCode::NOT_FOUND)
                 .json(ApiError::new(format!("no such moose: {}", moose_name))),
+        }
+    }
+}
+
+pub enum VarBody {
+    Found(Vec<u8>, &'static str),
+    NotFound,
+}
+
+impl Responder for VarBody {
+    type Body = BoxBody;
+
+    fn respond_to(self, req: &actix_web::HttpRequest) -> HttpResponse<Self::Body> {
+        let (body, ctype) = if let VarBody::Found(body, ctype) = self {
+            (body, ctype)
+        } else {
+            return HttpResponse::Ok()
+                .status(StatusCode::NOT_FOUND)
+                .body("No such file or directory.");
+        };
+
+        let (etag_match, md5_hex) = if_none_match_md5(&body, req);
+        let etag_head = ETag(EntityTag::new_strong(md5_hex));
+        let ctype_head = ("Content-Type", ctype);
+
+        if etag_match {
+            HttpResponse::Ok()
+                .insert_header(etag_head)
+                .insert_header(ctype_head)
+                .status(StatusCode::NOT_MODIFIED)
+                .body(())
+        } else {
+            HttpResponse::Ok()
+                .insert_header(etag_head)
+                .insert_header(ctype_head)
+                .body(body)
         }
     }
 }
@@ -144,37 +181,15 @@ pub async fn get_page_count(db: MooseWebDb) -> HttpResponse {
 }
 
 #[get("/page/{page_num}")]
-pub async fn get_page(db: MooseWebDb, page_id: web::Path<usize>) -> HttpResponse {
+pub async fn get_page(db: MooseWebDb, page_id: web::Path<usize>) -> VarBody {
     let db = db.read().unwrap();
     let meese: Vec<u8> = db.get_page(page_id.into_inner()).into();
-    HttpResponse::Ok()
-        .insert_header(("Content-Type", "application/json"))
-        .body(meese)
-}
-
-#[derive(Deserialize)]
-pub struct SearchQuery {
-    #[serde(alias = "q", deserialize_with = "from_qstring")]
-    pub query: String,
-}
-
-fn from_qstring<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
-    String::deserialize(deserializer).and_then(|q| {
-        if q.is_empty() {
-            Err(serde::de::Error::custom("query is empty"))
-        } else if q.len() > 50 {
-            Err(serde::de::Error::custom("query too large"))
-        } else {
-            Ok(q)
-        }
-    })
+    VarBody::Found(meese, "application/json")
 }
 
 #[get("/search")]
-pub async fn get_search_res(db: MooseWebDb, query: web::Query<SearchQuery>) -> HttpResponse {
+pub async fn get_search_res(db: MooseWebDb, query: web::Query<SearchQuery>) -> VarBody {
     let db = db.read().unwrap();
     let meese: Vec<u8> = db.find_page_with_link(&query.query).into();
-    HttpResponse::Ok()
-        .insert_header(("Content-Type", "application/json"))
-        .body(meese)
+    VarBody::Found(meese, "application/json")
 }

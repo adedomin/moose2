@@ -8,6 +8,7 @@ pub fn header(page_title: &str) -> Markup {
         head {
             meta charset="utf-8";
             meta name="description" content="Draw and Share Moose with your IRC friends.";
+            meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no";
             link rel="stylesheet" href="/public/moose2.css";
             title { "Moose2 - " (page_title) }
         }
@@ -42,16 +43,16 @@ pub fn pager(page: usize, page_count: usize) -> Markup {
         .collect::<Vec<usize>>();
 
     html! {
-        .nav-block data-page-count=(page_count) {
-            a .arrow-left .hidden[page == 0] href={"/gallery/" (&(page.saturating_sub(1)))} { "Prev" }
-            a .paddle     .hidden[page == 0] href="/gallery/0"                              { "Oldest" br; "Page" }
+        .nav-block {
+            a .arrow-left         .hidden[page == 0] href={"/gallery/" (&(page.saturating_sub(1)))} { "Prev" }
+            a .paddle.paddle-edge .hidden[page == 0] .paddle-edge href="/gallery/0"                 { "Oldest" br; "Page" }
 
             @for pnum in page_range {
                 a .paddle .selected[pnum == page] href={"/gallery/" (pnum)} { (pnum) }
             }
 
-            a .paddle      .hidden[page+1 >= page_count] href={"/gallery/" (&(page_count.saturating_sub(1)))} { "Newest" br; "Page"}
-            a .arrow-right .hidden[page+1 >= page_count] href={"/gallery/" (&(page       + 1))}               { "Next" }
+            a .paddle.paddle-edge .hidden[page+1 >= page_count] href={"/gallery/" (&(page_count.saturating_sub(1)))} { "Newest" br; "Page"}
+            a .arrow-right        .hidden[page+1 >= page_count] href={"/gallery/" (&(page       + 1))}               { "Next" }
         }
     }
 }

@@ -55,6 +55,7 @@ fn main() -> io::Result<()> {
                 .service(web_handlers::api::get_search_res)
                 .service(web_handlers::display::gallery_redir)
                 .service(web_handlers::display::gallery_random_redir)
+                .service(web_handlers::display::nojs_gallery_search)
                 .service(web_handlers::display::gallery_page)
         });
         if !listen_addr.starts_with("unix:") {

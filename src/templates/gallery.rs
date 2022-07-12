@@ -17,7 +17,9 @@ pub fn gallery(page_title: &str, page: usize, page_count: usize, meese: MoosePag
                 (ebanner(meese.0.is_empty()))
                 #moose-cards .cards {
                     @for moose in meese.0 {
-                        (moose_card(&moose.name, ""))
+                        noscript {
+                            (moose_card(&moose.name, ""))
+                        }
                     }
                 }
                 (p)
