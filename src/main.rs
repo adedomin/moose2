@@ -52,6 +52,7 @@ fn main() -> io::Result<()> {
                 .service(web_handlers::api::get_moose_term)
                 .service(web_handlers::api::get_page_count)
                 .service(web_handlers::api::get_page)
+                .service(web_handlers::api::get_page_nav_range)
                 .service(web_handlers::api::get_search_res)
                 .service(web_handlers::display::gallery_redir)
                 .service(web_handlers::display::gallery_random_redir)

@@ -2,6 +2,7 @@ use super::{if_none_match_md5, SearchQuery};
 use crate::{
     moosedb::{Moose, MooseDb},
     render::{moose_irc, moose_png, moose_term},
+    templates,
 };
 use actix_web::{
     body::BoxBody,
@@ -175,6 +176,7 @@ pub async fn get_moose_term(db: MooseWebDb, moose_name: web::Path<String>) -> Ap
 pub async fn get_page_count(db: MooseWebDb) -> HttpResponse {
     let db = db.read().unwrap();
     let count = db.page_count();
+    // response too small to make caching worth it.
     HttpResponse::Ok()
         .insert_header(("Content-Type", "application/json"))
         .json(count)
@@ -185,6 +187,16 @@ pub async fn get_page(db: MooseWebDb, page_id: web::Path<usize>) -> VarBody {
     let db = db.read().unwrap();
     let meese: Vec<u8> = db.get_page(page_id.into_inner()).into();
     VarBody::Found(meese, "application/json")
+}
+
+#[get("/nav/{page_num}")]
+pub async fn get_page_nav_range(db: MooseWebDb, page_id: web::Path<usize>) -> HttpResponse {
+    let db = db.read().unwrap();
+    let meese = templates::page_range(page_id.into_inner(), db.page_count());
+    // response too small to make caching worth it.
+    HttpResponse::Ok()
+        .insert_header(("Content-Type", "application/json"))
+        .json(meese.collect::<Vec<usize>>())
 }
 
 #[get("/search")]

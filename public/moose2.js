@@ -9,8 +9,12 @@ const error_banner = document.getElementById('hidden-banner-error');
 
 const NO_MOOSE_ERR = "No Moose!";
 
+function get_page_num(str) {
+    return +(str.slice('/gallery/'.length));
+}
+
 function current_page() {
-    return window.location.pathname.slice('/gallery/'.length);
+    return get_page_num(window.location.pathname);
 }
 
 const blob_urls = [];
@@ -30,7 +34,7 @@ function draw_moose(image) {
 
     for (let idx = 0; idx < painting.length; idx++) {
         const color = painting.charCodeAt(idx);
-        if (color == 99) continue;
+        if (color === 99) continue;
         const y = Math.floor(idx / width) * PIX_FMT_HEIGHT;
         const x = (idx % width) * PIX_FMT_WIDTH;
 
@@ -39,6 +43,65 @@ function draw_moose(image) {
     }
 
     return c;
+}
+
+function* page_renumber_range(to_page, page_count) {
+    if (page_count < to_page) return;
+
+    let start = to_page - 5;
+    if (start < 0) {
+        start += Math.abs(to_page - 5);
+    } else if (start !== 0 && Math.abs(page_count - start) < 10) {
+        start -= 10 - Math.abs(page_count - start);
+    }
+
+    for (let i = start; i < start + 10 && i < page_count; ++i) yield i;
+}
+
+function renumber_nav() {
+    const to_page = current_page();
+    const nav = document.querySelector('.nav-block');
+    const page_count = +nav.children[nav.childElementCount - 2].dataset.page + 1;
+    const page_range = [...page_renumber_range(to_page, page_count)];
+    document.querySelectorAll('.nav-block').forEach(nav => {
+        const left_arrow = nav.children[0];
+        left_arrow.href = `/gallery/${to_page - 1}`;
+        left_arrow.dataset.page = to_page - 1;
+
+        const right_arrow = nav.children[nav.childElementCount - 1];
+        right_arrow.href = `/gallery/${to_page + 1}`;
+        right_arrow.dataset.page = to_page + 1;
+
+        for (let i = 2; i < nav.childElementCount - 2; ++i) {
+            nav.children[i].textContent = page_range[i - 2];
+            nav.children[i].href = `/gallery/${page_range[i - 2]}`;
+            nav.children[i].dataset.page = page_range[i - 2];
+            if (page_range[i - 2] === to_page) {
+                nav.children[i].classList.add('selected');
+            } else {
+                nav.children[i].classList.remove('selected');
+            }
+        }
+
+        const first_page = nav.children[1];
+        const last_page = nav.children[nav.childElementCount - 2];
+
+        if (left_arrow.dataset.page < 0) {
+            left_arrow.classList.add('hidden');
+            first_page.classList.add('hidden');
+        } else {
+            left_arrow.classList.remove('hidden');
+            first_page.classList.remove('hidden');
+        }
+
+        if (page_count - 1 < right_arrow.dataset.page) {
+            right_arrow.classList.add('hidden');
+            last_page.classList.add('hidden');
+        } else {
+            right_arrow.classList.remove('hidden');
+            last_page.classList.remove('hidden');
+        }
+    })
 }
 
 function build_cards(meese_) {
@@ -107,6 +170,22 @@ function fetch_moose_arr(path) {
     })
 }
 
+function add_nav_handlers() {
+    document.querySelectorAll('.nav-block').forEach(nav => {
+        for (let i = 0; i < nav.childElementCount; ++i) {
+            const child = nav.children[i];
+            child.dataset.page = get_page_num((new URL(child.href)).pathname);
+            child.addEventListener('click', ev => {
+                ev.preventDefault();
+                if (+ev.target.dataset.page === current_page()) return;
+                history.pushState(null, '', ev.target.href);
+                renumber_nav();
+                search();
+            });
+        };
+    });
+}
+
 function search() {
     let form = new URLSearchParams(new FormData(search_form));
     if (form.get('q') !== '') {
@@ -118,12 +197,17 @@ function search() {
     }
 }
 
+window.addEventListener('popstate', ev => {
+    renumber_nav();
+    search();
+});
 search_form.addEventListener('submit', debounce_ev.bind(null, search, true));
 search_field.addEventListener('input', debounce_ev.bind(null, search, false));
-// if (search_field.value != '') search();
+// if (search_field.value !== '') search();
 const query_obj = new URLSearchParams(window.location.search);
 if (query_obj.has('q')) {
     const q = query_obj.get('q');
     search_field.value = q;
 }
+add_nav_handlers();
 search();

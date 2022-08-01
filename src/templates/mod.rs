@@ -19,35 +19,25 @@ pub fn ebanner(is_empty: bool) -> Markup {
     html!(h1 #hidden-banner-error .center-banner .hidden[!is_empty] { "No Moose!" })
 }
 
-pub fn pager(page: usize, page_count: usize) -> Markup {
-    let page_start_range = if let Some(start) = page.checked_sub(5) {
-        start
-    } else {
-        0
-    };
+pub fn page_range(page: usize, page_count: usize) -> std::iter::Take<std::ops::Range<usize>> {
+    let page_start_range = page.saturating_sub(5);
 
     let page_start_range = if page_start_range.abs_diff(page_count) < 10 {
-        if let Some(start) =
-            page_start_range.checked_sub(10 - page_start_range.abs_diff(page_count))
-        {
-            start
-        } else {
-            0
-        }
+        page_start_range.saturating_sub(10 - page_start_range.abs_diff(page_count))
     } else {
         page_start_range
     };
 
-    let page_range = (page_start_range..page_count)
-        .take(10)
-        .collect::<Vec<usize>>();
+    (page_start_range..page_count).take(10)
+}
 
+pub fn pager(page: usize, page_count: usize) -> Markup {
     html! {
         .nav-block {
             a .arrow-left         .hidden[page == 0] href={"/gallery/" (&(page.saturating_sub(1)))} { "Prev" }
             a .paddle.paddle-edge .hidden[page == 0] .paddle-edge href="/gallery/0"                 { "Oldest" br; "Page" }
 
-            @for pnum in page_range {
+            @for pnum in page_range(page, page_count) {
                 a .paddle .selected[pnum == page] href={"/gallery/" (pnum)} { (pnum) }
             }
 
