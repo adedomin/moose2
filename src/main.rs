@@ -21,7 +21,7 @@ fn main() -> io::Result<()> {
     let moosedb = actix_web::web::Data::new(RwLock::new(MooseDb::open().unwrap()));
 
     let moosedb_clone = moosedb.clone();
-    let mut signal_handler = Signals::new(&[SIGHUP]).unwrap();
+    let mut signal_handler = Signals::new([SIGHUP]).unwrap();
     thread::spawn(move || {
         let signals = signal_handler.forever();
         for signal in signals {

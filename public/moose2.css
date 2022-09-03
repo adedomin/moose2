@@ -126,6 +126,11 @@ body {
     display: none;
 }
 
+.disable {
+    pointer-events: none;
+    opacity: .33;
+}
+
 .paddle {
     text-align: center;
     text-decoration: none;

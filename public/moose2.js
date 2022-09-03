@@ -177,6 +177,7 @@ function add_nav_handlers() {
             child.dataset.page = get_page_num((new URL(child.href)).pathname);
             child.addEventListener('click', ev => {
                 ev.preventDefault();
+                // if (ev.target.parentElement.classList.has('disable')) return;
                 if (+ev.target.dataset.page === current_page()) return;
                 history.pushState(null, '', ev.target.href);
                 renumber_nav();
@@ -190,9 +191,15 @@ function search() {
     let form = new URLSearchParams(new FormData(search_form));
     if (form.get('q') !== '') {
         history.replaceState(null, '', `${window.location.pathname}?${form.toString()}`);
+        document.querySelectorAll('.nav-block').forEach(nav => {
+            nav.classList.add('disable');
+        });
         fetch_moose_arr(`/search?${form.toString()}`);
     } else {
         history.replaceState(null, '', `${window.location.pathname}`);
+        document.querySelectorAll('.nav-block').forEach(nav => {
+            nav.classList.remove('disable');
+        });
         fetch_moose_arr(`/page/${current_page()}`);
     }
 }

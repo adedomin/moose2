@@ -13,15 +13,20 @@ use actix_web::{
     },
     web, HttpResponse, Responder,
 };
+use core::time;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use rand::Rng;
 use serde::Serialize;
-use std::sync::{RwLock, RwLockReadGuard};
+use std::{
+    sync::{RwLock, RwLockReadGuard},
+    time::Duration,
+};
 
 type MooseWebDb = web::Data<RwLock<MooseDb>>;
 
 pub enum ApiResp {
     Body(Vec<u8>, &'static str),
+    BodyCacheTime(Vec<u8>, &'static str, time::Duration),
     Redirect(String),
     NotFound(String),
 }
@@ -51,6 +56,12 @@ impl Responder for ApiResp {
         match self {
             ApiResp::Body(body, ctype) => HttpResponse::Ok()
                 .insert_header(CacheControl(vec![CacheDirective::MaxAge(3600)]))
+                .insert_header(("Content-Type", ctype))
+                .body(body),
+            ApiResp::BodyCacheTime(body, ctype, duration) => HttpResponse::Ok()
+                .insert_header(CacheControl(vec![CacheDirective::MaxAge(
+                    duration.as_secs() as u32,
+                )]))
                 .insert_header(("Content-Type", ctype))
                 .body(body),
             ApiResp::Redirect(path) => HttpResponse::Ok()
@@ -183,10 +194,10 @@ pub async fn get_page_count(db: MooseWebDb) -> HttpResponse {
 }
 
 #[get("/page/{page_num}")]
-pub async fn get_page(db: MooseWebDb, page_id: web::Path<usize>) -> VarBody {
+pub async fn get_page(db: MooseWebDb, page_id: web::Path<usize>) -> ApiResp {
     let db = db.read().unwrap();
     let meese: Vec<u8> = db.get_page(page_id.into_inner()).into();
-    VarBody::Found(meese, "application/json")
+    ApiResp::BodyCacheTime(meese, "application/json", Duration::from_secs(300))
 }
 
 #[get("/nav/{page_num}")]
@@ -200,8 +211,8 @@ pub async fn get_page_nav_range(db: MooseWebDb, page_id: web::Path<usize>) -> Ht
 }
 
 #[get("/search")]
-pub async fn get_search_res(db: MooseWebDb, query: web::Query<SearchQuery>) -> VarBody {
+pub async fn get_search_res(db: MooseWebDb, query: web::Query<SearchQuery>) -> ApiResp {
     let db = db.read().unwrap();
     let meese: Vec<u8> = db.find_page_with_link(&query.query).into();
-    VarBody::Found(meese, "application/json")
+    ApiResp::BodyCacheTime(meese, "application/json", Duration::from_secs(300))
 }

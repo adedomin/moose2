@@ -1,5 +1,6 @@
 use crate::config;
 use chrono::{DateTime, Utc};
+use levenshtein::levenshtein;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
@@ -243,9 +244,15 @@ impl Index<usize> for MooseDb {
 fn search_tokenize_words(s: &str) -> impl Iterator<Item = String> + '_ {
     s.as_bytes()
         .split(|&chr| matches!(chr, 0_u8..=b'/' | b':'..=b'@' | b'['..=b'`' | b'{'..=127_u8))
-        // since this is already valid unicode, since we aren't taking out >127 chars, this should be safe.
-        .map(|byte_slice| unsafe { std::str::from_utf8_unchecked(byte_slice) })
-        .map(|s| s.to_ascii_lowercase())
+        .flat_map(|word| {
+            // remove empty words
+            if word.is_empty() {
+                return None;
+            }
+            // remove invalid unicode words
+            let word = std::str::from_utf8(word).ok()?;
+            Some(word.to_ascii_lowercase())
+        })
 }
 
 fn reindex_db(meese: &[Moose]) -> (HashMap<String, usize>, HashMap<String, RoaringBitmap>) {
@@ -302,7 +309,11 @@ impl MooseDb {
 
     fn find(&self, query: &str) -> Option<RoaringBitmap> {
         search_tokenize_words(query)
-            .flat_map(|word| self.meese_fts.get(&word)) // We're removing words with no hits to the reverse index.... good?
+            // .map(|word| { println!("{}", word); word })
+            .flat_map(
+                |word| /* We're removing words with no hits to the reverse index.... good? */
+                self.meese_fts.get(&word),
+            )
             .cloned()
             .reduce(|acc, next| acc & next)
             .and_then(|result| {
@@ -315,31 +326,45 @@ impl MooseDb {
     }
 
     pub fn find_page(&self, query: &str) -> Vec<&Moose> {
-        self.find(query)
-            .map(|bmap| {
-                bmap.iter()
-                    .take(PAGE_SIZE * 5)
-                    .flat_map(|idx| self.meese.get(idx as usize))
-                    .collect::<Vec<&Moose>>()
-            })
-            .unwrap_or_else(Vec::new)
-    }
-
-    pub fn find_page_with_link(&self, query: &str) -> MooseSearchPage {
-        let ret = self
+        let mut unsort = self
             .find(query)
             .map(|bmap| {
                 bmap.iter()
-                    .take(PAGE_SIZE * 5)
+                    .flat_map(|idx| self.meese.get(idx as usize))
+                    .map(|moose| (levenshtein(query, moose.name.as_str()), moose))
+                    .collect::<Vec<(usize, &Moose)>>()
+            })
+            .unwrap_or_else(Vec::new);
+        unsort.sort_unstable_by(|(lev1, _), (lev2, _)| lev1.cmp(lev2));
+        unsort
+            .iter()
+            .take(PAGE_SIZE * 5)
+            .map(|(_, moose)| *moose)
+            .collect::<Vec<&Moose>>()
+    }
+
+    pub fn find_page_with_link(&self, query: &str) -> MooseSearchPage {
+        let mut unsort = self
+            .find(query)
+            .map(|bmap| {
+                bmap.iter()
                     .flat_map(|idx| {
                         self.meese
                             .get(idx as usize)
                             .map(|moose| (idx as usize / PAGE_SIZE, moose))
                     })
-                    .collect::<Vec<(usize, &Moose)>>()
+                    .map(|moose| (levenshtein(query, moose.1.name.as_str()), moose))
+                    .collect::<Vec<(usize, (usize, &Moose))>>()
             })
             .unwrap_or_else(Vec::new);
-        MooseSearchPage(ret)
+        unsort.sort_unstable_by(|(lev1, _), (lev2, _)| lev1.cmp(lev2));
+        MooseSearchPage(
+            unsort
+                .iter()
+                .take(PAGE_SIZE * 5)
+                .map(|(_, (idx, moose))| (*idx, *moose))
+                .collect::<Vec<(usize, &Moose)>>(),
+        )
     }
 
     pub fn find_page_bin(&self, query: &str) -> Vec<u8> {
