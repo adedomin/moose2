@@ -1,6 +1,7 @@
 use crate::config;
 use chrono::{DateTime, Utc};
 use levenshtein::levenshtein;
+use polystem::{Porter, Stemmer};
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
@@ -238,21 +239,34 @@ impl Index<usize> for MooseDb {
     }
 }
 
+// Generated using evcxr.
+//
+//  let arr = ('!'..='/')
+//        .chain(':'..='@')
+//        .chain('['..='`')
+//        .chain('{'..='~')
+//        .collect::<Vec<char>>();
+//  println!("{:?}\ntype: [char; {}]", arr, arr.len());
+// );
+const PUNCT: [char; 32] = [
+    '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=',
+    '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~',
+];
+
 /// Break up every name into parts that consist only of ASCII Alphanumeric characters (values higher than 7bit ignored),
 /// then convert to lowercase.
 /// Do we care about utf-8 "spaces?" probably not; what about moose with only characters like "/"?
 fn search_tokenize_words(s: &str) -> impl Iterator<Item = String> + '_ {
-    s.as_bytes()
-        .split(|&chr| matches!(chr, 0_u8..=b'/' | b':'..=b'@' | b'['..=b'`' | b'{'..=127_u8))
-        .flat_map(|word| {
-            // remove empty words
-            if word.is_empty() {
-                return None;
-            }
-            // remove invalid unicode words
-            let word = std::str::from_utf8(word).ok()?;
-            Some(word.to_ascii_lowercase())
-        })
+    s.split_ascii_whitespace().flat_map(|word| {
+        // remove punctuation.
+        let word = word.replace(PUNCT, "");
+        // remove empty words
+        if word.is_empty() {
+            return None;
+        }
+        let word = Porter::stem(&word);
+        Some(word)
+    })
 }
 
 fn reindex_db(meese: &[Moose]) -> (HashMap<String, usize>, HashMap<String, RoaringBitmap>) {

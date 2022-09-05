@@ -797,6 +797,7 @@ dependencies = [
  "md5",
  "percent-encoding",
  "png",
+ "polystem",
  "rand",
  "roaring",
  "serde",
@@ -913,6 +914,12 @@ dependencies = [
  "deflate",
  "miniz_oxide",
 ]
+
+[[package]]
+name = "polystem"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24c759055e4665cfb2c1579c42c6ca5a1deb3327aa2e0400ae500fdcb1e233bd"
 
 [[package]]
 name = "ppv-lite86"
