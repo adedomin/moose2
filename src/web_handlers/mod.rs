@@ -3,6 +3,7 @@ use serde::{Deserialize, Deserializer};
 
 pub mod api;
 pub mod display;
+pub mod oauth2_gh;
 pub mod static_files;
 
 /// Intended to be used with: .iter().fold(num, fold_decimal)

@@ -1,4 +1,4 @@
-use crate::moosedb::{Dimensions, Moose, PIX_FMT_HEIGHT, PIX_FMT_WIDTH};
+use crate::model::{moose::Moose, other::Dimensions, PIX_FMT_HEIGHT, PIX_FMT_WIDTH};
 use std::cmp::Ordering::{Equal, Greater, Less};
 
 #[derive(Copy, Clone)]
@@ -169,17 +169,18 @@ fn is_same(row: &&[u8]) -> bool {
 
 fn trim_moose<'m>(image: &'m [u8], dim: &Dimensions) -> Vec<&'m [u8]> {
     let (dim_x, _dim_y, _total) = dim.width_height();
+    // this is focused trimming the top and bottoms of the frame.
     let partials = image
         .chunks_exact(dim_x)
-        .skip_while(is_same)
+        .skip_while(is_same) // skip over all the rows that are transparent at start.
         .collect::<Vec<&'m [u8]>>()
         .iter()
-        .rev()
+        .rev() // now repeat, but from the bottom
         .skip_while(|&row| is_same(row))
         .cloned()
         .collect::<Vec<&'m [u8]>>()
         .iter()
-        .rev()
+        .rev() // now flip again to restore original orientation.
         .cloned()
         .collect::<Vec<&'m [u8]>>();
 
@@ -189,14 +190,15 @@ fn trim_moose<'m>(image: &'m [u8], dim: &Dimensions) -> Vec<&'m [u8]> {
             let left = row
                 .iter()
                 .take_while(|&&pixel| pixel == TRANSPARENT)
-                .count();
+                .count(); // how many leading transparents.
             let right = row
                 .iter()
                 .rev()
                 .take_while(|&&pixel| pixel == TRANSPARENT)
-                .count();
+                .count(); // how many trailing transparents.
             (left, right)
         })
+        // now we find the smallest common leading and trailing transparency (if any).
         .reduce(|(l1, r1), (l2, r2)| {
             let lret = match l1.cmp(&l2) {
                 Less | Equal => l1,
@@ -209,6 +211,7 @@ fn trim_moose<'m>(image: &'m [u8], dim: &Dimensions) -> Vec<&'m [u8]> {
             (lret, rret)
         })
     {
+        // now remove the leading / trailing
         partials
             .iter()
             .map(|&row| &row[left_trim..(row.len() - right_trim)])
@@ -288,7 +291,7 @@ pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
             (PIX_FMT_WIDTH * dim_x) as u32,
             (PIX_FMT_HEIGHT * dim_y) as u32,
         );
-        // Rle is similar to how terminal and irc meese are drawn.
+
         encoder.set_compression(png::Compression::Best);
         encoder.set_depth(png::BitDepth::Eight);
         encoder.set_color(png::ColorType::Indexed);

@@ -1,5 +1,5 @@
 use crate::{
-    moosedb::{DEFAULT_SIZE, HD_SIZE, PIX_FMT_HEIGHT, PIX_FMT_WIDTH},
+    model::{other::DEFAULT_SIZE, other::HD_SIZE, PIX_FMT_HEIGHT, PIX_FMT_WIDTH},
     render::{EXTENDED_COLORS, RGBA},
 };
 

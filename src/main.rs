@@ -1,51 +1,46 @@
 // use moosedb::MooseDb;
+use crate::{
+    config::{get_config, Args, GitHubOauth2},
+    db::moose_bulk_import,
+    model::moose::moose_bulk_transform,
+};
 use actix_web::{App, HttpServer};
-use moosedb::MooseDb;
-use signal_hook::{consts::SIGHUP, iterator::Signals};
-use std::{io, sync::RwLock, thread};
+use db::Pool;
+use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, TokenUrl};
+use std::io;
 
 pub mod config;
-pub mod moosedb;
+pub mod db;
+pub mod model;
 pub mod render;
 pub mod shared_data;
 pub mod templates;
 pub mod web_handlers;
-
 fn main() -> io::Result<()> {
-    let args = <config::Args as clap::Parser>::parse();
-    if let config::SubArg::Import { file, output } = args.command {
-        moosedb::moose_bulk_transform(file, output);
-        return Ok(());
+    match config::parse() {
+        Args::Run => (),
+        Args::Import(file) => {
+            moose_bulk_import(file);
+            return Ok(());
+        }
+        Args::Convert(path1, path2) => {
+            moose_bulk_transform(path1, path2);
+            return Ok(());
+        }
     }
 
-    let moosedb = actix_web::web::Data::new(RwLock::new(MooseDb::open().unwrap()));
-
-    let moosedb_clone = moosedb.clone();
-    let mut signal_handler = Signals::new([SIGHUP]).unwrap();
-    thread::spawn(move || {
-        let signals = signal_handler.forever();
-        for signal in signals {
-            match signal {
-                SIGHUP => {
-                    println!("Reloading MooseDb......");
-                    let mut locked = moosedb_clone.write().unwrap();
-                    *locked = MooseDb::open().unwrap();
-                    println!("Reloaded MooseDb.");
-                }
-                _ => unreachable!(),
-            }
-        }
-    });
-
-    let listen_addr = args.get_bind_addr();
+    let listen_addr = get_config().get_bind_addr();
     println!("Attempting to listen on: http://{}/", listen_addr);
     actix_web::rt::System::new().block_on({
         let builder = HttpServer::new(move || {
             App::new()
-                .app_data(moosedb.clone())
+                .app_data(actix_web::web::Data::new(db::open_db()))
+                .service(web_handlers::oauth2_gh::login)
+                .service(web_handlers::oauth2_gh::auth)
                 .service(web_handlers::static_files::static_file)
                 .service(web_handlers::static_files::favicon)
                 .service(web_handlers::static_files::const_js_modules)
+                .service(web_handlers::static_files::db_dump)
                 .service(web_handlers::api::get_moose)
                 .service(web_handlers::api::get_moose_img)
                 .service(web_handlers::api::get_moose_irc)

@@ -1,6 +1,7 @@
 use super::{if_none_match_md5, SearchQuery};
 use crate::{
-    moosedb::{Moose, MooseDb},
+    db::{MooseDB, Pool},
+    model::moose::Moose,
     render::{moose_irc, moose_png, moose_term},
     templates,
 };
@@ -17,12 +18,9 @@ use core::time;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use rand::Rng;
 use serde::Serialize;
-use std::{
-    sync::{RwLock, RwLockReadGuard},
-    time::Duration,
-};
+use std::time::Duration;
 
-type MooseWebDb = web::Data<RwLock<MooseDb>>;
+type MooseWebDb = web::Data<Pool>;
 
 pub enum ApiResp {
     Body(Vec<u8>, &'static str),
@@ -113,34 +111,48 @@ impl Responder for VarBody {
 
 const RANDOM: &str = "random";
 const LATEST: &str = "latest";
-fn simple_get<'m>(
-    db_locked: &'m RwLockReadGuard<MooseDb>,
-    name: &str,
-) -> Result<Option<&'m Moose>, String> {
-    if db_locked.meese.is_empty() {
+async fn simple_get<'m>(db: &'m Pool, name: &str) -> Result<Option<Moose>, String> {
+    if db.is_empty().await {
         return Ok(None);
     }
 
     if name == RANDOM {
-        let rand_idx = rand::thread_rng().gen_range(0..db_locked.meese.len());
-        Err(percent_encode(db_locked.meese[rand_idx].name.as_bytes(), NON_ALPHANUMERIC).to_string())
+        let rand_idx = rand::thread_rng().gen_range(0..db.len().await.unwrap());
+        match db.get_moose_idx(rand_idx).await {
+            Ok(Some(moose)) => {
+                Err(percent_encode(moose.name.as_bytes(), NON_ALPHANUMERIC).to_string())
+            }
+            Ok(None) => unreachable!(),
+            Err(e) => {
+                panic!("DB is broken (trying to get random): {}", e);
+            }
+        }
     } else if name == LATEST {
-        Err(percent_encode(
-            db_locked.meese.last().unwrap().name.as_bytes(),
-            NON_ALPHANUMERIC,
-        )
-        .to_string())
+        match db.last().await {
+            Ok(Some(moose)) => {
+                Err(percent_encode(moose.name.as_bytes(), NON_ALPHANUMERIC).to_string())
+            }
+            Ok(None) => unreachable!(),
+            Err(e) => {
+                panic!("DB is broken (trying to get latest): {}", e);
+            }
+        }
     } else {
-        Ok(db_locked.get(name))
+        match db.get_moose(name).await {
+            Ok(moose) => Ok(moose),
+            Err(e) => {
+                panic!("DB is broken (trying to get moose {}): {}", name, e);
+            }
+        }
     }
 }
 
-pub fn get_all_moose_types<'m>(
-    db: &'m RwLockReadGuard<MooseDb>,
+pub async fn get_all_moose_types(
+    db: &Pool,
     moose_name: &str,
-    func: fn(&'m Moose) -> ApiResp,
+    func: fn(Moose) -> ApiResp,
 ) -> ApiResp {
-    match simple_get(db, moose_name) {
+    match simple_get(db, moose_name).await {
         Ok(Some(moose)) => func(moose),
         Ok(None) => ApiResp::NotFound(moose_name.to_string()),
         Err(redir) => ApiResp::Redirect(redir),
@@ -149,44 +161,51 @@ pub fn get_all_moose_types<'m>(
 
 #[get("/moose/{moose_name}")]
 pub async fn get_moose(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
-    let db = db.read().unwrap();
+    let db = db.into_inner();
     let moose_name = moose_name.into_inner();
     get_all_moose_types(&db, &moose_name, |moose| {
         ApiResp::Body(moose.into(), "application/json")
     })
+    .await
 }
 
 #[get("/img/{moose_name}")]
 pub async fn get_moose_img(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
-    let db = db.read().unwrap();
+    let db = db.into_inner();
     let moose_name = moose_name.into_inner();
     get_all_moose_types(&db, &moose_name, |moose| {
-        ApiResp::Body(moose_png(moose).unwrap(), "image/png")
+        ApiResp::Body(moose_png(&moose).unwrap(), "image/png")
     })
+    .await
 }
 
 #[get("/irc/{moose_name}")]
 pub async fn get_moose_irc(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
-    let db = db.read().unwrap();
+    let db = db.into_inner();
     let moose_name = moose_name.into_inner();
     get_all_moose_types(&db, &moose_name, |moose| {
-        ApiResp::Body(moose_irc(moose), "text/irc-art")
+        ApiResp::Body(moose_irc(&moose), "text/irc-art")
     })
+    .await
 }
 
 #[get("/term/{moose_name}")]
 pub async fn get_moose_term(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
-    let db = db.read().unwrap();
+    let db = db.into_inner();
     let moose_name = moose_name.into_inner();
     get_all_moose_types(&db, &moose_name, |moose| {
-        ApiResp::Body(moose_term(moose), "text/ansi-truecolor")
+        ApiResp::Body(moose_term(&moose), "text/ansi-truecolor")
     })
+    .await
 }
 
 #[get("/page")]
 pub async fn get_page_count(db: MooseWebDb) -> HttpResponse {
-    let db = db.read().unwrap();
-    let count = db.page_count();
+    let db = db.into_inner();
+    let count = db.get_page_count().await.unwrap_or_else(|err| {
+        eprintln!("{}", err);
+        0
+    });
     // response too small to make caching worth it.
     HttpResponse::Ok()
         .insert_header(("Content-Type", "application/json"))
@@ -195,15 +214,23 @@ pub async fn get_page_count(db: MooseWebDb) -> HttpResponse {
 
 #[get("/page/{page_num}")]
 pub async fn get_page(db: MooseWebDb, page_id: web::Path<usize>) -> ApiResp {
-    let db = db.read().unwrap();
-    let meese: Vec<u8> = db.get_page(page_id.into_inner()).into();
+    let db = db.into_inner();
+    let meese = db
+        .get_moose_page(page_id.into_inner())
+        .await
+        .unwrap_or_else(|err| {
+            eprintln!("{}", err);
+            vec![]
+        });
+    let meese = serde_json::to_vec(&meese).unwrap();
     ApiResp::BodyCacheTime(meese, "application/json", Duration::from_secs(300))
 }
 
 #[get("/nav/{page_num}")]
 pub async fn get_page_nav_range(db: MooseWebDb, page_id: web::Path<usize>) -> HttpResponse {
-    let db = db.read().unwrap();
-    let meese = templates::page_range(page_id.into_inner(), db.page_count());
+    let db = db.into_inner();
+    let page_num = page_id.into_inner();
+    let meese = templates::page_range(page_num, db.get_page_count().await.unwrap_or(page_num));
     // response too small to make caching worth it.
     HttpResponse::Ok()
         .insert_header(("Content-Type", "application/json"))
@@ -212,7 +239,11 @@ pub async fn get_page_nav_range(db: MooseWebDb, page_id: web::Path<usize>) -> Ht
 
 #[get("/search")]
 pub async fn get_search_res(db: MooseWebDb, query: web::Query<SearchQuery>) -> ApiResp {
-    let db = db.read().unwrap();
-    let meese: Vec<u8> = db.find_page_with_link(&query.query).into();
+    let db = db.into_inner();
+    let meese = db.search_moose(&query.query).await.unwrap_or_else(|err| {
+        eprintln!("{}", err);
+        vec![]
+    });
+    let meese = serde_json::to_vec(&meese).unwrap();
     ApiResp::BodyCacheTime(meese, "application/json", Duration::from_secs(300))
 }

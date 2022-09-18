@@ -1,5 +1,6 @@
 /target
 moose*.json
+config.json
 
 
 # Added by cargo

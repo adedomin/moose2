@@ -1,5 +1,9 @@
 use super::if_none_match;
-use crate::shared_data::{COLORS_JS, SIZ_JS};
+use crate::{
+    config::get_config,
+    shared_data::{COLORS_JS, SIZ_JS},
+};
+use actix_files::NamedFile;
 use actix_web::{
     body::BoxBody,
     get,
@@ -9,6 +13,7 @@ use actix_web::{
     },
     web, HttpRequest, HttpResponse, Responder,
 };
+use std::io;
 
 const APP_CSS: &[u8] = include_bytes!("../../public/moose2.css");
 const APP_ICON: &[u8] = include_bytes!("../../public/favicon.ico");
@@ -83,4 +88,9 @@ pub async fn const_js_modules(c: web::Path<String>) -> StaticResp {
         _ => return StaticResp(Static::NotFound),
     };
     StaticResp(Static::Body(body, "application/javascript"))
+}
+
+#[get("/dump")]
+pub async fn db_dump() -> io::Result<NamedFile> {
+    NamedFile::open_async(get_config().get_moose_path()).await
 }

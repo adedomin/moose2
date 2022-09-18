@@ -1,10 +1,10 @@
 use crate::{
-    moosedb::{MoosePage, MooseSearchPage},
+    model::moose::Moose,
     templates::{ebanner, header, moose_card, moose_card_template, pager, search_bar},
 };
 use maud::{html, Markup, DOCTYPE};
 
-pub fn gallery(page_title: &str, page: usize, page_count: usize, meese: MoosePage) -> Markup {
+pub fn gallery(page_title: &str, page: usize, page_count: usize, meese: Vec<Moose>) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
@@ -14,9 +14,9 @@ pub fn gallery(page_title: &str, page: usize, page_count: usize, meese: MoosePag
                 @let p = pager(page, page_count);
                 (p)
                 (search_bar())
-                (ebanner(meese.0.is_empty()))
+                (ebanner(meese.is_empty()))
                 #moose-cards .cards {
-                    @for moose in meese.0 {
+                    @for moose in meese {
                         noscript {
                             (moose_card(&moose.name, ""))
                         }
@@ -29,16 +29,16 @@ pub fn gallery(page_title: &str, page: usize, page_count: usize, meese: MoosePag
     }
 }
 
-pub fn nojs_search(page_title: &str, meese: MooseSearchPage) -> Markup {
+pub fn nojs_search(page_title: &str, meese: Vec<(usize, Moose)>) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
             (header(page_title))
             body {
                 (search_bar())
-                (ebanner(meese.0.is_empty()))
+                (ebanner(meese.is_empty()))
                 #moose-cards .cards {
-                    @for (page, moose) in meese.0 {
+                    @for (page, moose) in meese {
                         (moose_card(&moose.name, &format!("/gallery/{}", page)))
                     }
                 }
