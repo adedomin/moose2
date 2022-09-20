@@ -1,3 +1,5 @@
+use bcrypt_pbkdf::bcrypt_pbkdf;
+use rand::Rng;
 use serde::Deserialize;
 use std::{
     fs,
@@ -5,6 +7,9 @@ use std::{
     path::{Path, PathBuf},
     process::exit,
 };
+
+const PBKDF_SALT: &[u8] = br####";o'"#|`=8kZhT:DWK\x4#<:&C.#Rzdd@"####;
+const PBKDF_ROUNDS: u32 = 8u32;
 
 pub static mut RUN_CONFIG: Option<&'static RunConfig> = None;
 
@@ -18,11 +23,22 @@ pub struct GitHubOauth2 {
     pub secret: String,
 }
 
+pub struct Secret(pub [u8; 64]);
+
+impl Default for Secret {
+    fn default() -> Self {
+        Secret([0u8; 64])
+    }
+}
+
 #[derive(Default, Deserialize)]
 pub struct RunConfig {
     moose_path: Option<PathBuf>,
     listen: Option<String>,
+    cookie_secret: Option<String>,
     pub github_oauth2: Option<GitHubOauth2>,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub cookie_key: Secret,
 }
 
 impl RunConfig {
@@ -107,8 +123,25 @@ pub fn parse() -> Args {
             };
             if let Ok(file) = std::fs::File::open(&path) {
                 let file = BufReader::new(file);
-                let run_config: &'static RunConfig =
+                let run_config: &'static mut RunConfig =
                     Box::leak(serde_json::from_reader(file).unwrap());
+                // generate a random cookie secret
+                match &run_config.cookie_secret {
+                    None => {
+                        for i in 0..64 {
+                            run_config.cookie_key.0[i] = rand::thread_rng().gen();
+                        }
+                    }
+                    Some(user_secret) => {
+                        bcrypt_pbkdf(
+                            user_secret,
+                            PBKDF_SALT,
+                            PBKDF_ROUNDS,
+                            &mut run_config.cookie_key.0,
+                        )
+                        .unwrap();
+                    }
+                }
                 unsafe {
                     RUN_CONFIG = Some(run_config);
                 }

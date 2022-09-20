@@ -1,4 +1,4 @@
-use super::{if_none_match_md5, SearchQuery};
+use super::{if_none_match_md5, MooseWebData, SearchQuery};
 use crate::{
     db::{MooseDB, Pool},
     model::moose::Moose,
@@ -19,8 +19,6 @@ use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use rand::Rng;
 use serde::Serialize;
 use std::time::Duration;
-
-type MooseWebDb = web::Data<Pool>;
 
 pub enum ApiResp {
     Body(Vec<u8>, &'static str),
@@ -160,48 +158,48 @@ pub async fn get_all_moose_types(
 }
 
 #[get("/moose/{moose_name}")]
-pub async fn get_moose(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
-    let db = db.into_inner();
+pub async fn get_moose(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+    let db = &db.db;
     let moose_name = moose_name.into_inner();
-    get_all_moose_types(&db, &moose_name, |moose| {
+    get_all_moose_types(db, &moose_name, |moose| {
         ApiResp::Body(moose.into(), "application/json")
     })
     .await
 }
 
 #[get("/img/{moose_name}")]
-pub async fn get_moose_img(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
-    let db = db.into_inner();
+pub async fn get_moose_img(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+    let db = &db.db;
     let moose_name = moose_name.into_inner();
-    get_all_moose_types(&db, &moose_name, |moose| {
+    get_all_moose_types(db, &moose_name, |moose| {
         ApiResp::Body(moose_png(&moose).unwrap(), "image/png")
     })
     .await
 }
 
 #[get("/irc/{moose_name}")]
-pub async fn get_moose_irc(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
-    let db = db.into_inner();
+pub async fn get_moose_irc(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+    let db = &db.db;
     let moose_name = moose_name.into_inner();
-    get_all_moose_types(&db, &moose_name, |moose| {
+    get_all_moose_types(db, &moose_name, |moose| {
         ApiResp::Body(moose_irc(&moose), "text/irc-art")
     })
     .await
 }
 
 #[get("/term/{moose_name}")]
-pub async fn get_moose_term(db: MooseWebDb, moose_name: web::Path<String>) -> ApiResp {
-    let db = db.into_inner();
+pub async fn get_moose_term(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+    let db = &db.db;
     let moose_name = moose_name.into_inner();
-    get_all_moose_types(&db, &moose_name, |moose| {
+    get_all_moose_types(db, &moose_name, |moose| {
         ApiResp::Body(moose_term(&moose), "text/ansi-truecolor")
     })
     .await
 }
 
 #[get("/page")]
-pub async fn get_page_count(db: MooseWebDb) -> HttpResponse {
-    let db = db.into_inner();
+pub async fn get_page_count(db: MooseWebData) -> HttpResponse {
+    let db = &db.db;
     let count = db.get_page_count().await.unwrap_or_else(|err| {
         eprintln!("{}", err);
         0
@@ -213,8 +211,8 @@ pub async fn get_page_count(db: MooseWebDb) -> HttpResponse {
 }
 
 #[get("/page/{page_num}")]
-pub async fn get_page(db: MooseWebDb, page_id: web::Path<usize>) -> ApiResp {
-    let db = db.into_inner();
+pub async fn get_page(db: MooseWebData, page_id: web::Path<usize>) -> ApiResp {
+    let db = &db.db;
     let meese = db
         .get_moose_page(page_id.into_inner())
         .await
@@ -227,8 +225,8 @@ pub async fn get_page(db: MooseWebDb, page_id: web::Path<usize>) -> ApiResp {
 }
 
 #[get("/nav/{page_num}")]
-pub async fn get_page_nav_range(db: MooseWebDb, page_id: web::Path<usize>) -> HttpResponse {
-    let db = db.into_inner();
+pub async fn get_page_nav_range(db: MooseWebData, page_id: web::Path<usize>) -> HttpResponse {
+    let db = &db.db;
     let page_num = page_id.into_inner();
     let meese = templates::page_range(page_num, db.get_page_count().await.unwrap_or(page_num));
     // response too small to make caching worth it.
@@ -238,8 +236,8 @@ pub async fn get_page_nav_range(db: MooseWebDb, page_id: web::Path<usize>) -> Ht
 }
 
 #[get("/search")]
-pub async fn get_search_res(db: MooseWebDb, query: web::Query<SearchQuery>) -> ApiResp {
-    let db = db.into_inner();
+pub async fn get_search_res(db: MooseWebData, query: web::Query<SearchQuery>) -> ApiResp {
+    let db = &db.db;
     let meese = db.search_moose(&query.query).await.unwrap_or_else(|err| {
         eprintln!("{}", err);
         vec![]

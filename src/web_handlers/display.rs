@@ -1,8 +1,5 @@
-use super::SearchQuery;
-use crate::{
-    db::{MooseDB, Pool},
-    templates::gallery,
-};
+use super::{MooseWebData, SearchQuery};
+use crate::{db::MooseDB, templates::gallery};
 use actix_web::{
     get,
     http::{header::LOCATION, StatusCode},
@@ -18,11 +15,9 @@ pub async fn gallery_redir() -> HttpResponse {
         .body(())
 }
 
-type DB = Pool;
-
 #[get("/gallery/random")]
-pub async fn gallery_random_redir(db: web::Data<DB>) -> HttpResponse {
-    let db = db.into_inner();
+pub async fn gallery_random_redir(db: MooseWebData) -> HttpResponse {
+    let db = &db.db;
     match db.get_page_count().await {
         Ok(page_count) => {
             if page_count == 0 {
@@ -48,11 +43,8 @@ pub async fn gallery_random_redir(db: web::Data<DB>) -> HttpResponse {
 }
 
 #[get("/gallery/nojs-search")]
-pub async fn nojs_gallery_search(
-    db: web::Data<DB>,
-    query: web::Query<SearchQuery>,
-) -> HttpResponse {
-    let db = db.into_inner();
+pub async fn nojs_gallery_search(db: MooseWebData, query: web::Query<SearchQuery>) -> HttpResponse {
+    let db = &db.db;
     let meese = db.search_moose(&query.query).await.unwrap_or_else(|err| {
         eprintln!("{}", err);
         vec![]
@@ -64,8 +56,8 @@ pub async fn nojs_gallery_search(
 }
 
 #[get("/gallery/{page_id}")]
-pub async fn gallery_page(db: web::Data<DB>, page_id: web::Path<usize>) -> HttpResponse {
-    let db = db.into_inner();
+pub async fn gallery_page(db: MooseWebData, page_id: web::Path<usize>) -> HttpResponse {
+    let db = &db.db;
     let page_num = page_id.into_inner();
     let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
         eprintln!("{}", err);

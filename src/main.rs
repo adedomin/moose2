@@ -4,7 +4,8 @@ use crate::{
     db::moose_bulk_import,
     model::moose::moose_bulk_transform,
 };
-use actix_web::{App, HttpServer};
+use actix_session::{storage::CookieSessionStore, SessionMiddleware};
+use actix_web::{cookie, App, HttpServer};
 use db::Pool;
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, TokenUrl};
 use std::io;
@@ -16,6 +17,12 @@ pub mod render;
 pub mod shared_data;
 pub mod templates;
 pub mod web_handlers;
+
+pub struct AppData {
+    pub oauth2_client: Option<BasicClient>,
+    pub db: Pool,
+}
+
 fn main() -> io::Result<()> {
     match config::parse() {
         Args::Run => (),
@@ -33,8 +40,34 @@ fn main() -> io::Result<()> {
     println!("Attempting to listen on: http://{}/", listen_addr);
     actix_web::rt::System::new().block_on({
         let builder = HttpServer::new(move || {
+            let oauth2_client = match &config::get_config().github_oauth2 {
+                Some(GitHubOauth2 { id, secret }) => {
+                    let client_id = ClientId::new(id.to_string());
+                    let secret = Some(ClientSecret::new(secret.to_string()));
+                    let auth_url =
+                        AuthUrl::new("https://github.com/login/oauth/authorize".to_string())
+                            .unwrap();
+                    let token_url = Some(
+                        TokenUrl::new("https://github.com/login/oauth/access_token".to_string())
+                            .unwrap(),
+                    );
+                    Some(BasicClient::new(client_id, secret, auth_url, token_url))
+                }
+                None => None,
+            };
+            let app_data = actix_web::web::Data::new(AppData {
+                oauth2_client,
+                db: db::open_db(),
+            });
+            let cookie_session = SessionMiddleware::builder(
+                CookieSessionStore::default(),
+                cookie::Key::from(&get_config().cookie_key.0),
+            )
+            .cookie_secure(false)
+            .build();
             App::new()
-                .app_data(actix_web::web::Data::new(db::open_db()))
+                .wrap(cookie_session)
+                .app_data(app_data)
                 .service(web_handlers::oauth2_gh::login)
                 .service(web_handlers::oauth2_gh::auth)
                 .service(web_handlers::static_files::static_file)

@@ -1,10 +1,13 @@
-use actix_web::{http::header::IF_NONE_MATCH, HttpRequest};
+use actix_web::{http::header::IF_NONE_MATCH, HttpRequest, web};
 use serde::{Deserialize, Deserializer};
+use crate::AppData;
 
 pub mod api;
 pub mod display;
 pub mod oauth2_gh;
 pub mod static_files;
+
+pub type MooseWebData = web::Data<AppData>;
 
 /// Intended to be used with: .iter().fold(num, fold_decimal)
 fn fold_decimal(acc: u32, chr: &u8) -> u32 {
