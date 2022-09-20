@@ -157,6 +157,7 @@ pub fn parse() -> Args {
                 let _ = file.write(
                     r##"{ "moose_path": "/path/to/store/meese, omit for default: $XDG_DATA_HOME/moose2 | $STATE_DIRECTORY/"
 , "listen": "http://[::1]:5921, omit for default. can use unix:/path/to/socket for uds listening."
+, "cookie_secret": "A symmetric secret key for session cookies; delete for random; is PBKDF padded to 64 bytes."
 , "github_oauth2": { "id": "client id, omit whole object to disable auth."
                    , "secret": "client secret"
                    }
