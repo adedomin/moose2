@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS Moose (
     deleted    INTEGER DEFAULT 0
 ) WITHOUT ROWID;
 CREATE UNIQUE INDEX IF NOT EXISTS Moose_NameIdx ON Moose (name);
-CREATE UNIQUE INDEX IF NOT EXISTS Moose_AuthorIdx ON Moose (author);
+CREATE INDEX IF NOT EXISTS Moose_AuthorIdx ON Moose (author);
 -- They are not unique to make renumbering them easier.
 CREATE INDEX IF NOT EXISTS Moose_PosIdx ON Moose (pos);
 
@@ -34,3 +34,41 @@ END;
 
 pub const INSERT_MOOSE: &str =
     "INSERT INTO Moose(name, pos, image, dimensions, created, author) VALUES (?, ?, ?, ?, ?, ?)";
+
+pub const LAST_MOOSE: &str = r###"
+    SELECT name, image, dimensions, created, author
+    FROM Moose
+    WHERE pos = ( SELECT MAX(pos) FROM Moose )
+"###;
+
+pub const LEN_MOOSE: &str = "SELECT MAX(pos) FROM Moose";
+
+pub const GET_MOOSE: &str =
+    "SELECT name, image, dimensions, created, author FROM Moose WHERE name = ?";
+
+pub const GET_MOOSE_IDX: &str =
+    "SELECT name, image, dimensions, created, author FROM Moose WHERE pos = ?";
+
+pub const GET_MOOSE_PAGE: &str = r###"
+    SELECT name, image, dimensions, created, author
+    FROM Moose
+    WHERE pos >= ? AND pos < ?
+    ORDER BY pos
+"###;
+
+pub const SEARCH_MOOSE_PAGE: &str = r###"
+    SELECT pos, name, image, dimensions, created, author
+    FROM Moose
+    INNER JOIN (
+        SELECT moose_name FROM MooseSearch
+        WHERE moose_name MATCH ?
+        ORDER BY RANK
+        LIMIT 50
+    )
+    ON name == moose_name
+"###;
+
+pub const INSERT_MOOSE_WITH_COMPUTED_POS: &str = r###"
+    INSERT INTO Moose(name,                              pos, image, dimensions, created, author)
+    VALUES           (   ?, (SELECT MAX(pos) FROM Moose) + 1,     ?,          ?,       ?,      ?);
+"###;

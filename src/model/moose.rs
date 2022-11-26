@@ -1,16 +1,98 @@
 use super::other::{Author, Dimensions};
+use crate::render::TRANSPARENT;
+use base64::DecodeError;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::{io::{BufWriter, BufReader}, path::PathBuf};
+use std::{
+    io::{BufReader, BufWriter},
+    path::PathBuf,
+};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(remote = "Self")]
 pub struct Moose {
+    #[serde(deserialize_with = "control_len_bound_string")]
     pub name: String,
     #[serde(serialize_with = "as_base64", deserialize_with = "from_base64")]
     pub image: Vec<u8>,
     pub dimensions: Dimensions,
     pub created: DateTime<Utc>,
+    #[serde(default = "super::other::default_author")]
     pub author: Author,
+}
+
+impl Serialize for Moose {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Self::serialize(self, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Moose {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Self::deserialize(deserializer).and_then(|moose| {
+            match moose.dimensions {
+                Dimensions::Custom(w, h) => {
+                    if moose.image.len() != w * h {
+                        return Err(serde::de::Error::custom(
+                            "Moose.image length does not match Moose.dimensions.",
+                        ));
+                    }
+                }
+                Dimensions::Default => {
+                    if Dimensions::from_len(&moose.image) != Some(Dimensions::Default) {
+                        return Err(serde::de::Error::custom(
+                            "Moose.image length is not correct.",
+                        ));
+                    }
+                }
+                Dimensions::HD => {
+                    if Dimensions::from_len(&moose.image) != Some(Dimensions::HD) {
+                        return Err(serde::de::Error::custom(
+                            "Moose.image length is not an HD moose.",
+                        ));
+                    }
+                }
+            }
+
+            Ok(moose)
+        })
+    }
+}
+
+fn control_len_bound_string<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<String, D::Error> {
+    String::deserialize(deserializer).and_then(|name| {
+        if name.is_empty() {
+            return Err(serde::de::Error::custom("Moose.name is empty."));
+        }
+
+        if name.as_bytes().len() > 64 {
+            return Err(serde::de::Error::custom(
+                "Moose.name is too long: >64 bytes.",
+            ));
+        }
+
+        if matches!(name.as_str(), "random" | "latest" | "oldest") {
+            return Err(serde::de::Error::custom(
+                "Moose.name cannot be a reserved word: random | latest | oldest",
+            ));
+        }
+
+        if name.contains(|chr| matches!(chr, '\x00'..='\x1f')) {
+            return Err(serde::de::Error::custom(
+                "Moose.name cannot contain an ASCII control character.",
+            ));
+        }
+
+        Ok(name)
+    })
 }
 
 fn as_base64<S: Serializer>(image: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
@@ -19,7 +101,17 @@ fn as_base64<S: Serializer>(image: &[u8], serializer: S) -> Result<S::Ok, S::Err
 
 fn from_base64<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     String::deserialize(deserializer).and_then(|string| {
-        base64::decode(string).map_err(|err| serde::de::Error::custom(err.to_string()))
+        base64::decode(string)
+            .and_then(|decoded| {
+                if let Some(pos) = decoded.iter().position(
+                    |&b| b > TRANSPARENT, /* anything bigger than Transparent is invalid */
+                ) {
+                    Err(DecodeError::InvalidByte(pos, decoded[pos]))
+                } else {
+                    Ok(decoded)
+                }
+            })
+            .map_err(|err| serde::de::Error::custom(err.to_string()))
     })
 }
 
@@ -73,7 +165,6 @@ impl From<Moose> for Vec<u8> {
         serde_json::to_vec(&moose).unwrap()
     }
 }
-
 
 pub fn moose_bulk_transform(moose_in: Option<PathBuf>, moose_out: Option<PathBuf>) {
     let mut moose_in = match moose_in {

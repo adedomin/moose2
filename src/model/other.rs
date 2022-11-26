@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_SIZE: (usize, usize, usize) = (26, 15, 26 * 15);
 pub const HD_SIZE: (usize, usize, usize) = (36, 22, 36 * 22);
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub enum Dimensions {
     Default,
     HD,
@@ -21,7 +21,7 @@ impl Dimensions {
         match self {
             Dimensions::Default => DEFAULT_SIZE,
             Dimensions::HD => HD_SIZE,
-            Dimensions::Custom(width, height) => (*width, *height, *width * *height - 1),
+            Dimensions::Custom(width, height) => (*width, *height, *width * *height),
         }
     }
 
@@ -61,6 +61,10 @@ impl FromSql for Dimensions {
 pub enum Author {
     Anonymous,
     Oauth2(String),
+}
+
+pub fn default_author() -> Author {
+    Author::Anonymous
 }
 
 impl ToSql for Author {

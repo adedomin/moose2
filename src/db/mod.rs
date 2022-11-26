@@ -8,6 +8,11 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 use std::{io::BufReader, path::PathBuf};
 
+use self::query::{
+    CREATE_TABLE, GET_MOOSE, GET_MOOSE_IDX, GET_MOOSE_PAGE, INSERT_MOOSE,
+    INSERT_MOOSE_WITH_COMPUTED_POS, LAST_MOOSE, LEN_MOOSE, SEARCH_MOOSE_PAGE,
+};
+
 pub mod query;
 
 pub type Pool = r2d2::Pool<SqliteConnectionManager>;
@@ -20,7 +25,7 @@ pub fn open_db() -> Pool {
     {
         let con = conn_man.connect().unwrap();
         con.set_prepared_statement_cache_capacity(32);
-        con.execute_batch(query::CREATE_TABLE).unwrap();
+        con.execute_batch(CREATE_TABLE).unwrap();
     }
     Pool::new(conn_man).unwrap()
 }
@@ -38,7 +43,7 @@ pub fn moose_bulk_import(moose_in: Option<PathBuf>) {
     let mut conn = db.get().unwrap();
     let tx = conn.transaction().unwrap();
     for (i, moose) in moose_in.iter().enumerate() {
-        tx.prepare_cached(query::INSERT_MOOSE)
+        tx.prepare_cached(INSERT_MOOSE)
             .unwrap()
             .execute(params![
                 moose.name,
@@ -73,6 +78,7 @@ pub trait MooseDB {
     async fn get_moose_idx(&self, idx: usize) -> Result<Option<Moose>, QueryError>;
     async fn get_moose_page(&self, page_num: usize) -> Result<Vec<Moose>, QueryError>;
     async fn search_moose(&self, query: &str) -> Result<Vec<(usize, Moose)>, QueryError>;
+    async fn insert_moose(&self, moose: Moose) -> Result<(), QueryError>;
 }
 
 fn handle_opt_q(res: Result<Moose, rusqlite::Error>) -> Result<Option<Moose>, QueryError> {
@@ -89,7 +95,7 @@ impl MooseDB for Pool {
         let pool = self.clone();
         let conn = web::block(move || pool.get()).await??;
         Ok(web::block(move || -> Result<usize, rusqlite::Error> {
-            conn.prepare_cached("SELECT MAX(pos) FROM Moose")?
+            conn.prepare_cached(LEN_MOOSE)?
                 .query_row([], |row| row.get(0))
                 .or(Ok(0usize))
         })
@@ -100,22 +106,15 @@ impl MooseDB for Pool {
         let pool = self.clone();
         let conn = web::block(move || pool.get()).await??;
         web::block(move || {
-            let q = conn
-                .prepare_cached(
-                    "
-                    SELECT name, image, dimensions, created, author
-                    FROM Moose
-                    WHERE pos = ( SELECT MAX(pos) FROM Moose )",
-                )?
-                .query_row([], |row| {
-                    Ok(Moose {
-                        name: row.get(0)?,
-                        image: row.get(1)?,
-                        dimensions: row.get(2)?,
-                        created: row.get(3)?,
-                        author: row.get(4)?,
-                    })
-                });
+            let q = conn.prepare_cached(LAST_MOOSE)?.query_row([], |row| {
+                Ok(Moose {
+                    name: row.get(0)?,
+                    image: row.get(1)?,
+                    dimensions: row.get(2)?,
+                    created: row.get(3)?,
+                    author: row.get(4)?,
+                })
+            });
             handle_opt_q(q)
         })
         .await?
@@ -136,19 +135,15 @@ impl MooseDB for Pool {
         let conn = web::block(move || pool.get()).await??;
         let moose = moose.to_owned();
         web::block(move || {
-            let q = conn
-                .prepare_cached(
-                    "SELECT name, image, dimensions, created, author FROM Moose WHERE name = ?",
-                )?
-                .query_row([moose], |row| {
-                    Ok(Moose {
-                        name: row.get(0)?,
-                        image: row.get(1)?,
-                        dimensions: row.get(2)?,
-                        created: row.get(3)?,
-                        author: row.get(4)?,
-                    })
-                });
+            let q = conn.prepare_cached(GET_MOOSE)?.query_row([moose], |row| {
+                Ok(Moose {
+                    name: row.get(0)?,
+                    image: row.get(1)?,
+                    dimensions: row.get(2)?,
+                    created: row.get(3)?,
+                    author: row.get(4)?,
+                })
+            });
             handle_opt_q(q)
         })
         .await?
@@ -158,19 +153,15 @@ impl MooseDB for Pool {
         let pool = self.clone();
         let conn = web::block(move || pool.get()).await??;
         web::block(move || {
-            let q = conn
-                .prepare_cached(
-                    "SELECT name, image, dimensions, created, author FROM Moose WHERE pos = ?",
-                )?
-                .query_row([idx], |row| {
-                    Ok(Moose {
-                        name: row.get(0)?,
-                        image: row.get(1)?,
-                        dimensions: row.get(2)?,
-                        created: row.get(3)?,
-                        author: row.get(4)?,
-                    })
-                });
+            let q = conn.prepare_cached(GET_MOOSE_IDX)?.query_row([idx], |row| {
+                Ok(Moose {
+                    name: row.get(0)?,
+                    image: row.get(1)?,
+                    dimensions: row.get(2)?,
+                    created: row.get(3)?,
+                    author: row.get(4)?,
+                })
+            });
             handle_opt_q(q)
         })
         .await?
@@ -183,13 +174,7 @@ impl MooseDB for Pool {
             let start = page_num * 12;
             let end = page_num * 12 + 12;
             Ok(conn
-                .prepare_cached(
-                    "
-                    SELECT name, image, dimensions, created, author
-                    FROM Moose
-                    WHERE pos >= ? AND pos < ?
-                    ORDER BY pos",
-                )?
+                .prepare_cached(GET_MOOSE_PAGE)?
                 .query_map([start, end], |row| {
                     Ok(Moose {
                         name: row.get(0)?,
@@ -222,18 +207,7 @@ impl MooseDB for Pool {
         let query = query.to_owned();
         let q = web::block(move || -> Result<Vec<(usize, Moose)>, rusqlite::Error> {
             Ok(conn
-                .prepare_cached(
-                    "
-                    SELECT pos, name, image, dimensions, created, author
-                    FROM Moose
-                    INNER JOIN (
-                        SELECT moose_name FROM MooseSearch
-                        WHERE moose_name MATCH ?
-                        ORDER BY RANK
-                        LIMIT 50
-                    )
-                    ON name == moose_name",
-                )?
+                .prepare_cached(SEARCH_MOOSE_PAGE)?
                 .query_map([query], |row| {
                     Ok((
                         row.get::<_, usize>(0)? / PAGE_SIZE,
@@ -261,5 +235,23 @@ impl MooseDB for Pool {
             Err(e) if e == rusqlite::Error::QueryReturnedNoRows => Ok(vec![]),
             Err(e) => Err(e.into()),
         }
+    }
+
+    async fn insert_moose(&self, moose: Moose) -> Result<(), QueryError> {
+        let pool = self.clone();
+        let conn = web::block(move || pool.get()).await??;
+        let _ = web::block(move || {
+            conn.prepare_cached(INSERT_MOOSE_WITH_COMPUTED_POS)
+                .unwrap()
+                .execute(params![
+                    moose.name,
+                    moose.image,
+                    moose.dimensions,
+                    moose.created,
+                    moose.author,
+                ])
+        })
+        .await??;
+        Ok(())
     }
 }

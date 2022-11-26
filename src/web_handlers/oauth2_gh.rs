@@ -1,3 +1,5 @@
+use crate::model::other::Author;
+
 use super::MooseWebData;
 use actix_session::Session;
 use actix_web::{get, http::header, web, HttpResponse};
@@ -70,16 +72,11 @@ pub async fn login(
     session: Session,
 ) -> Result<HttpResponse, AuthApiError> {
     if let Some(oauth2_client) = &auth_client.oauth2_client {
-        // let (pkce_code_challenge, _pkce_code_verifier) = PkceCodeChallenge::new_random_sha256();
-
         if let Some(login) = session.get::<String>("login")? {
-            return Ok(HttpResponse::Ok().body(format!("Already logged in as: {}", login)));
+            return Ok(HttpResponse::Ok().body(format!("Already logged in as: {login}")));
         }
 
-        let (authorize_url, csrf_state) = oauth2_client
-            .authorize_url(CsrfToken::new_random)
-            // .set_pkce_challenge(pkce_code_challenge)
-            .url();
+        let (authorize_url, csrf_state) = oauth2_client.authorize_url(CsrfToken::new_random).url();
 
         session.insert("csrf", csrf_state.secret()).unwrap();
         Ok(HttpResponse::Found()
@@ -123,28 +120,28 @@ pub async fn auth(
             ))
             .build()?;
 
+        let token_secret = token.secret();
         let res = api_client
             .get("https://api.github.com/user")
-            .header("Authorization", format!("BEARER {}", token.secret()))
+            .header("Authorization", format!("BEARER {token_secret}"))
             .send()
             .await?
             .json::<GithubUserApi>()
             .await?;
 
+        let login_name = res.login;
         let html = format!(
             r#"<html>
                 <head><title>OAuth2 Test</title></head>
                 <body>
                     Github returned the following info:
-                    <pre>token: {:?}</pre>
-                    <pre>login: {:?}</pre>
+                    <pre>token: {token_secret}</pre>
+                    <pre>login: {login_name}</pre>
                 </body>
-            </html>"#,
-            token.secret(),
-            res.login,
+            </html>"#
         );
 
-        session.insert("login", res.login)?;
+        session.insert("login", Author::Oauth2(login_name))?;
 
         Ok(HttpResponse::Ok().body(html))
     } else {

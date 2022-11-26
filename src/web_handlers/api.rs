@@ -1,10 +1,14 @@
 use super::{if_none_match_md5, MooseWebData, SearchQuery};
 use crate::{
     db::{MooseDB, Pool},
-    model::moose::Moose,
+    model::{
+        moose::Moose,
+        other::{Author, Dimensions},
+    },
     render::{moose_irc, moose_png, moose_term},
     templates,
 };
+use actix_session::Session;
 use actix_web::{
     body::BoxBody,
     get,
@@ -12,9 +16,12 @@ use actix_web::{
         header::{CacheControl, CacheDirective, ETag, EntityTag, LOCATION},
         StatusCode,
     },
-    web, HttpResponse, Responder,
+    post,
+    web::{self, Payload},
+    HttpResponse, Responder,
 };
 use core::time;
+use futures::stream::StreamExt;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use rand::Rng;
 use serde::Serialize;
@@ -41,6 +48,8 @@ impl ApiError {
         }
     }
 }
+
+const JSON_TYPE: (&str, &str) = ("Content-Type", "application/json");
 
 impl Responder for ApiResp {
     type Body = BoxBody;
@@ -205,9 +214,7 @@ pub async fn get_page_count(db: MooseWebData) -> HttpResponse {
         0
     });
     // response too small to make caching worth it.
-    HttpResponse::Ok()
-        .insert_header(("Content-Type", "application/json"))
-        .json(count)
+    HttpResponse::Ok().insert_header(JSON_TYPE).json(count)
 }
 
 #[get("/page/{page_num}")]
@@ -231,7 +238,7 @@ pub async fn get_page_nav_range(db: MooseWebData, page_id: web::Path<usize>) -> 
     let meese = templates::page_range(page_num, db.get_page_count().await.unwrap_or(page_num));
     // response too small to make caching worth it.
     HttpResponse::Ok()
-        .insert_header(("Content-Type", "application/json"))
+        .insert_header(JSON_TYPE)
         .json(meese.collect::<Vec<usize>>())
 }
 
@@ -244,4 +251,84 @@ pub async fn get_search_res(db: MooseWebData, query: web::Query<SearchQuery>) ->
     });
     let meese = serde_json::to_vec(&meese).unwrap();
     ApiResp::BodyCacheTime(meese, "application/json", Duration::from_secs(300))
+}
+
+pub const MAX_BODY_SIZE: usize = 2usize.pow(14);
+
+fn moose_validation_err(msg: &str) -> HttpResponse {
+    HttpResponse::BadRequest()
+        .insert_header(JSON_TYPE)
+        .json(ApiError {
+            status: "error",
+            msg: msg.to_string(),
+        })
+}
+
+#[post("/new")]
+pub async fn put_new_moose(
+    db: MooseWebData,
+    session: Session,
+    mut payload: Payload,
+) -> HttpResponse {
+    let mut body = web::BytesMut::new();
+    while let Some(chunk) = payload.next().await {
+        let chunk = match chunk {
+            Ok(chunk) => chunk,
+            Err(e) => {
+                return HttpResponse::InternalServerError()
+                    .insert_header(JSON_TYPE)
+                    .json(ApiError {
+                        status: "error",
+                        msg: e.to_string(),
+                    });
+            }
+        };
+        if body.len().saturating_add(chunk.len()) > MAX_BODY_SIZE {
+            return HttpResponse::PayloadTooLarge()
+                .insert_header(JSON_TYPE)
+                .json(ApiError {
+                    status: "error",
+                    msg: "Payload too large.".to_string(),
+                });
+        }
+        body.extend_from_slice(&chunk);
+    }
+
+    let mut moose = match serde_json::from_slice::<Moose>(&body) {
+        Ok(moose) => moose,
+        Err(msg) => {
+            return HttpResponse::UnprocessableEntity()
+                .insert_header(JSON_TYPE)
+                .json(ApiError {
+                    status: "error",
+                    msg: msg.to_string(),
+                });
+        }
+    };
+    if let Ok(Some(author)) = session.get::<Author>("login") {
+        moose.author = author;
+    } else {
+        moose.author = Author::Anonymous;
+    }
+    moose.created = chrono::offset::Utc::now();
+
+    if let Dimensions::Custom(_, _) = moose.dimensions {
+        return moose_validation_err("Custom dimensions are not allowed through the public API.");
+    }
+
+    let db = db.db.clone();
+    let moose_name = moose.name.clone();
+    if let Err(e) = db.insert_moose(moose).await {
+        HttpResponse::BadRequest()
+            .insert_header(JSON_TYPE)
+            .json(ApiError {
+                status: "error",
+                msg: e.to_string(),
+            })
+    } else {
+        HttpResponse::Ok().insert_header(JSON_TYPE).json(ApiError {
+            status: "ok",
+            msg: format!("moose {moose_name} saved."),
+        })
+    }
 }
