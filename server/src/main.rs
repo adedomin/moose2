@@ -74,6 +74,8 @@ fn main() -> io::Result<()> {
                 .service(web_handlers::static_files::favicon)
                 .service(web_handlers::static_files::const_js_modules)
                 .service(web_handlers::static_files::db_dump)
+                .service(web_handlers::static_files::const_index_page)
+                .service(web_handlers::static_files::const_webapp)
                 .service(web_handlers::api::get_moose)
                 .service(web_handlers::api::get_moose_img)
                 .service(web_handlers::api::get_moose_irc)

@@ -13,11 +13,13 @@ use actix_web::{
     },
     web, HttpRequest, HttpResponse, Responder,
 };
+use include_dir::{include_dir, Dir};
 use std::io;
 
-const APP_CSS: &[u8] = include_bytes!("../../public/moose2.css");
-const APP_ICON: &[u8] = include_bytes!("../../public/favicon.ico");
-const APP_JS: &[u8] = include_bytes!("../../public/moose2.js");
+const APP_CSS: &[u8] = include_bytes!("../../../public/moose2.css");
+const APP_ICON: &[u8] = include_bytes!("../../../public/favicon.ico");
+const APP_JS: &[u8] = include_bytes!("../../../public/moose2.js");
+const CLIENT_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/dist");
 
 pub enum Static {
     Body(&'static [u8], &'static str),
@@ -90,7 +92,34 @@ pub async fn const_js_modules(c: web::Path<String>) -> StaticResp {
     StaticResp(Static::Body(body, "application/javascript"))
 }
 
+#[get("/moose2-client-{rest}.{ext}")]
+pub async fn const_webapp(path: web::Path<(String, String)>) -> StaticResp {
+    StaticResp(
+        CLIENT_FILES
+            .get_file(format!("moose2-client-{}.{}", path.0, path.1))
+            .map(|file| {
+                Static::Body(
+                    file.contents(),
+                    match path.1.as_str() {
+                        "js" => "application/javascript",
+                        "wasm" => "application/wasm",
+                        _ => "application/octet-stream",
+                    },
+                )
+            })
+            .unwrap_or(Static::NotFound),
+    )
+}
+
 #[get("/dump")]
 pub async fn db_dump() -> io::Result<NamedFile> {
     NamedFile::open_async(get_config().get_moose_path()).await
+}
+
+#[get("/")]
+pub async fn const_index_page() -> StaticResp {
+    StaticResp(Static::Body(
+        CLIENT_FILES.get_file("index.html").unwrap().contents(),
+        "text/html; charset=utf-8",
+    ))
 }

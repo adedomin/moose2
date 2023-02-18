@@ -1,4 +1,5 @@
 /target
+/client/dist
 moose*.json
 config.json
 

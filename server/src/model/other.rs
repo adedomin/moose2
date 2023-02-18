@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_SIZE: (usize, usize, usize) = (26, 15, 26 * 15);
 pub const HD_SIZE: (usize, usize, usize) = (36, 22, 36 * 22);
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub enum Dimensions {
     Default,
     HD,
