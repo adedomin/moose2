@@ -1,6 +1,7 @@
 use super::if_none_match;
 use crate::{
     config::get_config,
+    model::mime,
     shared_data::{COLORS_JS, SIZ_JS},
 };
 use actix_files::NamedFile;
@@ -16,10 +17,7 @@ use actix_web::{
 use include_dir::{include_dir, Dir};
 use std::io;
 
-const APP_CSS: &[u8] = include_bytes!("../../../public/moose2.css");
-const APP_ICON: &[u8] = include_bytes!("../../../public/favicon.ico");
-const APP_JS: &[u8] = include_bytes!("../../../public/moose2.js");
-const CLIENT_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/dist");
+const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/src");
 
 pub enum Static {
     Body(&'static [u8], &'static str),
@@ -67,19 +65,32 @@ impl Responder for StaticResp {
     }
 }
 
-#[get("/favicon.ico")]
-pub async fn favicon() -> StaticResp {
-    StaticResp(Static::Body(APP_ICON, "image/x-icon"))
+fn get_static_file_from(d: &'static Dir, file: &str, ext: &str) -> Static {
+    d.get_file(format!("{file}.{ext}"))
+        .map(|file| {
+            Static::Body(
+                file.contents(),
+                *mime::MIME.get(ext).unwrap_or(&"application/octet-string"),
+            )
+        })
+        .unwrap_or(Static::NotFound)
 }
 
-#[get("/public/moose2.{file_ext}")]
-pub async fn static_file(t: web::Path<String>) -> StaticResp {
-    let (body, ctype) = match t.into_inner().as_str() {
-        "css" => (APP_CSS, "text/css"),
-        "js" => (APP_JS, "application/javascript"),
-        _ => return StaticResp(Static::NotFound),
-    };
-    StaticResp(Static::Body(body, ctype))
+#[get("/")]
+pub async fn index_page() -> StaticResp {
+    StaticResp(get_static_file_from(&CLIENT_DIR, "root/index", "html"))
+}
+
+#[get("/favicon.ico")]
+pub async fn favicon() -> StaticResp {
+    StaticResp(get_static_file_from(&CLIENT_DIR, "root/favicon", "ico"))
+}
+
+#[get("/gallery/public/{file}.{ext}")]
+pub async fn static_gallery_file(file: web::Path<(String, String)>) -> StaticResp {
+    let gallery_fname = format!("gallery/{}", file.0.as_str());
+    let gallery_body = get_static_file_from(&CLIENT_DIR, &gallery_fname, file.1.as_str());
+    StaticResp(gallery_body)
 }
 
 #[get("/public/const/{const}.js")]
@@ -92,34 +103,7 @@ pub async fn const_js_modules(c: web::Path<String>) -> StaticResp {
     StaticResp(Static::Body(body, "application/javascript"))
 }
 
-#[get("/moose2-client-{rest}.{ext}")]
-pub async fn const_webapp(path: web::Path<(String, String)>) -> StaticResp {
-    StaticResp(
-        CLIENT_FILES
-            .get_file(format!("moose2-client-{}.{}", path.0, path.1))
-            .map(|file| {
-                Static::Body(
-                    file.contents(),
-                    match path.1.as_str() {
-                        "js" => "application/javascript",
-                        "wasm" => "application/wasm",
-                        _ => "application/octet-stream",
-                    },
-                )
-            })
-            .unwrap_or(Static::NotFound),
-    )
-}
-
 #[get("/dump")]
 pub async fn db_dump() -> io::Result<NamedFile> {
     NamedFile::open_async(get_config().get_moose_path()).await
-}
-
-#[get("/")]
-pub async fn const_index_page() -> StaticResp {
-    StaticResp(Static::Body(
-        CLIENT_FILES.get_file("index.html").unwrap().contents(),
-        "text/html; charset=utf-8",
-    ))
 }

@@ -9,7 +9,7 @@ pub fn header(page_title: &str) -> Markup {
             meta charset="utf-8";
             meta name="description" content="Draw and Share Moose with your IRC friends.";
             meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no";
-            link rel="stylesheet" href="/public/moose2.css";
+            link rel="stylesheet" href="/gallery/public/moose2.css";
             title { "Moose2 - " (page_title) }
         }
     }
@@ -83,6 +83,6 @@ pub fn search_bar() -> Markup {
                 input #submit                type="submit" value="Search";
             }
         }
-        script type="module" src="/public/moose2.js" {}
+        script type="module" src="/gallery/public/moose2.js" {}
     }
 }

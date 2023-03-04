@@ -1,3 +1,4 @@
+pub mod mime;
 pub mod moose;
 pub mod other;
 
