@@ -49,9 +49,10 @@ fn main() {
             "{out_dir_str}/wasm32-unknown-unknown/debug/moose2_client.wasm",
         ));
     }
-    wasm_bindgen
+    let exit_code = wasm_bindgen
+        .stdin(Stdio::null())
         .status()
-        .expect("failed to start client frontend build");
+        .expect("failed to start wasm bindings generator");
 
     if !exit_code.success() {
         std::process::exit(exit_code.code().unwrap_or(1))
