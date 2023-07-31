@@ -17,7 +17,11 @@ use actix_web::{
 use include_dir::{include_dir, Dir};
 use std::io;
 
-const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/src");
+const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/js");
+#[cfg(debug_assertions)]
+const WASM_JUNK: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/target-wasm-bindgen/debug");
+#[cfg(not(debug_assertions))]
+const WASM_JUNK: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/target-wasm-bindgen/release");
 
 pub enum Static {
     Body(&'static [u8], &'static str),
@@ -81,6 +85,11 @@ pub async fn index_page() -> StaticResp {
     StaticResp(get_static_file_from(&CLIENT_DIR, "root/index", "html"))
 }
 
+#[get("/wasm_test")]
+pub async fn wasm_test_page() -> StaticResp {
+    StaticResp(get_static_file_from(&CLIENT_DIR, "root/wasm_test", "html"))
+}
+
 #[get("/favicon.ico")]
 pub async fn favicon() -> StaticResp {
     StaticResp(get_static_file_from(&CLIENT_DIR, "root/favicon", "ico"))
@@ -89,7 +98,7 @@ pub async fn favicon() -> StaticResp {
 #[get("/gallery/public/{file}.{ext}")]
 pub async fn static_gallery_file(file: web::Path<(String, String)>) -> StaticResp {
     let gallery_fname = format!("gallery/{}", file.0.as_str());
-    let gallery_body = get_static_file_from(&CLIENT_DIR, &gallery_fname, file.1.as_str());
+    let gallery_body = get_static_file_from(&CLIENT_DIR, gallery_fname.as_str(), file.1.as_str());
     StaticResp(gallery_body)
 }
 
@@ -101,6 +110,13 @@ pub async fn const_js_modules(c: web::Path<String>) -> StaticResp {
         _ => return StaticResp(Static::NotFound),
     };
     StaticResp(Static::Body(body, "application/javascript"))
+}
+
+#[get("/wasm_test/{file}.{ext}")]
+pub async fn static_wasm_file(file: web::Path<(String, String)>) -> StaticResp {
+    let fname = format!("{}", file.0.as_str());
+    let body = get_static_file_from(&WASM_JUNK, fname.as_str(), file.1.as_str());
+    StaticResp(body)
 }
 
 #[get("/dump")]

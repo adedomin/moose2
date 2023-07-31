@@ -62,63 +62,36 @@ pub const COLORS_JS: [u8; SOURCE_LEN] = {
     module_file
 };
 
-const fn usize_to_u16hex(num: usize) -> [u8; 6] {
-    let mut ret = [0; 6];
-    ret[0] = b'0';
-    ret[1] = b'x';
+pub const SIZ_JS: &[u8] = const_format::formatcp!(
+    r###"
+const PIX_FMT_WIDTH = {};
+const PIX_FMT_HEIGHT = {};
+const MOOSE_SIZES = new Map([
+    [{}, [{}, {}]],
+    [{}, [{}, {}]],
+]);
+export {{PIX_FMT_WIDTH, PIX_FMT_HEIGHT, MOOSE_SIZES}};
+"###,
+    PIX_FMT_WIDTH,
+    PIX_FMT_HEIGHT,
+    DEFAULT_SIZE.2, // length
+    DEFAULT_SIZE.0, // width
+    DEFAULT_SIZE.1, // height
+    HD_SIZE.2,
+    HD_SIZE.0,
+    HD_SIZE.1,
+)
+.as_bytes();
 
-    let num = num & (0xFFFF);
-    ret[2] = hex((num >> 12) as u8);
-    ret[3] = hex(((num & 0x0FFF) >> 8) as u8);
-    ret[4] = hex(((num & 0x00FF) >> 4) as u8);
-    ret[5] = hex((num & 0x000F) as u8);
-    ret
+pub const EXAMPLE_CONFIG: &[u8] = br###"{ "//": "OPTIONAL: default: $XDG_DATA_HOME/moose2 or $STATE_DIRECTORY/"
+, "moose_path":    "/path/to/store/meese"
+, "//": "OPTIONAL: can use unix:/path/to/socket for uds listening."
+, "listen":        "http://[::1]:5921"
+, "//": "A symmetric secret key for session cookies; delete for random; is PBKDF padded to 64 bytes."
+, "cookie_secret": "super-duper-sekret"
+, "//": "github oauth2 client configuration details, omit whole object to disable authentication."
+, "github_oauth2": { "id":     "client id"
+                   , "secret": "client secret"
+                   }
 }
-
-const SIZ_NAMED_FIELD_1: &[u8] = b"const PIX_FMT_WIDTH=";
-const SIZ_NAMED_FIELD_2: &[u8] = b";const PIX_FMT_HEIGHT=";
-const SIZ_NAMED_FIELD_3: &[u8] = b";const MOOSE_SIZES=new Map([";
-const SIZ_END: &[u8] = b"]);export {PIX_FMT_WIDTH,PIX_FMT_HEIGHT,MOOSE_SIZES};\n";
-const SIZ_LEN: usize = 6 * 8 // size of number (0x0000) and the number of them (6)
-    + 13 // extra syntax [,] for MOOSE_SIZES field.
-    + SIZ_END.len()
-    + SIZ_NAMED_FIELD_1.len()
-    + SIZ_NAMED_FIELD_2.len()
-    + SIZ_NAMED_FIELD_3.len();
-pub const SIZ_JS: [u8; SIZ_LEN] = {
-    let mut module_file = [b' '; SIZ_LEN];
-    let mut off = 0usize;
-
-    const_write_bytes!(module_file, SIZ_NAMED_FIELD_1, off);
-    const_write_bytes!(module_file, usize_to_u16hex(PIX_FMT_WIDTH), off);
-
-    const_write_bytes!(module_file, SIZ_NAMED_FIELD_2, off);
-    const_write_bytes!(module_file, usize_to_u16hex(PIX_FMT_HEIGHT), off);
-
-    const_write_bytes!(module_file, SIZ_NAMED_FIELD_3, off);
-    // for visual aid only
-    {
-        let (small_w, small_h, small_l) = DEFAULT_SIZE;
-        module_file[off] = b'[';
-        off += 1;
-        const_write_bytes!(module_file, usize_to_u16hex(small_l), off);
-        const_write_bytes!(module_file, b",[", off);
-        const_write_bytes!(module_file, usize_to_u16hex(small_w), off);
-        module_file[off] = b',';
-        off += 1;
-        const_write_bytes!(module_file, usize_to_u16hex(small_h), off);
-        const_write_bytes!(module_file, b"]],[", off);
-
-        let (hd_w, hd_h, hd_l) = HD_SIZE;
-        const_write_bytes!(module_file, usize_to_u16hex(hd_l), off);
-        const_write_bytes!(module_file, b",[", off);
-        const_write_bytes!(module_file, usize_to_u16hex(hd_w), off);
-        module_file[off] = b',';
-        off += 1;
-        const_write_bytes!(module_file, usize_to_u16hex(hd_h), off);
-        const_write_bytes!(module_file, b"]]", off);
-    }
-    const_write_bytes!(module_file, SIZ_END, off);
-
-    module_file
-};
+"###;

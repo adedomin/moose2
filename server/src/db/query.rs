@@ -56,17 +56,20 @@ pub const GET_MOOSE_PAGE: &str = r###"
     ORDER BY pos
 "###;
 
-pub const SEARCH_MOOSE_PAGE: &str = r###"
+pub const SEARCH_MOOSE_PAGE: &str = const_format::formatcp!(
+    r###"
     SELECT pos, name, image, dimensions, created, author
     FROM Moose
     INNER JOIN (
         SELECT moose_name FROM MooseSearch
         WHERE moose_name MATCH ?
         ORDER BY RANK
-        LIMIT 50
+        LIMIT {0}
     )
     ON name == moose_name
-"###;
+"###,
+    crate::model::PAGE_SIZE * crate::model::PAGE_SEARCH_LIM
+);
 
 pub const INSERT_MOOSE_WITH_COMPUTED_POS: &str = r###"
     INSERT INTO Moose(name,                              pos, image, dimensions, created, author)

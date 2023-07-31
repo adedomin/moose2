@@ -1,3 +1,4 @@
+use crate::shared_data::EXAMPLE_CONFIG;
 use bcrypt_pbkdf::bcrypt_pbkdf;
 use rand::Rng;
 use serde::Deserialize;
@@ -154,16 +155,7 @@ pub fn parse() -> Args {
                 print!("Creating... ");
                 create_parent_dirs(&path).unwrap();
                 let mut file = std::fs::File::create(&path).unwrap();
-                let _ = file.write(
-                    r##"{ "moose_path": "/path/to/store/meese, omit for default: $XDG_DATA_HOME/moose2 | $STATE_DIRECTORY/"
-, "listen": "http://[::1]:5921, omit for default. can use unix:/path/to/socket for uds listening."
-, "cookie_secret": "A symmetric secret key for session cookies; delete for random; is PBKDF padded to 64 bytes."
-, "github_oauth2": { "id": "client id, omit whole object to disable auth."
-                   , "secret": "client secret"
-                   }
-}"##.as_bytes(),
-                )
-                .unwrap();
+                let _ = file.write(EXAMPLE_CONFIG).unwrap();
                 println!("\nEdit the file and restart the application");
                 exit(1);
             }

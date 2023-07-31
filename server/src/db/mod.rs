@@ -1,6 +1,10 @@
 use crate::{
     config::{self, get_config},
-    model::{moose::Moose, PAGE_SIZE},
+    model::{
+        moose::Moose,
+        other::{MooseSearch, MooseSearchPage},
+        PAGE_SEARCH_LIM, PAGE_SIZE,
+    },
 };
 use actix_web::web;
 use r2d2::ManageConnection;
@@ -77,7 +81,11 @@ pub trait MooseDB {
     async fn get_moose(&self, moose: &str) -> Result<Option<Moose>, QueryError>;
     async fn get_moose_idx(&self, idx: usize) -> Result<Option<Moose>, QueryError>;
     async fn get_moose_page(&self, page_num: usize) -> Result<Vec<Moose>, QueryError>;
-    async fn search_moose(&self, query: &str) -> Result<Vec<(usize, Moose)>, QueryError>;
+    async fn search_moose(
+        &self,
+        query: &str,
+        page_num: usize,
+    ) -> Result<MooseSearchPage, QueryError>;
     async fn insert_moose(&self, moose: Moose) -> Result<(), QueryError>;
 }
 
@@ -201,24 +209,28 @@ impl MooseDB for Pool {
         }
     }
 
-    async fn search_moose(&self, query: &str) -> Result<Vec<(usize, Moose)>, QueryError> {
+    async fn search_moose(
+        &self,
+        query: &str,
+        page_num: usize,
+    ) -> Result<MooseSearchPage, QueryError> {
         let pool = self.clone();
         let conn = web::block(move || pool.get()).await??;
         let query = query.to_owned();
-        let q = web::block(move || -> Result<Vec<(usize, Moose)>, rusqlite::Error> {
-            Ok(conn
+        let q = web::block(move || -> Result<MooseSearchPage, rusqlite::Error> {
+            let result = conn
                 .prepare_cached(SEARCH_MOOSE_PAGE)?
                 .query_map([query], |row| {
-                    Ok((
-                        row.get::<_, usize>(0)? / PAGE_SIZE,
-                        Moose {
+                    Ok(MooseSearch {
+                        page: row.get::<_, usize>(0)? / PAGE_SIZE,
+                        moose: Moose {
                             name: row.get(1)?,
                             image: row.get(2)?,
                             dimensions: row.get(3)?,
                             created: row.get(4)?,
                             author: row.get(5)?,
                         },
-                    ))
+                    })
                 })?
                 .flat_map(|m| match m {
                     Ok(res) => Some(res),
@@ -227,12 +239,29 @@ impl MooseDB for Pool {
                         None
                     }
                 })
-                .collect::<Vec<(usize, Moose)>>())
+                .collect::<Vec<MooseSearch>>();
+            let pages = result.len() / PAGE_SIZE;
+            if PAGE_SEARCH_LIM <= pages {
+                return Ok(MooseSearchPage {
+                    pages,
+                    result: vec![],
+                });
+            }
+            let page_off = page_num * PAGE_SIZE;
+            let page_lim = page_off + PAGE_SIZE;
+            let result = result
+                .get(page_off..page_lim)
+                .map(|mslice| mslice.to_vec())
+                .unwrap_or(vec![]);
+            Ok(MooseSearchPage { pages, result })
         })
         .await?;
         match q {
             Ok(m) => Ok(m),
-            Err(e) if e == rusqlite::Error::QueryReturnedNoRows => Ok(vec![]),
+            Err(e) if e == rusqlite::Error::QueryReturnedNoRows => Ok(MooseSearchPage {
+                pages: 0,
+                result: vec![],
+            }),
             Err(e) => Err(e.into()),
         }
     }

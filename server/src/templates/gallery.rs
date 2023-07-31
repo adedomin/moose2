@@ -1,5 +1,5 @@
 use crate::{
-    model::moose::Moose,
+    model::{moose::Moose, other::MooseSearch},
     templates::{ebanner, header, moose_card, moose_card_template, pager, search_bar},
 };
 use maud::{html, Markup, DOCTYPE};
@@ -29,7 +29,7 @@ pub fn gallery(page_title: &str, page: usize, page_count: usize, meese: Vec<Moos
     }
 }
 
-pub fn nojs_search(page_title: &str, meese: Vec<(usize, Moose)>) -> Markup {
+pub fn nojs_search(page_title: &str, meese: Vec<MooseSearch>) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
@@ -38,7 +38,7 @@ pub fn nojs_search(page_title: &str, meese: Vec<(usize, Moose)>) -> Markup {
                 (search_bar())
                 (ebanner(meese.is_empty()))
                 #moose-cards .cards {
-                    @for (page, moose) in meese {
+                    @for MooseSearch { moose, page } in meese {
                         (moose_card(&moose.name, &format!("/gallery/{}", page)))
                     }
                 }

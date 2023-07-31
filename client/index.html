@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Rust WASM Demo</title>
+  </head>
+  <body>
+    <script>
+      let imports = {
+        env: {
+          log_number: (number) => console.log(`Number from Rust: ${number}`)
+        }
+      };
+      fetch('target/wasm32-unknown-unknown/release/moose2_client.wasm')
+        .then((response) => WebAssembly.instantiateStreaming(response, imports))
+        .then((result) => {
+            const res = result.instance.exports.fuckoff(1, 2);
+            console.log(res);
+        });
+    </script>
+  </body>
+</html>

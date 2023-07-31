@@ -1,12 +1,13 @@
-use super::{if_none_match_md5, MooseWebData, SearchQuery};
+use super::{if_none_match_md5, MooseWebData};
 use crate::{
     db::{MooseDB, Pool},
     model::{
         moose::Moose,
-        other::{Author, Dimensions},
+        other::{Author, Dimensions, MooseSearchPage},
     },
     render::{moose_irc, moose_png, moose_term},
     templates,
+    web_handlers::SearchQuery,
 };
 use actix_session::Session;
 use actix_web::{
@@ -242,12 +243,24 @@ pub async fn get_page_nav_range(db: MooseWebData, page_id: web::Path<usize>) -> 
         .json(meese.collect::<Vec<usize>>())
 }
 
+// #[get("/search")]
+// pub async fn get_search_res(db: MooseWebData, query: web::Query<SearchQuery>) -> ApiResp {
+//     let db = &db.db;
+//     let meese = db.search_moose(&query.query).await.unwrap_or_else(|err| {
+//         eprintln!("{}", err);
+//         vec![]
+//     });
+//     let meese = serde_json::to_vec(&meese).unwrap();
+//     ApiResp::BodyCacheTime(meese, "application/json", Duration::from_secs(300))
+// }
+
 #[get("/search")]
-pub async fn get_search_res(db: MooseWebData, query: web::Query<SearchQuery>) -> ApiResp {
+pub async fn get_search_page(db: MooseWebData, query: web::Query<SearchQuery>) -> ApiResp {
     let db = &db.db;
-    let meese = db.search_moose(&query.query).await.unwrap_or_else(|err| {
+    let SearchQuery { page, query } = query.into_inner();
+    let meese = db.search_moose(&query, page).await.unwrap_or_else(|err| {
         eprintln!("{}", err);
-        vec![]
+        MooseSearchPage::default()
     });
     let meese = serde_json::to_vec(&meese).unwrap();
     ApiResp::BodyCacheTime(meese, "application/json", Duration::from_secs(300))
