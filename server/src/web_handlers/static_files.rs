@@ -19,9 +19,9 @@ use std::io;
 
 const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/js");
 #[cfg(debug_assertions)]
-const WASM_JUNK: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/target-wasm-bindgen/debug");
+const WASM_JUNK: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/target/wasm-bindgen/debug");
 #[cfg(not(debug_assertions))]
-const WASM_JUNK: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/target-wasm-bindgen/release");
+const WASM_JUNK: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/target/wasm-bindgen/release");
 
 pub enum Static {
     Body(&'static [u8], &'static str),
