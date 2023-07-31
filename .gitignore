@@ -1,11 +1,5 @@
-target/
-target-wasm-bindgen/
+/target
+# just in case
+/client/target
 moose*.json
 config.json
-
-
-# Added by cargo
-#
-# already existing elements were commented out
-
-#/target
