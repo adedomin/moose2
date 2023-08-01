@@ -1,3 +1,2 @@
 [workspace]
-members = ["server"]
-exclude = ["client"]
+members = ["server","client"]
