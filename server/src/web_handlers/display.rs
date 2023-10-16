@@ -1,5 +1,9 @@
-use super::{MooseWebData, SearchQuery};
-use crate::{db::MooseDB, model::other::MooseSearchPage, templates::gallery};
+use super::MooseWebData;
+use crate::{
+    db::MooseDB,
+    model::{pages::MooseSearchPage, queries::SearchQuery},
+    templates::gallery,
+};
 use actix_web::{
     get,
     http::{header::LOCATION, StatusCode},
@@ -42,24 +46,23 @@ pub async fn gallery_random_redir(db: MooseWebData) -> HttpResponse {
     }
 }
 
-#[get("/gallery/nojs-search")]
-pub async fn nojs_gallery_search(db: MooseWebData, query: web::Query<SearchQuery>) -> HttpResponse {
+async fn nojs_gallery_search(db: MooseWebData, query: &str, search_page: usize) -> HttpResponse {
     let db = &db.db;
-    let SearchQuery { query, page } = query.into_inner();
-    let meese = db.search_moose(&query, page).await.unwrap_or_else(|err| {
-        eprintln!("{}", err);
-        MooseSearchPage::default()
-    });
+    let meese = db
+        .search_moose(&query, search_page)
+        .await
+        .unwrap_or_else(|err| {
+            eprintln!("{}", err);
+            MooseSearchPage::default()
+        });
     let html = gallery::nojs_search(&query, meese.result).into_string();
     HttpResponse::Ok()
         .insert_header(("Content-Type", "text/html"))
         .body(html)
 }
 
-#[get("/gallery/{page_id}")]
-pub async fn gallery_page(db: MooseWebData, page_id: web::Path<usize>) -> HttpResponse {
+async fn normal_gallery_page(db: MooseWebData, page_num: usize) -> HttpResponse {
     let db = &db.db;
-    let page_num = page_id.into_inner();
     let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
         eprintln!("{}", err);
         vec![]
@@ -74,4 +77,21 @@ pub async fn gallery_page(db: MooseWebData, page_id: web::Path<usize>) -> HttpRe
     HttpResponse::Ok()
         .insert_header(("Content-Type", "text/html"))
         .body(html)
+}
+
+#[get("/gallery/{page_id}")]
+async fn gallery_page(
+    db: MooseWebData,
+    page_id: web::Path<usize>,
+    query: web::Query<SearchQuery>,
+) -> HttpResponse {
+    let page_num = page_id.into_inner();
+    let SearchQuery { query, page } = query.into_inner();
+    let no_js = false;
+
+    if !query.is_empty() && no_js {
+        nojs_gallery_search(db, &query, page).await
+    } else {
+        normal_gallery_page(db, page_num).await
+    }
 }

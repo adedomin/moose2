@@ -29,4 +29,6 @@ futures = "0.3"
 include_dir = "0.7.3"
 phf = { version = "0.11.1", features = ["macros"] }
 const_format = "0.2.30"
+clap = { version = "4.4.6", features = ["derive"] }
+directories = "5.0.1"
 # indoc = "2.0.1"

@@ -1,4 +1,4 @@
-use crate::model::{moose::Moose, other::Dimensions, PIX_FMT_HEIGHT, PIX_FMT_WIDTH};
+use crate::model::{dimensions::Dimensions, moose::Moose, PIX_FMT_HEIGHT, PIX_FMT_WIDTH};
 use std::cmp::Ordering::{Equal, Greater, Less};
 
 #[derive(Copy, Clone)]

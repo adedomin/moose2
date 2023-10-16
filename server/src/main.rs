@@ -1,6 +1,6 @@
 // use moosedb::MooseDb;
 use crate::{
-    config::{get_config, Args, GitHubOauth2},
+    config::{GitHubOauth2, SubCommand},
     db::moose_bulk_import,
     model::moose::moose_bulk_transform,
 };
@@ -24,23 +24,24 @@ pub struct AppData {
 }
 
 fn main() -> io::Result<()> {
-    match config::parse() {
-        Args::Run => (),
-        Args::Import(file) => {
-            moose_bulk_import(file);
+    let (subcmd, rc) = config::parse_args();
+    match subcmd {
+        SubCommand::Run => (),
+        SubCommand::Import { input } => {
+            moose_bulk_import(input, &rc);
             return Ok(());
         }
-        Args::Convert(path1, path2) => {
-            moose_bulk_transform(path1, path2);
+        SubCommand::Convert { input, output } => {
+            moose_bulk_transform(input, output);
             return Ok(());
         }
     }
 
-    let listen_addr = get_config().get_bind_addr();
+    let listen_addr = rc.get_bind_addr();
     println!("Attempting to listen on: http://{}/", listen_addr);
     actix_web::rt::System::new().block_on({
         let builder = HttpServer::new(move || {
-            let oauth2_client = match &config::get_config().github_oauth2 {
+            let oauth2_client = match &rc.github_oauth2 {
                 Some(GitHubOauth2 { id, secret }) => {
                     let client_id = ClientId::new(id.to_string());
                     let secret = Some(ClientSecret::new(secret.to_string()));
@@ -57,11 +58,11 @@ fn main() -> io::Result<()> {
             };
             let app_data = actix_web::web::Data::new(AppData {
                 oauth2_client,
-                db: db::open_db(),
+                db: db::open_db(&rc),
             });
             let cookie_session = SessionMiddleware::builder(
                 CookieSessionStore::default(),
-                cookie::Key::from(&get_config().cookie_key.0),
+                cookie::Key::from(&rc.cookie_key.0),
             )
             .cookie_secure(false)
             .build();
@@ -73,10 +74,7 @@ fn main() -> io::Result<()> {
                 .service(web_handlers::static_files::static_gallery_file)
                 .service(web_handlers::static_files::favicon)
                 .service(web_handlers::static_files::const_js_modules)
-                .service(web_handlers::static_files::db_dump)
                 .service(web_handlers::static_files::index_page)
-                .service(web_handlers::static_files::wasm_test_page)
-                .service(web_handlers::static_files::static_wasm_file)
                 .service(web_handlers::api::get_moose)
                 .service(web_handlers::api::get_moose_img)
                 .service(web_handlers::api::get_moose_irc)
@@ -88,7 +86,6 @@ fn main() -> io::Result<()> {
                 .service(web_handlers::api::put_new_moose)
                 .service(web_handlers::display::gallery_redir)
                 .service(web_handlers::display::gallery_random_redir)
-                .service(web_handlers::display::nojs_gallery_search)
                 .service(web_handlers::display::gallery_page)
         });
         if !listen_addr.starts_with("unix:") {

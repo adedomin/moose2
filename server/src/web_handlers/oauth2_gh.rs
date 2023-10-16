@@ -1,4 +1,4 @@
-use crate::model::other::Author;
+use crate::model::author::Author;
 
 use super::MooseWebData;
 use actix_session::Session;

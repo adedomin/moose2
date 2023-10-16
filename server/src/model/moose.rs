@@ -1,4 +1,5 @@
-use super::other::{Author, Dimensions};
+use super::author::Author;
+use super::dimensions::Dimensions;
 use crate::render::TRANSPARENT;
 use base64::DecodeError;
 use chrono::{DateTime, Utc};
@@ -7,6 +8,8 @@ use std::{
     io::{BufReader, BufWriter},
     path::PathBuf,
 };
+
+const MOOSE_MAX_NAME_LEN: usize = 64usize;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(remote = "Self")]
@@ -17,7 +20,7 @@ pub struct Moose {
     pub image: Vec<u8>,
     pub dimensions: Dimensions,
     pub created: DateTime<Utc>,
-    #[serde(default = "super::other::default_author")]
+    #[serde(default = "super::author::default_author")]
     pub author: Author,
 }
 
@@ -73,7 +76,7 @@ fn control_len_bound_string<'de, D: Deserializer<'de>>(
             return Err(serde::de::Error::custom("Moose.name is empty."));
         }
 
-        if name.as_bytes().len() > 64 {
+        if name.as_bytes().len() > MOOSE_MAX_NAME_LEN {
             return Err(serde::de::Error::custom(
                 "Moose.name is too long: >64 bytes.",
             ));
@@ -88,6 +91,12 @@ fn control_len_bound_string<'de, D: Deserializer<'de>>(
         if name.contains(|chr| matches!(chr, '\x00'..='\x1f')) {
             return Err(serde::de::Error::custom(
                 "Moose.name cannot contain an ASCII control character.",
+            ));
+        }
+
+        if name != name.trim() {
+            return Err(serde::de::Error::custom(
+                "Moose.name cannot contain leading/trailing whitespace.",
             ));
         }
 
@@ -126,6 +135,17 @@ pub struct MooseLegacy {
     pub extended: bool,
 }
 
+pub fn truncate_to(s: &str, max_len: usize) -> &str {
+    if max_len >= s.len() {
+        return s;
+    }
+    let mut idx = max_len;
+    while !s.is_char_boundary(idx) {
+        idx -= 1;
+    }
+    &s[..idx]
+}
+
 impl From<MooseLegacy> for Moose {
     fn from(old: MooseLegacy) -> Self {
         if old.shaded {
@@ -144,8 +164,12 @@ impl From<MooseLegacy> for Moose {
         let dimensions =
             Dimensions::from_len(&new_image).expect("expected moose to be HD or default size.");
 
+        let name = truncate_to(&old.name, MOOSE_MAX_NAME_LEN)
+            .trim()
+            .to_string();
+
         Moose {
-            name: old.name,
+            name,
             image: new_image,
             dimensions,
             created: old.created,

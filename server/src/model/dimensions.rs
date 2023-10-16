@@ -4,8 +4,6 @@ use rusqlite::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::moose::Moose;
-
 /// width, height, total
 pub const DEFAULT_SIZE: (usize, usize, usize) = (26, 15, 26 * 15);
 pub const HD_SIZE: (usize, usize, usize) = (36, 22, 36 * 22);
@@ -56,56 +54,5 @@ impl ToSql for Dimensions {
 impl FromSql for Dimensions {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(serde_json::from_str(value.as_str()?).unwrap())
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub enum Author {
-    Anonymous,
-    Oauth2(String),
-}
-
-pub fn default_author() -> Author {
-    Author::Anonymous
-}
-
-impl ToSql for Author {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
-        match self {
-            Author::Anonymous => rusqlite::types::Null.to_sql(),
-            Author::Oauth2(user) => user.to_sql(),
-        }
-    }
-}
-
-impl FromSql for Author {
-    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        match value.as_str_or_null()? {
-            Some(name) => Ok(Author::Oauth2(name.to_string())),
-            None => Ok(Author::Anonymous),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Clone)]
-pub struct MooseSearch {
-    /// The actual Moose page this moose belongs to.
-    pub page: usize,
-    pub moose: Moose,
-}
-
-#[derive(Debug, Serialize)]
-pub struct MooseSearchPage {
-    /// number of pages returned by query set (max: 10)
-    pub pages: usize,
-    pub result: Vec<MooseSearch>,
-}
-
-impl Default for MooseSearchPage {
-    fn default() -> Self {
-        MooseSearchPage {
-            pages: 0,
-            result: vec![],
-        }
     }
 }

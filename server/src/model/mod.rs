@@ -1,6 +1,10 @@
+pub mod author;
+pub mod dimensions;
 pub mod mime;
 pub mod moose;
-pub mod other;
+pub mod pages;
+pub mod queries;
+pub mod votes;
 
 // constants
 pub const PAGE_SIZE: usize = 12;

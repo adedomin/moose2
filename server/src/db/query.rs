@@ -1,30 +1,41 @@
 pub const CREATE_TABLE: &str = r###"
 PRAGMA journal_mode = WAL;
+PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS Moose (
-    name       TEXT    PRIMARY KEY,
-    pos        INTEGER NOT NULL,
-    image      BLOB    NOT NULL,
-    dimensions INTEGER NOT NULL,
-    created    TEXT    NOT NULL,
-    author     TEXT    DEFAULT NULL,
-    deleted    INTEGER DEFAULT 0
-) WITHOUT ROWID;
-CREATE UNIQUE INDEX IF NOT EXISTS Moose_NameIdx ON Moose (name);
-CREATE INDEX IF NOT EXISTS Moose_AuthorIdx ON Moose (author);
--- They are not unique to make renumbering them easier.
-CREATE INDEX IF NOT EXISTS Moose_PosIdx ON Moose (pos);
+CREATE TABLE IF NOT EXISTS Vote
+  ( author_name TEXT    NOT NULL
+  , moose_name  TEXT    NOT NULL
+  , vote_type   INTEGER DEFAULT 0
+  , FOREIGN KEY (moose_name)  REFERENCES Moose (name)
+  , PRIMARY KEY (author_name, moose_name)
+  ) WITHOUT ROWID;
+CREATE        INDEX IF NOT EXISTS Vote_ByMNameIdx on Vote(moose_name);
 
-CREATE VIRTUAL TABLE IF NOT EXISTS MooseSearch USING fts5(
-    moose_name, tokenize = 'porter unicode61'
-);
+-- pos is unique for all intents and purposes, but not made so
+-- to make it easier to renumber. It's used for keyset offsetting.
+CREATE TABLE IF NOT EXISTS Moose
+  ( name       TEXT    PRIMARY KEY
+  , pos        INTEGER NOT NULL
+  , image      BLOB    NOT NULL
+  , dimensions INTEGER NOT NULL
+  , created    TEXT    NOT NULL
+  , author     TEXT    DEFAULT NULL
+  ) WITHOUT ROWID;
+CREATE UNIQUE INDEX IF NOT EXISTS Moose_NameIdx   ON Moose(name);
+CREATE        INDEX IF NOT EXISTS Moose_AuthorIdx ON Moose(author);
+CREATE        INDEX IF NOT EXISTS Moose_PosIdx    ON Moose(pos);
 
-CREATE TRIGGER IF NOT EXISTS Moose_InsertTrigger AFTER INSERT ON Moose
+CREATE VIRTUAL TABLE IF NOT EXISTS MooseSearch USING fts5
+  ( moose_name, tokenize = 'porter unicode61' );
+
+CREATE TRIGGER IF NOT EXISTS Moose_InsertTrigger
+AFTER INSERT ON Moose
 BEGIN
     INSERT INTO MooseSearch(moose_name) VALUES (NEW.name);
 END;
 
-CREATE TRIGGER IF NOT EXISTS Moose_DeleteTrigger AFTER DELETE ON Moose
+CREATE TRIGGER IF NOT EXISTS Moose_DeleteTrigger
+AFTER DELETE ON Moose
 BEGIN
     DELETE FROM MooseSearch WHERE moose_name = OLD.name;
     -- Deletes happen through sqlite3 shell, not the app.
@@ -35,10 +46,13 @@ END;
 pub const INSERT_MOOSE: &str =
     "INSERT INTO Moose(name, pos, image, dimensions, created, author) VALUES (?, ?, ?, ?, ?, ?)";
 
+pub const INSERT_VOTE: &str =
+    "INSERT INTO Vote(author_name, moose_name, vote_type) VALUES (?, ?, ?)";
+
 pub const LAST_MOOSE: &str = r###"
     SELECT name, image, dimensions, created, author
-    FROM Moose
-    WHERE pos = ( SELECT MAX(pos) FROM Moose )
+      FROM Moose
+     WHERE pos = ( SELECT MAX(pos) FROM Moose )
 "###;
 
 pub const LEN_MOOSE: &str = "SELECT MAX(pos) FROM Moose";
@@ -50,23 +64,41 @@ pub const GET_MOOSE_IDX: &str =
     "SELECT name, image, dimensions, created, author FROM Moose WHERE pos = ?";
 
 pub const GET_MOOSE_PAGE: &str = r###"
-    SELECT name, image, dimensions, created, author
-    FROM Moose
-    WHERE pos >= ? AND pos < ?
-    ORDER BY pos
+    SELECT m.name
+         , m.image
+         , m.dimensions
+         , m.created
+         , m.author
+      FROM Moose m
+     WHERE m.pos >= ? AND m.pos < ?
+     ORDER BY pos
 "###;
+
+pub const GET_MOOSE_VOTES: &str = r##"
+    SELECT sum(v.vote_type) as upvotes
+      FROM Moose m
+INNER JOIN Vote v
+        ON v.moose_name = m.name
+     WHERE m.name = ?
+"##;
 
 pub const SEARCH_MOOSE_PAGE: &str = const_format::formatcp!(
     r###"
-    SELECT pos, name, image, dimensions, created, author
-    FROM Moose
-    INNER JOIN (
-        SELECT moose_name FROM MooseSearch
-        WHERE moose_name MATCH ?
-        ORDER BY RANK
-        LIMIT {0}
-    )
-    ON name == moose_name
+    SELECT m.pos
+         , m.name
+         , m.image
+         , m.dimensions
+         , m.created
+         , m.author
+      FROM Moose m
+     INNER JOIN
+         ( SELECT moose_name
+             FROM MooseSearch
+            WHERE moose_name MATCH ?
+            ORDER BY RANK
+            LIMIT {0}
+         )
+        ON m.name == moose_name
 "###,
     crate::model::PAGE_SIZE * crate::model::PAGE_SEARCH_LIM
 );

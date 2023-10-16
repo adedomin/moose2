@@ -1,8 +1,8 @@
 use crate::{
-    config::{self, get_config},
+    config::{self, RunConfig},
     model::{
         moose::Moose,
-        other::{MooseSearch, MooseSearchPage},
+        pages::{MooseSearch, MooseSearchPage},
         PAGE_SEARCH_LIM, PAGE_SIZE,
     },
 };
@@ -22,8 +22,8 @@ pub mod query;
 pub type Pool = r2d2::Pool<SqliteConnectionManager>;
 pub type Connection = r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>;
 
-pub fn open_db() -> Pool {
-    let moose_path = get_config().get_moose_path();
+pub fn open_db(rc: &RunConfig) -> Pool {
+    let moose_path = rc.get_moose_path();
     config::create_parent_dirs(&moose_path).unwrap();
     let conn_man = SqliteConnectionManager::file(moose_path);
     {
@@ -34,7 +34,7 @@ pub fn open_db() -> Pool {
     Pool::new(conn_man).unwrap()
 }
 
-pub fn moose_bulk_import(moose_in: Option<PathBuf>) {
+pub fn moose_bulk_import(moose_in: Option<PathBuf>, rc: &RunConfig) {
     let mut moose_in = match moose_in {
         Some(path) => {
             let file = BufReader::new(std::fs::File::open(path).unwrap());
@@ -43,7 +43,7 @@ pub fn moose_bulk_import(moose_in: Option<PathBuf>) {
         None => serde_json::from_reader::<_, Vec<Moose>>(std::io::stdin().lock()).unwrap(),
     };
     moose_in.sort_unstable_by(|lhs, rhs| lhs.created.cmp(&rhs.created));
-    let db = open_db();
+    let db = open_db(rc);
     let mut conn = db.get().unwrap();
     let tx = conn.transaction().unwrap();
     for (i, moose) in moose_in.iter().enumerate() {
@@ -241,7 +241,7 @@ impl MooseDB for Pool {
                 })
                 .collect::<Vec<MooseSearch>>();
             let pages = result.len() / PAGE_SIZE;
-            if PAGE_SEARCH_LIM <= pages {
+            if PAGE_SEARCH_LIM <= page_num {
                 return Ok(MooseSearchPage {
                     pages,
                     result: vec![],

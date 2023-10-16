@@ -77,12 +77,12 @@ pub fn moose_card_template() -> Markup {
 
 pub fn search_bar() -> Markup {
     html! {
-        form #search-form method="get" action="/gallery/nojs-search" {
+        form #search-form method="get" {
             .full-width {
-                input #search-field name="q" type="text"   placeholder="Search Moose";
-                input #submit                type="submit" value="Search";
+                input #search-field name="q"    type="text"   placeholder="Search Moose";
+                input #submit                   type="submit" value="Search";
             }
         }
-        script type="module" src="/gallery/public/moose2.js" {}
+        // script type="module" src="/gallery/public/moose2.js" {}
     }
 }

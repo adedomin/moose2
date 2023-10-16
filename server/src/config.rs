@@ -1,5 +1,6 @@
 use crate::shared_data::EXAMPLE_CONFIG;
 use bcrypt_pbkdf::bcrypt_pbkdf;
+use directories::ProjectDirs;
 use rand::Rng;
 use serde::Deserialize;
 use std::{
@@ -12,18 +13,13 @@ use std::{
 const PBKDF_SALT: &[u8] = br####";o'"#|`=8kZhT:DWK\x4#<:&C.#Rzdd@"####;
 const PBKDF_ROUNDS: u32 = 8u32;
 
-pub static mut RUN_CONFIG: Option<&'static RunConfig> = None;
-
-pub fn get_config() -> &'static RunConfig {
-    unsafe { RUN_CONFIG.unwrap() }
-}
-
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct GitHubOauth2 {
     pub id: String,
     pub secret: String,
 }
 
+#[derive(Clone)]
 pub struct Secret(pub [u8; 64]);
 
 impl Default for Secret {
@@ -32,13 +28,13 @@ impl Default for Secret {
     }
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Default, Deserialize, Clone)]
 pub struct RunConfig {
     moose_path: Option<PathBuf>,
     listen: Option<String>,
     cookie_secret: Option<String>,
     pub github_oauth2: Option<GitHubOauth2>,
-    #[serde(skip_serializing, skip_deserializing)]
+    #[serde(skip)]
     pub cookie_key: Secret,
 }
 
@@ -47,22 +43,10 @@ impl RunConfig {
         if let Some(path) = &self.moose_path {
             path.clone()
         } else {
-            std::env::vars()
-                .find(|(key, _value)| key == "XDG_DATA_HOME" || key == "STATE_DIRECTORY")
-                .and_then(|(key, val)| match key.as_str() {
-                    "XDG_DATA_HOME" => {
-                        let mut r = PathBuf::from(val);
-                        r.push("moose2/moose2.db");
-                        Some(r)
-                    }
-                    "STATE_DIRECTORY" => {
-                        let mut r = PathBuf::from(val);
-                        r.push("moose2.db");
-                        Some(r)
-                    }
-                    _ => unreachable!(),
-                })
-                .unwrap_or_else(|| PathBuf::from("./moose2.db"))
+            let pd= ProjectDirs::from("space", "ghetty", "moose2").expect("Could not find default path to put data in. please explicitly define a moose_path in the config.");
+            let mut path = PathBuf::from(pd.data_dir());
+            path.push("moose2.db");
+            path
         }
     }
 
@@ -74,13 +58,7 @@ impl RunConfig {
     }
 }
 
-pub enum Args {
-    Run,
-    Import(Option<PathBuf>),
-    Convert(Option<PathBuf>, Option<PathBuf>),
-}
-
-pub fn create_parent_dirs<T: AsRef<Path>>(path: &T) -> io::Result<()> {
+pub fn create_parent_dirs<T: AsRef<Path>>(path: T) -> io::Result<()> {
     if let Some(parent) = path.as_ref().parent() {
         fs::create_dir_all(parent)
     } else {
@@ -88,83 +66,88 @@ pub fn create_parent_dirs<T: AsRef<Path>>(path: &T) -> io::Result<()> {
     }
 }
 
-pub fn parse() -> Args {
-    unsafe {
-        if RUN_CONFIG.is_some() {
-            panic!("Cannot call config::parse() more than once!");
-        }
-    }
+#[derive(clap::Parser, Debug)]
+#[command(
+    name = "moose2",
+    version,
+    about = "Nextgen Moose serving and authoring web application."
+)]
+pub struct Args {
+    #[arg(short, long)]
+    pub config: Option<PathBuf>,
+    #[command(subcommand)]
+    pub subcommand: SubCommand,
+}
 
-    let mut args = std::env::args_os();
-    let argv0 = args.next().unwrap().into_string().unwrap();
-    let subcmd = args
-        .next()
-        .map(|arg| arg.into_string().unwrap())
-        .unwrap_or_else(|| "run".to_string());
-    let path1 = args.next().map(PathBuf::from);
-    let path2 = args.next().map(PathBuf::from);
-    match subcmd.as_str() {
-        "r" | "run" => {
-            let path = if let Some(path) = path1 {
-                path
-            } else {
-                std::env::vars()
-                    .find(|(key, _value)| {
-                        key == "XDG_CONFIG_HOME" || key == "CONFIGURATION_DIRECTORY"
-                    })
-                    .and_then(|(key, val)| match key.as_str() {
-                        "XDG_CONFIG_HOME" | "CONFIGURATION_DIRECTORY" => {
-                            let mut r = PathBuf::from(val);
-                            r.push("moose2/moose2.json");
-                            Some(r)
-                        }
-                        _ => unreachable!(),
-                    })
-                    .unwrap_or_else(|| PathBuf::from("./config.json"))
-            };
-            if let Ok(file) = std::fs::File::open(&path) {
-                let file = BufReader::new(file);
-                let run_config: &'static mut RunConfig =
-                    Box::leak(serde_json::from_reader(file).unwrap());
-                // generate a random cookie secret
-                match &run_config.cookie_secret {
-                    None => {
-                        for i in 0..64 {
-                            run_config.cookie_key.0[i] = rand::thread_rng().gen();
-                        }
-                    }
-                    Some(user_secret) => {
-                        bcrypt_pbkdf(
-                            user_secret,
-                            PBKDF_SALT,
-                            PBKDF_ROUNDS,
-                            &mut run_config.cookie_key.0,
-                        )
-                        .unwrap();
-                    }
+#[derive(clap::Subcommand, Debug)]
+pub enum SubCommand {
+    Run,
+    Import {
+        input: Option<PathBuf>,
+    },
+    Convert {
+        input: Option<PathBuf>,
+        output: Option<PathBuf>,
+    },
+}
+
+pub fn find_config() -> PathBuf {
+    if let Some(pd) = ProjectDirs::from("space", "ghetty", "moose2") {
+        let config_dir = pd.config_dir();
+        let mut config = PathBuf::from(config_dir);
+        config.push("config.json");
+        config
+    } else {
+        println!(
+            "Something is wrong with your environment variables: attempting to use ./config.json"
+        );
+        PathBuf::from("./config.json")
+    }
+}
+
+pub fn open_or_write_default<T>(config_path: T) -> Option<RunConfig>
+where
+    T: std::fmt::Debug + AsRef<Path>,
+{
+    if let Ok(file) = std::fs::File::open(&config_path) {
+        let file = BufReader::new(file);
+        Some(serde_json::from_reader(file).unwrap())
+    } else {
+        println!(
+            "Configuration file not found or could not be opened at: {:?}",
+            &config_path
+        );
+        print!("Creating... ");
+        create_parent_dirs(&config_path).unwrap();
+        let mut file = std::fs::File::create(&config_path).unwrap();
+        let _ = file.write(EXAMPLE_CONFIG).unwrap();
+        println!("\nEdit the file and restart the application");
+        None
+    }
+}
+
+pub fn parse_args() -> (SubCommand, RunConfig) {
+    let args = <Args as clap::Parser>::parse();
+    let config_file_path = args.config.unwrap_or_else(|| find_config());
+    if let Some(mut conf) = open_or_write_default(&config_file_path) {
+        match &conf.cookie_secret {
+            None => {
+                for i in 0..64 {
+                    conf.cookie_key.0[i] = rand::thread_rng().gen();
                 }
-                unsafe {
-                    RUN_CONFIG = Some(run_config);
-                }
-                Args::Run
-            } else {
-                println!(
-                    "Configuration file not found or could not be opened at: {:?}",
-                    &path
-                );
-                print!("Creating... ");
-                create_parent_dirs(&path).unwrap();
-                let mut file = std::fs::File::create(&path).unwrap();
-                let _ = file.write(EXAMPLE_CONFIG).unwrap();
-                println!("\nEdit the file and restart the application");
-                exit(1);
+            }
+            Some(user_secret) => {
+                bcrypt_pbkdf(
+                    user_secret,
+                    PBKDF_SALT,
+                    PBKDF_ROUNDS,
+                    &mut conf.cookie_key.0,
+                )
+                .unwrap();
             }
         }
-        "i" | "import" => Args::Import(path1),
-        "c" | "convert" => Args::Convert(path1, path2),
-        _ => {
-            eprintln!("usage: {} [run [config.json] | import [meese.json] | convert [old_meese.json] [new_meese.json]]", argv0);
-            exit(1);
-        }
+        (args.subcommand, conf)
+    } else {
+        exit(1)
     }
 }

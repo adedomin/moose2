@@ -1,5 +1,5 @@
 use crate::{
-    model::{other::DEFAULT_SIZE, other::HD_SIZE, PIX_FMT_HEIGHT, PIX_FMT_WIDTH},
+    model::{dimensions::DEFAULT_SIZE, dimensions::HD_SIZE, PIX_FMT_HEIGHT, PIX_FMT_WIDTH},
     render::{EXTENDED_COLORS, RGBA},
 };
 

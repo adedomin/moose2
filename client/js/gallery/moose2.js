@@ -108,12 +108,12 @@ function build_cards(meese_) {
     let meese = meese_;
     if (meese.length > 0) {
         error_banner.classList.add('hidden');
-        if (!Array.isArray(meese[0])) {
+        if (meese[0].page === null || meese[0].page === undefined) {
             const curr = current_page();
-            meese = meese.map(moose => [curr, moose]);
+            meese = meese.map(moose => ({ page: curr, moose }));
         }
         const new_els = [];
-        for (const [page, moose] of meese) {
+        for (const { page, moose } of meese) {
             const template = moose_card_template.content.cloneNode(true);
 
             const card = template.querySelector('.card');
@@ -156,12 +156,18 @@ function debounce_ev(func, bypass = false, event) {
     }
 }
 
-function fetch_moose_arr(path) {
+const PAGE = 0;
+const SEARCH = 1;
+
+function fetch_moose_arr(type, path) {
     fetch(path).then(resp => {
         if (resp.ok) return resp.json();
         else throw Error(`Got non-OK status code: ${resp.status}`);
     }).then(meese => {
-        build_cards(meese);
+        switch (type) {
+            case PAGE: build_cards(meese); break;
+            case SEARCH: build_cards(meese.result); break;
+        }
     }).catch(e => {
         del_old_search();
         error_banner.classList.remove('hidden');
@@ -194,17 +200,17 @@ function search() {
         document.querySelectorAll('.nav-block').forEach(nav => {
             nav.classList.add('disable');
         });
-        fetch_moose_arr(`/search?${form.toString()}`);
+        fetch_moose_arr(SEARCH, `/search?${form.toString()}`);
     } else {
         history.replaceState(null, '', `${window.location.pathname}`);
         document.querySelectorAll('.nav-block').forEach(nav => {
             nav.classList.remove('disable');
         });
-        fetch_moose_arr(`/page/${current_page()}`);
+        fetch_moose_arr(PAGE, `/page/${current_page()}`);
     }
 }
 
-window.addEventListener('popstate', ev => {
+window.addEventListener('popstate', () => {
     renumber_nav();
     search();
 });
