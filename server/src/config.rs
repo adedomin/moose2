@@ -73,17 +73,27 @@ pub fn create_parent_dirs<T: AsRef<Path>>(path: T) -> io::Result<()> {
     about = "Nextgen Moose serving and authoring web application."
 )]
 pub struct Args {
-    #[arg(short, long)]
+    #[arg(
+        short,
+        long,
+        help = "Explicit configuration file, otherwise relies on paths such as XDG_CONFIG_HOME to find this"
+    )]
     pub config: Option<PathBuf>,
+    #[arg(
+        short,
+        long,
+        help = "IPv4/6 address or unix:/your/path/here for a unix domain socket"
+    )]
+    pub listen: Option<String>,
     #[command(subcommand)]
     pub subcommand: Option<SubCommand>,
 }
 
 #[derive(clap::Subcommand, Debug)]
 pub enum SubCommand {
-    #[command(about = "Import a moose dump.")]
+    #[command(about = "Import a moose dump")]
     Import { input: Option<PathBuf> },
-    #[command(about = "Convert a moose (js) dump to moose2 dump.")]
+    #[command(about = "Convert a moose (js) dump to moose2 dump")]
     Convert {
         input: Option<PathBuf>,
         output: Option<PathBuf>,
@@ -129,6 +139,12 @@ pub fn parse_args() -> (Option<SubCommand>, RunConfig) {
     let args = <Args as clap::Parser>::parse();
     let config_file_path = args.config.unwrap_or_else(|| find_config());
     if let Some(mut conf) = open_or_write_default(&config_file_path) {
+        if let Some(listen) = args.listen {
+            // command line listen does not override configuration.
+            if conf.listen.is_none() {
+                conf.listen = Some(listen);
+            }
+        }
         match &conf.cookie_secret {
             None => {
                 for i in 0..64 {
