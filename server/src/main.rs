@@ -25,15 +25,16 @@ pub struct AppData {
 
 fn main() -> io::Result<()> {
     let (subcmd, rc) = config::parse_args();
-    match subcmd {
-        SubCommand::Run => (),
-        SubCommand::Import { input } => {
-            moose_bulk_import(input, &rc);
-            return Ok(());
-        }
-        SubCommand::Convert { input, output } => {
-            moose_bulk_transform(input, output);
-            return Ok(());
+    if let Some(sub) = subcmd {
+        match sub {
+            SubCommand::Import { input } => {
+                moose_bulk_import(input, &rc);
+                return Ok(());
+            }
+            SubCommand::Convert { input, output } => {
+                moose_bulk_transform(input, output);
+                return Ok(());
+            }
         }
     }
 
@@ -75,6 +76,7 @@ fn main() -> io::Result<()> {
                 .service(web_handlers::static_files::favicon)
                 .service(web_handlers::static_files::const_js_modules)
                 .service(web_handlers::static_files::index_page)
+                .service(web_handlers::static_files::err_js_script)
                 .service(web_handlers::api::get_moose)
                 .service(web_handlers::api::get_moose_img)
                 .service(web_handlers::api::get_moose_irc)

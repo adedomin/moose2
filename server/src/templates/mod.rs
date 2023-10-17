@@ -31,18 +31,21 @@ pub fn page_range(page: usize, page_count: usize) -> std::iter::Take<std::ops::R
     (page_start_range..page_count).take(10)
 }
 
-pub fn pager(page: usize, page_count: usize) -> Markup {
+const NOJS_STR: &str = "?nojs=true";
+
+pub fn pager(page: usize, page_count: usize, disabled: bool, nojs: bool) -> Markup {
+    let njs = if nojs { NOJS_STR } else { "" };
     html! {
-        .nav-block {
-            a .arrow-left         .hidden[page == 0] href={"/gallery/" (&(page.saturating_sub(1)))} { "Prev" }
-            a .paddle.paddle-edge .hidden[page == 0] .paddle-edge href="/gallery/0"                 { "Oldest" br; "Page" }
+        .nav-block .disable[disabled] {
+            a .arrow-left         .hidden[page == 0] href={"/gallery/" (&(page.saturating_sub(1))) (njs)} { "Prev" }
+            a .paddle.paddle-edge .hidden[page == 0] .paddle-edge href={"/gallery/0" (njs)}               { "Oldest" br; "Page" }
 
             @for pnum in page_range(page, page_count) {
-                a .paddle .selected[pnum == page] href={"/gallery/" (pnum)} { (pnum) }
+                a .paddle .selected[pnum == page] href={"/gallery/" (pnum) (njs)} { (pnum) }
             }
 
-            a .paddle.paddle-edge .hidden[page+1 >= page_count] href={"/gallery/" (&(page_count.saturating_sub(1)))} { "Newest" br; "Page"}
-            a .arrow-right        .hidden[page+1 >= page_count] href={"/gallery/" (&(page       + 1))}               { "Next" }
+            a .paddle.paddle-edge .hidden[page+1 >= page_count] href={"/gallery/" (&(page_count.saturating_sub(1))) (njs)} { "Newest" br; "Page"}
+            a .arrow-right        .hidden[page+1 >= page_count] href={"/gallery/" (&(page       + 1)) (njs)}               { "Next" }
         }
     }
 }
@@ -80,6 +83,7 @@ pub fn search_bar() -> Markup {
         form #search-form method="get" {
             .full-width {
                 input #search-field name="q"    type="text"   placeholder="Search Moose";
+                input               name="nojs" type="hidden" value="true";
                 input #submit                   type="submit" value="Search";
             }
         }

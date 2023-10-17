@@ -76,15 +76,14 @@ pub struct Args {
     #[arg(short, long)]
     pub config: Option<PathBuf>,
     #[command(subcommand)]
-    pub subcommand: SubCommand,
+    pub subcommand: Option<SubCommand>,
 }
 
 #[derive(clap::Subcommand, Debug)]
 pub enum SubCommand {
-    Run,
-    Import {
-        input: Option<PathBuf>,
-    },
+    #[command(about = "Import a moose dump.")]
+    Import { input: Option<PathBuf> },
+    #[command(about = "Convert a moose (js) dump to moose2 dump.")]
     Convert {
         input: Option<PathBuf>,
         output: Option<PathBuf>,
@@ -126,7 +125,7 @@ where
     }
 }
 
-pub fn parse_args() -> (SubCommand, RunConfig) {
+pub fn parse_args() -> (Option<SubCommand>, RunConfig) {
     let args = <Args as clap::Parser>::parse();
     let config_file_path = args.config.unwrap_or_else(|| find_config());
     if let Some(mut conf) = open_or_write_default(&config_file_path) {

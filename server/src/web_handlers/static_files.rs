@@ -1,7 +1,7 @@
 use super::if_none_match;
 use crate::{
     model::mime,
-    shared_data::{COLORS_JS, SIZ_JS},
+    shared_data::{COLORS_JS, ERR_JS, SIZ_JS},
 };
 use actix_web::{
     body::BoxBody,
@@ -98,4 +98,9 @@ pub async fn const_js_modules(c: web::Path<String>) -> StaticResp {
         _ => return StaticResp(Static::NotFound),
     };
     StaticResp(Static::Body(body, "application/javascript"))
+}
+
+#[get("/public/global-modules/err.js")]
+pub async fn err_js_script() -> StaticResp {
+    StaticResp(Static::Body(ERR_JS, "application/javascript"))
 }

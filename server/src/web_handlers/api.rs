@@ -245,7 +245,7 @@ pub async fn get_page_nav_range(db: MooseWebData, page_id: web::Path<usize>) -> 
 #[get("/search")]
 pub async fn get_search_page(db: MooseWebData, query: web::Query<SearchQuery>) -> ApiResp {
     let db = &db.db;
-    let SearchQuery { page, query } = query.into_inner();
+    let SearchQuery { page, query, .. } = query.into_inner();
     let meese = db.search_moose(&query, page).await.unwrap_or_else(|err| {
         eprintln!("{}", err);
         MooseSearchPage::default()

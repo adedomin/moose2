@@ -1,7 +1,10 @@
 use super::MooseWebData;
 use crate::{
     db::MooseDB,
-    model::{pages::MooseSearchPage, queries::SearchQuery},
+    model::{
+        pages::{MooseSearch, MooseSearchPage},
+        queries::SearchQuery,
+    },
     templates::gallery,
 };
 use actix_web::{
@@ -46,7 +49,13 @@ pub async fn gallery_random_redir(db: MooseWebData) -> HttpResponse {
     }
 }
 
-async fn nojs_gallery_search(db: MooseWebData, query: &str, search_page: usize) -> HttpResponse {
+async fn nojs_gallery_search(
+    db: MooseWebData,
+    page_num: usize,
+    query: &str,
+    search_page: usize,
+    nojs: bool,
+) -> HttpResponse {
     let db = &db.db;
     let meese = db
         .search_moose(&query, search_page)
@@ -55,23 +64,46 @@ async fn nojs_gallery_search(db: MooseWebData, query: &str, search_page: usize) 
             eprintln!("{}", err);
             MooseSearchPage::default()
         });
-    let html = gallery::nojs_search(&query, meese.result).into_string();
+    let html = gallery::gallery(
+        &format!("Search: {query}"),
+        page_num,
+        db.get_page_count().await.unwrap_or(page_num),
+        Some(meese.result),
+        true,
+        nojs,
+    )
+    .into_string();
     HttpResponse::Ok()
         .insert_header(("Content-Type", "text/html"))
         .body(html)
 }
 
-async fn normal_gallery_page(db: MooseWebData, page_num: usize) -> HttpResponse {
+async fn normal_gallery_page(db: MooseWebData, page_num: usize, nojs: bool) -> HttpResponse {
     let db = &db.db;
-    let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
-        eprintln!("{}", err);
-        vec![]
-    });
+    let meese = if nojs {
+        let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
+            eprintln!("{}", err);
+            vec![]
+        });
+        Some(
+            meese
+                .into_iter()
+                .map(|moose| MooseSearch {
+                    page: page_num,
+                    moose,
+                })
+                .collect::<Vec<MooseSearch>>(),
+        )
+    } else {
+        None
+    };
     let html = gallery::gallery(
         &format!("Page {}", page_num),
         page_num,
         db.get_page_count().await.unwrap_or(page_num),
         meese,
+        false,
+        nojs,
     )
     .into_string();
     HttpResponse::Ok()
@@ -86,12 +118,11 @@ async fn gallery_page(
     query: web::Query<SearchQuery>,
 ) -> HttpResponse {
     let page_num = page_id.into_inner();
-    let SearchQuery { query, page } = query.into_inner();
-    let no_js = false;
+    let SearchQuery { query, page, nojs } = query.into_inner();
 
-    if !query.is_empty() && no_js {
-        nojs_gallery_search(db, &query, page).await
+    if !query.is_empty() && nojs {
+        nojs_gallery_search(db, page_num, &query, page, nojs).await
     } else {
-        normal_gallery_page(db, page_num).await
+        normal_gallery_page(db, page_num, nojs).await
     }
 }

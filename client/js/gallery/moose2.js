@@ -195,6 +195,7 @@ function add_nav_handlers() {
 
 function search() {
     let form = new URLSearchParams(new FormData(search_form));
+    form.delete('nojs');
     if (form.get('q') !== '') {
         history.replaceState(null, '', `${window.location.pathname}?${form.toString()}`);
         document.querySelectorAll('.nav-block').forEach(nav => {
