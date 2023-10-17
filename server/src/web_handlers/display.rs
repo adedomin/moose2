@@ -49,6 +49,26 @@ pub async fn gallery_random_redir(db: MooseWebData) -> HttpResponse {
     }
 }
 
+#[get("/gallery/latest")]
+pub async fn gallery_latest_redir(db: MooseWebData) -> HttpResponse {
+    let db = &db.db;
+    match db.get_page_count().await {
+        Ok(page_count) => HttpResponse::Ok()
+            .insert_header((
+                LOCATION,
+                format!("/gallery/{}", page_count.saturating_sub(1)).as_str(),
+            ))
+            .status(StatusCode::SEE_OTHER)
+            .body(()),
+        Err(e) => {
+            eprintln!("{}", e);
+            HttpResponse::Ok()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(e.to_string())
+        }
+    }
+}
+
 async fn nojs_gallery_search(
     db: MooseWebData,
     page_num: usize,

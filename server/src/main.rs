@@ -88,6 +88,7 @@ fn main() -> io::Result<()> {
                 .service(web_handlers::api::put_new_moose)
                 .service(web_handlers::display::gallery_redir)
                 .service(web_handlers::display::gallery_random_redir)
+                .service(web_handlers::display::gallery_latest_redir)
                 .service(web_handlers::display::gallery_page)
         });
         if !listen_addr.starts_with("unix:") {
