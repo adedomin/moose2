@@ -211,9 +211,18 @@ function search() {
     }
 }
 
+// HOLY FUCKING SHIT WHY?!?!??!?!
+// clicking on hash links causes a popstate if the current state is pushed via history API
+// who designed this shit?
+let lasthash = '';
+
 window.addEventListener('popstate', () => {
-    renumber_nav();
-    search();
+    if (lasthash === window.location.hash) {
+        renumber_nav();
+        search();
+    }
+
+    lasthash = window.location.hash;
 });
 search_form.addEventListener('submit', debounce_ev.bind(null, search, true));
 search_field.addEventListener('input', debounce_ev.bind(null, search, false));

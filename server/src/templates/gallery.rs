@@ -24,8 +24,9 @@ pub fn gallery(
                 (ebanner(meese.as_ref().map(|meese| meese.is_empty()).unwrap_or(false)))
                 #moose-cards .cards {
                     @if let Some(meese) = meese {
+                        @let njs = if nojs { "?nojs=true" } else { "" };
                         @for MooseSearch { moose, page } in meese {
-                            (moose_card(&moose.name, &format!("/gallery/{}", page)))
+                            (moose_card(&moose.name, format!("/gallery/{page}{njs}").as_str()))
                         }
                     }
                 }
