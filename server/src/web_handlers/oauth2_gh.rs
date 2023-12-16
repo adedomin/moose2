@@ -84,7 +84,7 @@ pub async fn login(
             .body(()))
     } else {
         Ok(HttpResponse::NotImplemented()
-            .body("AUthentication is disabled. Please add an Oauth2 provider."))
+            .body("Authentication is disabled; the admin has to add an OAuth2 provider."))
     }
 }
 
@@ -146,6 +146,6 @@ pub async fn auth(
         Ok(HttpResponse::Ok().body(html))
     } else {
         Ok(HttpResponse::NotImplemented()
-            .body("AUthentication is disabled. Please add an Oauth2 provider."))
+            .body("Authentication is disabled; the admin has to add an OAuth2 provider."))
     }
 }

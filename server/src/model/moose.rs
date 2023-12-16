@@ -22,6 +22,12 @@ pub struct Moose {
     pub created: DateTime<Utc>,
     #[serde(default = "super::author::default_author")]
     pub author: Author,
+    #[serde(default = "upvote_zeroed")]
+    pub upvotes: i64,
+}
+
+fn upvote_zeroed() -> i64 {
+    0
 }
 
 impl Serialize for Moose {
@@ -174,6 +180,7 @@ impl From<MooseLegacy> for Moose {
             dimensions,
             created: old.created,
             author: Author::Anonymous,
+            upvotes: 0,
         }
     }
 }
@@ -218,7 +225,7 @@ fn parse_hexish(hex: u8) -> u8 {
         b'0'..=b'9' => hex - 48,
         b'a'..=b'f' => (hex - 97) + 10,
         b'A'..=b'F' => (hex - 65) + 10,
-        b't' => 99,
+        b't' => TRANSPARENT,
         // invalid color, including \n
         _ => 100,
     }
@@ -238,7 +245,7 @@ fn parse_hexish_opt(hex: u8) -> Option<u8> {
 /// use flat_map and make sure to map dimension by explicitly defining it.
 fn extended_color_code(color: u8, shade: u8) -> Option<u8> {
     if color == b't' && shade == b't' {
-        Some(99u8)
+        Some(TRANSPARENT)
     } else if color == b'\n' && shade == b'\n' {
         None
     } else {
