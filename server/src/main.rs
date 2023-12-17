@@ -9,7 +9,6 @@ use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie, App, HttpServer};
 use db::Pool;
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, TokenUrl};
-use std::io;
 use tokio::{
     signal::unix::SignalKind,
     sync::broadcast::{self, error::SendError},
@@ -30,7 +29,7 @@ pub struct AppData {
     pub db: Pool,
 }
 
-fn main() -> io::Result<()> {
+fn main() {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_time()
         .enable_io()
@@ -51,24 +50,30 @@ fn main() -> io::Result<()> {
             }
         }
 
-        println!("INFO: Connecting to database: {:?}", rc.get_moose_path());
+        println!(
+            "INFO: [MAIN] Connecting to database: {:?}",
+            rc.get_moose_path()
+        );
         let db = db::open_db(&rc).await;
 
         let moose_dump_file = rc.get_moose_dump();
         println!(
-            "INFO: Setting up Auto-dumps of database to: {:?}",
+            "INFO: [DUMP] Setting up Auto-dumps of database to: {:?}",
             moose_dump_file
         );
         let dbx = db.clone();
         let (stopchan_tx, rx1) = broadcast::channel(1);
         let dump_task = tokio::spawn(async move {
             let e = dump_moose(moose_dump_file, dbx, rx1).await;
-            println!("WARN: Moose Dump Task has shut down: {:?}", e);
+            println!("WARN: [DUMP] Task has shut down: {:?}", e);
             e
         });
 
         let listen_addr = rc.get_bind_addr();
-        println!("INFO: Attempting to listen on: http://{}/", listen_addr);
+        println!(
+            "INFO: [WEB] Attempting to listen on: http://{}/",
+            listen_addr
+        );
         let oauth2_client = match &rc.github_oauth2 {
             Some(GitHubOauth2 { id, secret }) => {
                 let client_id = ClientId::new(id.to_string());
@@ -124,7 +129,7 @@ fn main() -> io::Result<()> {
         let web_handle = web_svr.handle();
         let web_task = tokio::spawn(async {
             let e = web_svr.await;
-            println!("WARN: Web Server has shut down: {:?}", e);
+            println!("WARN: [WEB] Task has shut down: {:?}", e);
             e
         });
 
@@ -132,22 +137,20 @@ fn main() -> io::Result<()> {
             let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate()).unwrap();
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
-                    println!("WARN: SIGINT: shutting down.");
+                    println!("WARN: [SHUTDOWN] SIGINT: shutting down.");
                     web_handle.stop(true).await;
                     stopchan_tx.send(true)?;
                 }
                 _ = sigterm.recv() => {
-                    println!("WARN: SIGTERM: shutting down.");
+                    println!("WARN: [SHUTDOWN] SIGTERM: shutting down.");
                     web_handle.stop(true).await;
                     stopchan_tx.send(true)?;
                 }
             }
-            drop(sigterm);
             Ok(())
         });
 
-        let _ = tokio::join!(shutdown_task, web_task, dump_task);
+        let _ = tokio::try_join!(shutdown_task, web_task, dump_task)
+            .expect("All tasks to start/shutdown successfully.");
     });
-    rt.shutdown_background(); // Why does the executor have pending tasks?
-    Ok(())
 }

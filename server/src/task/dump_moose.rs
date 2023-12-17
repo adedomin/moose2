@@ -26,55 +26,53 @@ pub async fn dump_moose(
     db: Pool,
     mut stop_broadcast: Receiver<bool>,
 ) -> Result<(), DumpTaskError> {
-    async fn real_dump_moose(moose_dump: PathBuf, db: Pool) -> Result<(), DumpTaskError> {
-        let mut interval = time::interval(Duration::from_secs(3600));
+    let mut interval = time::interval(Duration::from_secs(3600));
 
-        loop {
-            interval.tick().await;
-            println!("INFO: Timer Triggered, dumping Moose to json file.");
-            let con = db.get().await.unwrap();
-            let md = moose_dump.clone();
-            con.interact(move |con| -> Result<(), DumpTaskError> {
-                let file = std::fs::File::create(md)?;
-                let mut bufw = BufWriter::new(file);
-                let mut start = true;
+    loop {
+        tokio::select! {
+            _ = stop_broadcast.recv() => {
+                return Ok(());
+            },
+            _ = interval.tick() => {
+                println!("INFO: [DUMP] Timer Triggered, dumping Moose to json file.");
+                let con = db.get().await.unwrap();
+                let md = moose_dump.clone();
+                con.interact(move |con| -> Result<(), DumpTaskError> {
+                    let file = std::fs::File::create(md)?;
+                    let mut bufw = BufWriter::new(file);
+                    let mut start = true;
 
-                let mut q = con.prepare_cached(DUMP_MOOSE)?;
-                let mut w = q.query([])?;
-                while let Ok(row) = w.next() {
-                    if start {
-                        bufw.write_all(b"[")?;
-                        start = false;
-                    } else {
-                        bufw.write_all(b",")?;
+                    let mut q = con.prepare_cached(DUMP_MOOSE)?;
+                    let mut w = q.query([])?;
+                    while let Ok(row) = w.next() {
+                        if start {
+                            bufw.write(b"[")?;
+                            start = false;
+                        } else if row.is_none() {
+                            bufw.write(b"]")?;
+                        } else {
+                            bufw.write(b",")?;
+                        }
+                        if let Some(row) = row {
+                            let moose = model::moose::Moose {
+                                name: row.get(0)?,
+                                image: row.get(1)?,
+                                dimensions: row.get(2)?,
+                                created: row.get(3)?,
+                                author: row.get(4)?,
+                                upvotes: row.get(5)?,
+                            };
+                            let moose = serde_json::to_vec(&moose)?;
+                            bufw.write(&moose)?;
+                        } else {
+                            break;
+                        }
                     }
-                    if let Some(row) = row {
-                        let moose = model::moose::Moose {
-                            name: row.get(0)?,
-                            image: row.get(1)?,
-                            dimensions: row.get(2)?,
-                            created: row.get(3)?,
-                            author: row.get(4)?,
-                            upvotes: row.get(5)?,
-                        };
-                        let moose = serde_json::to_vec(&moose)?;
-                        bufw.write_all(&moose)?;
-                    } else {
-                        bufw.write_all(b"]")?;
-                    }
-                }
-                Ok(())
-            })
-            .await??;
-        }
-    }
-
-    tokio::select! {
-        _ = stop_broadcast.recv() => {
-            Ok(())
-        }
-        e = real_dump_moose(moose_dump, db) => {
-            e
+                    println!("INTO: [DUMP] Done dumping moose.");
+                    Ok(())
+                })
+                .await??;
+            }
         }
     }
 }
