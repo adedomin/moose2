@@ -44,30 +44,25 @@ pub async fn dump_moose(
 
                     let mut q = con.prepare_cached(DUMP_MOOSE)?;
                     let mut w = q.query([])?;
-                    while let Ok(row) = w.next() {
+                    while let Ok(Some(row)) = w.next() {
                         if start {
                             bufw.write(b"[")?;
                             start = false;
-                        } else if row.is_none() {
-                            bufw.write(b"]")?;
                         } else {
                             bufw.write(b",")?;
                         }
-                        if let Some(row) = row {
-                            let moose = model::moose::Moose {
-                                name: row.get(0)?,
-                                image: row.get(1)?,
-                                dimensions: row.get(2)?,
-                                created: row.get(3)?,
-                                author: row.get(4)?,
-                                upvotes: row.get(5)?,
-                            };
-                            let moose = serde_json::to_vec(&moose)?;
-                            bufw.write(&moose)?;
-                        } else {
-                            break;
-                        }
+                        let moose = model::moose::Moose {
+                            name: row.get(0)?,
+                            image: row.get(1)?,
+                            dimensions: row.get(2)?,
+                            created: row.get(3)?,
+                            author: row.get(4)?,
+                            upvotes: row.get(5)?,
+                        };
+                        let moose = serde_json::to_vec(&moose)?;
+                        bufw.write(&moose)?;
                     }
+                    bufw.write(b"]")?;
                     println!("INTO: [DUMP] Done dumping moose.");
                     Ok(())
                 })
