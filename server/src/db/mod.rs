@@ -73,7 +73,7 @@ pub async fn moose_bulk_import(moose_in: Option<PathBuf>, rc: &RunConfig) {
 
 #[derive(thiserror::Error, Debug)]
 pub enum QueryError {
-    #[error("Pool Connection Error: {0}")]
+    #[error("Pool Connection Interaction Error: {0}")]
     PoolInteractError(#[from] deadpool_sqlite::InteractError),
     #[error("Pool Connection Error: {0}")]
     ConnectionPool(#[from] deadpool_sqlite::PoolError),

@@ -31,6 +31,7 @@ impl Default for Secret {
 #[derive(Default, Deserialize, Clone)]
 pub struct RunConfig {
     moose_path: Option<PathBuf>,
+    moose_dump: Option<PathBuf>,
     listen: Option<String>,
     cookie_secret: Option<String>,
     pub github_oauth2: Option<GitHubOauth2>,
@@ -46,6 +47,17 @@ impl RunConfig {
             let pd= ProjectDirs::from("space", "ghetty", "moose2").expect("Could not find default path to put data in. please explicitly define a moose_path in the config.");
             let mut path = PathBuf::from(pd.data_dir());
             path.push("moose2.db");
+            path
+        }
+    }
+
+    pub fn get_moose_dump(&self) -> PathBuf {
+        if let Some(path) = &self.moose_dump {
+            path.clone()
+        } else {
+            let pd= ProjectDirs::from("space", "ghetty", "moose2").expect("Could not find default path to put data in. please explicitly define a moose_path in the config.");
+            let mut path = PathBuf::from(pd.data_dir());
+            path.push("moose2.json");
             path
         }
     }

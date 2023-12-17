@@ -85,6 +85,8 @@ export {{PIX_FMT_WIDTH, PIX_FMT_HEIGHT, MOOSE_SIZES}};
 
 pub const EXAMPLE_CONFIG: &[u8] = br###"{ "//": "OPTIONAL: default: $XDG_DATA_HOME/moose2 or $STATE_DIRECTORY/"
 , "moose_path":    "/path/to/store/meese"
+, "//": "OPTIONAL: default: $XDG_DATA_HOME/moose2/moose2.json or $STATE_DIRECTORY/moose2.json"
+, "moose_dump":    "/path/to/store/meese.json"
 , "//": "OPTIONAL: can use unix:/path/to/socket for uds listening."
 , "listen":        "http://[::1]:5921"
 , "//": "A symmetric secret key for session cookies; delete for random; is PBKDF padded to 64 bytes."

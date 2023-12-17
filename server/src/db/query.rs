@@ -60,6 +60,14 @@ BEGIN
      SET upvotes = ( upvotes - OLD.vote_type ) + NEW.vote_type
    WHERE name = OLD.moose_name;
 END;
+
+CREATE TRIGGER IF NOT EXISTS Vote_UpdateTrigger
+AFTER DELETE ON Vote
+BEGIN
+  UPDATE Moose
+     SET upvotes = upvotes - OLD.vote_type
+   WHERE name = OLD.moose_name;
+END;
 "###;
 
 pub const INSERT_MOOSE: &str =
@@ -120,3 +128,5 @@ pub const INSERT_MOOSE_WITH_COMPUTED_POS: &str = r###"
     INSERT INTO Moose(name,                              pos, image, dimensions, created, author)
     VALUES           (   ?, (SELECT MAX(pos) FROM Moose) + 1,     ?,          ?,       ?,      ?);
 "###;
+
+pub const DUMP_MOOSE: &str = "SELECT name, image, dimensions, created, author, upvotes FROM Moose";
