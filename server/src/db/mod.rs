@@ -39,7 +39,7 @@ pub async fn open_db(rc: &RunConfig) -> Pool {
     pool
 }
 
-pub async fn moose_bulk_import(moose_in: Option<PathBuf>, rc: &RunConfig) {
+pub async fn moose_bulk_import(moose_in: Option<PathBuf>, ignore_dup: bool, db: Pool) {
     let mut moose_in = match moose_in {
         Some(path) => {
             let file = BufReader::new(std::fs::File::open(path).unwrap());
@@ -48,26 +48,33 @@ pub async fn moose_bulk_import(moose_in: Option<PathBuf>, rc: &RunConfig) {
         None => serde_json::from_reader::<_, Vec<Moose>>(std::io::stdin().lock()).unwrap(),
     };
     moose_in.sort_unstable_by(|lhs, rhs| lhs.created.cmp(&rhs.created));
-    let db = open_db(rc).await;
     let conn = db.get().await.unwrap();
     conn.interact(move |conn| {
         let tx = conn.transaction().unwrap();
         for (i, moose) in moose_in.iter().enumerate() {
-            tx.prepare_cached(INSERT_MOOSE)
-                .unwrap()
-                .execute(params![
-                    moose.name,
-                    i,
-                    moose.image,
-                    moose.dimensions,
-                    moose.created,
-                    moose.author,
-                ])
-                .unwrap();
+            if let Err(e) = tx.prepare_cached(INSERT_MOOSE).unwrap().execute(params![
+                moose.name,
+                i,
+                moose.image,
+                moose.dimensions,
+                moose.created,
+                moose.author,
+            ]) {
+                match (&e, ignore_dup) {
+                    (rusqlite::Error::SqliteFailure(err, _reason), true) => match err.code {
+                        rusqlite::ErrorCode::ConstraintViolation => {
+                            // eprintln!("WARN: {}, already exists in database.", moose.name);
+                        }
+                        _ => return Err(e),
+                    },
+                    _ => return Err(e),
+                }
+            }
         }
-        tx.commit().unwrap();
+        tx.commit()
     })
     .await
+    .unwrap()
     .unwrap();
 }
 

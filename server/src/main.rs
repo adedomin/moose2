@@ -18,31 +18,40 @@ pub mod templates;
 pub mod web_handlers;
 
 fn main() {
+    let mut is_import = None;
+    let (subcmd, rc) = config::parse_args();
+    if let Some(sub) = subcmd {
+        match sub {
+            SubCommand::Import { merge, input } => {
+                // We need an async runtime + db open for this.
+                is_import = Some((merge, input));
+            }
+            SubCommand::Convert { input, output } => {
+                // We do not need the runtime or database for this
+                eprintln!("INFO: [MAIN] Converting moose-legacy format to moose2 format.");
+                moose_bulk_transform(input, output);
+                return;
+            }
+        }
+    }
+
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_time()
         .enable_io()
         .build()
         .unwrap();
     rt.block_on(async {
-        let (subcmd, rc) = config::parse_args();
-        if let Some(sub) = subcmd {
-            match sub {
-                SubCommand::Import { input } => {
-                    moose_bulk_import(input, &rc).await;
-                    return;
-                }
-                SubCommand::Convert { input, output } => {
-                    moose_bulk_transform(input, output);
-                    return;
-                }
-            }
-        }
-
         println!(
             "INFO: [MAIN] Connecting to database: {:?}",
             rc.get_moose_path()
         );
         let db = db::open_db(&rc).await;
+
+        if let Some((merge, moose_in)) = is_import {
+            println!("INFO: [MAIN] Importing moose. Shutting down after importing.");
+            moose_bulk_import(moose_in, merge, db).await;
+            return;
+        }
 
         let moose_dump_file = rc.get_moose_dump();
         let dbx = db.clone();

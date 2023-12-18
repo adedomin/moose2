@@ -104,7 +104,16 @@ pub struct Args {
 #[derive(clap::Subcommand, Debug)]
 pub enum SubCommand {
     #[command(about = "Import a moose dump")]
-    Import { input: Option<PathBuf> },
+    Import {
+        #[arg(
+            short,
+            long,
+            help = "Ignore existing moose when importing.",
+            default_value_t = false
+        )]
+        merge: bool,
+        input: Option<PathBuf>,
+    },
     #[command(about = "Convert a moose (js) dump to moose2 dump")]
     Convert {
         input: Option<PathBuf>,
