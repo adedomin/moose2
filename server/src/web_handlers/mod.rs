@@ -1,4 +1,4 @@
-use crate::AppData;
+use crate::model::app_data::AppData;
 use actix_web::{http::header::IF_NONE_MATCH, web, HttpRequest};
 
 pub mod api;

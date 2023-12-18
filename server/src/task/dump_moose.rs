@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use tokio::{sync::broadcast::Receiver, time};
+use tokio::{sync::broadcast::Receiver, task::JoinHandle, time};
 
 use crate::db::{query::DUMP_MOOSE, Pool};
 use crate::model::{self};
@@ -20,8 +20,7 @@ pub enum DumpTaskError {
     #[error("Deserialization Error: {0}")]
     Serde(#[from] serde_json::Error),
 }
-
-pub async fn dump_moose(
+async fn dump_moose(
     moose_dump: PathBuf,
     db: Pool,
     mut stop_broadcast: Receiver<bool>,
@@ -70,4 +69,20 @@ pub async fn dump_moose(
             }
         }
     }
+}
+
+pub fn dump_moose_task(
+    moose_dump: PathBuf,
+    db: Pool,
+    stop_broadcast: Receiver<bool>,
+) -> JoinHandle<Result<(), DumpTaskError>> {
+    println!(
+        "INFO: [DUMP] Setting up Auto-dumps of database to: {:?}",
+        moose_dump
+    );
+    tokio::spawn(async move {
+        let e = dump_moose(moose_dump, db, stop_broadcast).await;
+        println!("WARN: [DUMP] Task has shut down: {:?}", e);
+        e
+    })
 }
