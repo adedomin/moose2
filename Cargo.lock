@@ -1379,7 +1379,6 @@ dependencies = [
  "actix-files",
  "actix-session",
  "actix-web",
- "async-trait",
  "base64 0.20.0",
  "bcrypt-pbkdf",
  "chrono",

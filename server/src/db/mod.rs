@@ -88,7 +88,9 @@ pub enum QueryError {
     Sqlite3(#[from] rusqlite::Error),
 }
 
-#[async_trait::async_trait]
+// NOTE: you can suppress this lint if you plan to use the trait only in your own code, or do not care about auto traits like `Send` on the `Future`
+// this code is not exported to other users, other than moose2's code.
+#[allow(async_fn_in_trait)]
 pub trait MooseDB {
     async fn len(&self) -> Result<usize, QueryError>;
     async fn last(&self) -> Result<Option<Moose>, QueryError>;
@@ -113,7 +115,6 @@ fn handle_opt_q(res: Result<Moose, rusqlite::Error>) -> Result<Option<Moose>, Qu
     }
 }
 
-#[async_trait::async_trait]
 impl MooseDB for Pool {
     async fn len(&self) -> Result<usize, QueryError> {
         let conn = self.get().await?;
