@@ -18,7 +18,7 @@ const MOOSE_MAX_NAME_LEN: usize = 64usize;
 format_description!(
     javascript_date_time_formatter,
     OffsetDateTime,
-    "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z"
+    "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond digits:3]]]Z"
 );
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
