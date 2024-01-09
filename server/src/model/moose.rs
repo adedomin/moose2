@@ -7,18 +7,26 @@ use std::{
     io::{BufReader, BufWriter},
     path::PathBuf,
 };
-use time::{serde::format_description, OffsetDateTime};
+use time::{format_description::FormatItem, macros::format_description, OffsetDateTime};
 
 const MOOSE_MAX_NAME_LEN: usize = 64usize;
 
-// See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date#date_time_string_format
-// It's a simplified ISO-8601, but requiring exactly 3 subsecond digits or none at all.
-// For dates past CE or greater than 9999, Time will automagically use ± appropriately
-// which is what the JavaScript format wants.
-format_description!(
+/// SEE: https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-date-time-string-format
+/// It's a simplified ISO-8601.
+/// YYYY is mandatory.
+/// MM-DD or DD are optional.
+/// ss.mmm or ss are optional
+/// mmm must be exactly 3 significant figures. It's representing milliseconds, not the full 9 sig fig nanoseconds.
+/// we only ever care about UTC (Z) timezone and should reject any other offsets.
+const JS_DATE_TIME_FORMAT: &[FormatItem<'_>] = format_description!(
+    version = 2,
+    "[year]-[optional [[first [[month]-[day]] [[month]]]]]T[hour]:[minute]:[optional [[first [[second].[subsecond digits:3]] [[second]]]]]Z"
+);
+
+time::serde::format_description!(
     javascript_date_time_formatter,
     OffsetDateTime,
-    "[year]-[month]-[day]T[hour]:[minute]:[second][optional [.[subsecond digits:3]]]Z"
+    JS_DATE_TIME_FORMAT
 );
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
