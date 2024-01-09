@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 serde = { version = "=1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
-chrono = { version = "0.4.23", features = ["serde"] }
+# chrono = { version = "0.4.23", features = ["serde"] }
 thiserror = "1.0.31"
 rand = { version = "0.8.5", features = ["std", "std_rng"], default-features = false }
 base64 = { version = "0.20.0-alpha.1" }
@@ -17,9 +17,8 @@ actix-web = "4.0.1"
 actix-session = { version = "0.7.2", default-features = false, features = ["cookie-session"] }
 percent-encoding = "2.1.0"
 md5 = "0.7.0"
-actix-files = "0.6.2"
 deadpool-sqlite = { version = "0.7.0", default-features = false, features = ["rt_tokio_1"] }
-rusqlite = { version = "0.30.0", features = ["bundled", "chrono"] }
+rusqlite = { version = "0.30.0", features = ["bundled", "time"] }
 oauth2 = { version = "4.2.3", default-features = false }
 reqwest = { version = "0.11.11", default-features = false, features = ["json", "rustls-tls"] }
 bcrypt-pbkdf = "0.9.0"
@@ -30,4 +29,5 @@ const_format = "0.2.30"
 clap = { version = "4.4.6", features = ["derive"] }
 directories = "5.0.1"
 tokio = { version = "1", default-features = false, features = ["rt", "time", "macros","signal"] }
+time = { version = "0.3", features = ["serde-human-readable", "macros"] }
 # indoc = "2.0.1"

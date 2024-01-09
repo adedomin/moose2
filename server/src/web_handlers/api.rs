@@ -8,6 +8,7 @@ use crate::{
     render::{moose_irc, moose_png, moose_term},
     templates,
 };
+use ::time::OffsetDateTime;
 use actix_session::Session;
 use actix_web::{
     body::BoxBody,
@@ -311,7 +312,7 @@ pub async fn put_new_moose(
     } else {
         moose.author = Author::Anonymous;
     }
-    moose.created = chrono::offset::Utc::now();
+    moose.created = OffsetDateTime::now_utc();
 
     if let Dimensions::Custom(_, _) = moose.dimensions {
         return moose_validation_err("Custom dimensions are not allowed through the public API.");

@@ -48,7 +48,7 @@ async fn dump_moose_real(con: Connection, moose_dump: PathBuf) -> Result<(), Dum
             bufw.write(&moose)?;
         }
         bufw.write(b"]")?;
-        println!("INTO: [DUMP] Done dumping moose.");
+        println!("INFO: [DUMP] Done dumping moose.");
         Ok(())
     })
     .await?

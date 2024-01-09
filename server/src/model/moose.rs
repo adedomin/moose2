@@ -2,14 +2,24 @@ use super::author::Author;
 use super::dimensions::Dimensions;
 use crate::render::TRANSPARENT;
 use base64::DecodeError;
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     io::{BufReader, BufWriter},
     path::PathBuf,
 };
+use time::{serde::format_description, OffsetDateTime};
 
 const MOOSE_MAX_NAME_LEN: usize = 64usize;
+
+// See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date#date_time_string_format
+// It's a simplified ISO-8601, but requiring exactly 3 subsecond digits or none at all.
+// For dates past CE or greater than 9999, Time will automagically use ± appropriately
+// which is what the JavaScript format wants.
+format_description!(
+    javascript_date_time_formatter,
+    OffsetDateTime,
+    "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z"
+);
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(remote = "Self")]
@@ -19,7 +29,8 @@ pub struct Moose {
     #[serde(serialize_with = "as_base64", deserialize_with = "from_base64")]
     pub image: Vec<u8>,
     pub dimensions: Dimensions,
-    pub created: DateTime<Utc>,
+    #[serde(with = "javascript_date_time_formatter")]
+    pub created: OffsetDateTime,
     #[serde(default = "super::author::default_author")]
     pub author: Author,
     #[serde(default = "upvote_zeroed")]
@@ -135,7 +146,8 @@ pub struct MooseLegacy {
     pub name: String,
     pub image: String,
     pub shade: String,
-    pub created: DateTime<Utc>,
+    #[serde(with = "javascript_date_time_formatter")]
+    pub created: OffsetDateTime,
     pub hd: bool,
     pub shaded: bool,
     pub extended: bool,

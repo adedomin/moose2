@@ -88,7 +88,7 @@ pub const GET_MOOSE: &str =
     "SELECT name, image, dimensions, created, author, upvotes FROM Moose WHERE name = ?";
 
 pub const GET_MOOSE_IDX: &str =
-    "SELECT name, image, dimensions, created, author FROM Moose WHERE pos = ?";
+    "SELECT name, image, dimensions, created, author, upvotes FROM Moose WHERE pos = ?";
 
 pub const GET_MOOSE_PAGE: &str = r###"
     SELECT m.name
