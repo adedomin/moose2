@@ -15,6 +15,7 @@ use actix_web::{
 use include_dir::{include_dir, Dir};
 
 const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/js");
+const WASM_MODULES: Dir = include_dir!("$OUT_DIR/wasm_subbuild/wasm-bindgen");
 
 pub enum Static {
     Body(&'static [u8], &'static str),
@@ -78,6 +79,11 @@ pub async fn index_page() -> StaticResp {
     StaticResp(get_static_file_from(&CLIENT_DIR, "root/index", "html"))
 }
 
+#[get("/wasm2.html")]
+pub async fn wasm_test_page() -> StaticResp {
+    StaticResp(get_static_file_from(&CLIENT_DIR, "root/wasm2", "html"))
+}
+
 #[get("/favicon.ico")]
 pub async fn favicon() -> StaticResp {
     StaticResp(get_static_file_from(&CLIENT_DIR, "root/favicon", "ico"))
@@ -103,4 +109,11 @@ pub async fn const_js_modules(c: web::Path<String>) -> StaticResp {
 #[get("/public/global-modules/err.js")]
 pub async fn err_js_script() -> StaticResp {
     StaticResp(Static::Body(ERR_JS, "application/javascript"))
+}
+
+#[get("/public/wasm/{file}.{ext}")]
+pub async fn static_wasm_file(file: web::Path<(String, String)>) -> StaticResp {
+    let fname = format!("{}", file.0.as_str());
+    let body = get_static_file_from(&WASM_MODULES, fname.as_str(), file.1.as_str());
+    StaticResp(body)
 }

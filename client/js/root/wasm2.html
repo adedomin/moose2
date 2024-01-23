@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang=en>
+  <head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+  </head>
+  <body>
+    <main>
+      <div>
+        <h1>Example fill_rect WASM</h1>
+      </div>
+      <canvas id="drawing" width="600" height="600"></canvas>
+    </main>
+    <script type=module>
+      import init, { draw } from './public/wasm/gridpaint2.js'
+
+      async function main() {
+        await init();
+
+        const canvas = document.getElementById('drawing');
+        const ctx = canvas.getContext('2d');
+        draw(ctx, 600, 600);
+      }
+
+      main()
+    </script>
+  </body>
+</html>

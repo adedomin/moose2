@@ -33,7 +33,12 @@ pub fn web_task(
         }
         None => None,
     };
-    let app_data = actix_web::web::Data::new(AppData { oauth2_client, db });
+    let moose_dump = rc.get_moose_dump();
+    let app_data = actix_web::web::Data::new(AppData {
+        oauth2_client,
+        db,
+        moose_dump,
+    });
     let builder = HttpServer::new(move || {
         let cookie_session = SessionMiddleware::builder(
             CookieSessionStore::default(),
@@ -50,7 +55,9 @@ pub fn web_task(
             .service(web_handlers::static_files::favicon)
             .service(web_handlers::static_files::const_js_modules)
             .service(web_handlers::static_files::index_page)
+            .service(web_handlers::static_files::wasm_test_page)
             .service(web_handlers::static_files::err_js_script)
+            .service(web_handlers::static_files::static_wasm_file)
             .service(web_handlers::api::get_moose)
             .service(web_handlers::api::get_moose_img)
             .service(web_handlers::api::get_moose_irc)
@@ -60,6 +67,7 @@ pub fn web_task(
             .service(web_handlers::api::get_page_nav_range)
             .service(web_handlers::api::get_search_page)
             .service(web_handlers::api::put_new_moose)
+            .service(web_handlers::api::get_dump)
             .service(web_handlers::display::gallery_redir)
             .service(web_handlers::display::gallery_random_redir)
             .service(web_handlers::display::gallery_latest_redir)

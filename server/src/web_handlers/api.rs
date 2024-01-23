@@ -33,6 +33,7 @@ pub enum ApiResp {
     BodyCacheTime(Vec<u8>, &'static str, time::Duration),
     Redirect(String),
     NotFound(String),
+    CustomError(StatusCode, ApiError),
 }
 
 #[derive(Serialize)]
@@ -77,6 +78,7 @@ impl Responder for ApiResp {
             ApiResp::NotFound(moose_name) => HttpResponse::Ok()
                 .status(StatusCode::NOT_FOUND)
                 .json(ApiError::new(format!("no such moose: {}", moose_name))),
+            ApiResp::CustomError(code, err) => HttpResponse::Ok().status(code).json(err),
         }
     }
 }
@@ -333,4 +335,27 @@ pub async fn put_new_moose(
             msg: format!("moose {moose_name} saved."),
         })
     }
+}
+
+#[get("/dump")]
+pub async fn get_dump(data: MooseWebData) -> ApiResp {
+    let dump = data.moose_dump.clone();
+    tokio::spawn(async move {
+        match std::fs::read(dump) {
+            Ok(bytes) => ApiResp::BodyCacheTime(bytes, JSON_TYPE.1, Duration::from_secs(300)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => ApiResp::CustomError(
+                StatusCode::NOT_FOUND,
+                ApiError::new("Dump not available; try again later.".to_owned()),
+            ),
+            Err(e) => {
+                eprintln!("Unknown FS error: {e}");
+                ApiResp::CustomError(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ApiError::new("Dump not available; unknown error.".to_owned()),
+                )
+            }
+        }
+    })
+    .await
+    .unwrap()
 }
