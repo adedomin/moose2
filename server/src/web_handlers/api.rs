@@ -338,24 +338,7 @@ pub async fn put_new_moose(
 }
 
 #[get("/dump")]
-pub async fn get_dump(data: MooseWebData) -> ApiResp {
+pub async fn get_dump(data: MooseWebData) -> impl Responder {
     let dump = data.moose_dump.clone();
-    tokio::spawn(async move {
-        match std::fs::read(dump) {
-            Ok(bytes) => ApiResp::BodyCacheTime(bytes, JSON_TYPE.1, Duration::from_secs(300)),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => ApiResp::CustomError(
-                StatusCode::NOT_FOUND,
-                ApiError::new("Dump not available; try again later.".to_owned()),
-            ),
-            Err(e) => {
-                eprintln!("Unknown FS error: {e}");
-                ApiResp::CustomError(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ApiError::new("Dump not available; unknown error.".to_owned()),
-                )
-            }
-        }
-    })
-    .await
-    .unwrap()
+    actix_files::NamedFile::open_async(dump).await
 }

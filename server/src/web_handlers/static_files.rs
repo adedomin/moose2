@@ -15,7 +15,6 @@ use actix_web::{
 use include_dir::{include_dir, Dir};
 
 const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/js");
-const WASM_MODULES: Dir = include_dir!("$OUT_DIR/wasm_subbuild/wasm-bindgen");
 
 pub enum Static {
     Body(&'static [u8], &'static str),
@@ -79,14 +78,16 @@ pub async fn index_page() -> StaticResp {
     StaticResp(get_static_file_from(&CLIENT_DIR, "root/index", "html"))
 }
 
-#[get("/wasm2.html")]
-pub async fn wasm_test_page() -> StaticResp {
-    StaticResp(get_static_file_from(&CLIENT_DIR, "root/wasm2", "html"))
-}
-
 #[get("/favicon.ico")]
 pub async fn favicon() -> StaticResp {
     StaticResp(get_static_file_from(&CLIENT_DIR, "root/favicon", "ico"))
+}
+
+#[get("/root/public/{file}.{ext}")]
+pub async fn static_root_file(file: web::Path<(String, String)>) -> StaticResp {
+    let root_fname = format!("root/{}", file.0.as_str());
+    let root_body = get_static_file_from(&CLIENT_DIR, root_fname.as_str(), file.1.as_str());
+    StaticResp(root_body)
 }
 
 #[get("/gallery/public/{file}.{ext}")]
@@ -106,14 +107,20 @@ pub async fn const_js_modules(c: web::Path<String>) -> StaticResp {
     StaticResp(Static::Body(body, "application/javascript"))
 }
 
+#[get("/public/gridpaint/index.js")]
+pub async fn gridpaint_modules() -> StaticResp {
+    let gridpaint = get_static_file_from(&CLIENT_DIR, "gridpaint/index", "js");
+    StaticResp(gridpaint)
+}
+
+#[get("/public/gridpaint/lib/{module}.js")]
+pub async fn gridpaint_lib_modules(gp: web::Path<String>) -> StaticResp {
+    let gridpaint_fname = format!("gridpaint/lib/{}", gp.into_inner().as_str());
+    let gridpaint = get_static_file_from(&CLIENT_DIR, gridpaint_fname.as_str(), "js");
+    StaticResp(gridpaint)
+}
+
 #[get("/public/global-modules/err.js")]
 pub async fn err_js_script() -> StaticResp {
     StaticResp(Static::Body(ERR_JS, "application/javascript"))
-}
-
-#[get("/public/wasm/{file}.{ext}")]
-pub async fn static_wasm_file(file: web::Path<(String, String)>) -> StaticResp {
-    let fname = format!("{}", file.0.as_str());
-    let body = get_static_file_from(&WASM_MODULES, fname.as_str(), file.1.as_str());
-    StaticResp(body)
 }
