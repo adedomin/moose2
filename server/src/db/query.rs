@@ -104,13 +104,13 @@ pub const GET_MOOSE_PAGE: &str = r###"
 
 pub const SEARCH_MOOSE_PAGE: &str = const_format::formatcp!(
     r###"
-    SELECT m.pos
-         , m.name
+    SELECT m.name
          , m.image
          , m.dimensions
          , m.created
          , m.author
          , m.upvotes
+         , m.pos
       FROM Moose m
 INNER JOIN
          ( SELECT moose_name

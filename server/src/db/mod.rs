@@ -224,7 +224,7 @@ impl MooseDB for Pool {
                     .prepare_cached(SEARCH_MOOSE_PAGE)?
                     .query_map([query], |row| {
                         Ok(MooseSearch {
-                            page: row.get::<_, usize>(0)? / PAGE_SIZE,
+                            page: row.get::<_, usize>(6)? / PAGE_SIZE,
                             moose: row.try_into()?,
                         })
                     })?
