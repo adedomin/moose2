@@ -1,9 +1,11 @@
 use std::{
-    io::{BufWriter, Write},
+    fs::File,
+    io::{BufWriter, IntoInnerError, Write},
     path::PathBuf,
     time::Duration,
 };
 
+use rand::Rng;
 use tokio::{sync::broadcast::Receiver, task::JoinHandle, time};
 
 use crate::db::{query::DUMP_MOOSE, Connection, Pool};
@@ -15,15 +17,29 @@ pub enum DumpTaskError {
     PoolInteractError(#[from] deadpool_sqlite::InteractError),
     #[error("Sqlite3 Error: {0}")]
     Sqlite3(#[from] rusqlite::Error),
-    #[error("Could not open dump file: {0}")]
-    DumpFile(#[from] std::io::Error),
+    #[error(
+        "Could not open tmp file, sync() it to disk or rename tmp moose to moose_dump path: {0}"
+    )]
+    StdIO(#[from] std::io::Error),
     #[error("Deserialization Error: {0}")]
     Serde(#[from] serde_json::Error),
+    #[error("Failed to recover file handle: {0}")]
+    IntoInner(#[from] IntoInnerError<BufWriter<File>>),
+    #[error("Moose dump path is either \"/\" or an empty string, \"\".")]
+    StrangeMooseDumpPath(),
 }
 
 async fn dump_moose_real(con: Connection, moose_dump: PathBuf) -> Result<(), DumpTaskError> {
     con.interact(move |con| -> Result<(), DumpTaskError> {
-        let file = std::fs::File::create(moose_dump)?;
+        // parent only fails when totally rooted.
+        let tdir = match moose_dump.parent() {
+            Some(p) => p,
+            None => return Err(DumpTaskError::StrangeMooseDumpPath()),
+        };
+        let r: u64 = rand::thread_rng().gen();
+        let tdir = tdir.join(format!(".moose.json.{:x}", r));
+
+        let file = File::create(&tdir)?;
         let mut bufw = BufWriter::new(file);
         let mut start = true;
 
@@ -48,6 +64,12 @@ async fn dump_moose_real(con: Connection, moose_dump: PathBuf) -> Result<(), Dum
             bufw.write(&moose)?;
         }
         bufw.write(b"]")?;
+        let inner = bufw.into_inner()?;
+        inner.sync_data()?;
+        drop(inner);
+
+        std::fs::rename(tdir, moose_dump)?;
+
         println!("INFO: [DUMP] Done dumping moose.");
         Ok(())
     })
