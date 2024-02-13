@@ -1,4 +1,4 @@
-use super::{if_none_match_md5, MooseWebData};
+use super::MooseWebData;
 use crate::{
     db::{MooseDB, Pool},
     model::{
@@ -14,7 +14,7 @@ use actix_web::{
     body::BoxBody,
     get,
     http::{
-        header::{CacheControl, CacheDirective, ETag, EntityTag, LOCATION},
+        header::{CacheControl, CacheDirective, LOCATION},
         StatusCode,
     },
     post,
@@ -79,42 +79,6 @@ impl Responder for ApiResp {
                 .status(StatusCode::NOT_FOUND)
                 .json(ApiError::new(format!("no such moose: {}", moose_name))),
             ApiResp::CustomError(code, err) => HttpResponse::Ok().status(code).json(err),
-        }
-    }
-}
-
-pub enum VarBody {
-    Found(Vec<u8>, &'static str),
-    NotFound,
-}
-
-impl Responder for VarBody {
-    type Body = BoxBody;
-
-    fn respond_to(self, req: &actix_web::HttpRequest) -> HttpResponse<Self::Body> {
-        let (body, ctype) = if let VarBody::Found(body, ctype) = self {
-            (body, ctype)
-        } else {
-            return HttpResponse::Ok()
-                .status(StatusCode::NOT_FOUND)
-                .body("No such file or directory.");
-        };
-
-        let (etag_match, md5_hex) = if_none_match_md5(&body, req);
-        let etag_head = ETag(EntityTag::new_strong(md5_hex));
-        let ctype_head = ("Content-Type", ctype);
-
-        if etag_match {
-            HttpResponse::Ok()
-                .insert_header(etag_head)
-                .insert_header(ctype_head)
-                .status(StatusCode::NOT_MODIFIED)
-                .body(())
-        } else {
-            HttpResponse::Ok()
-                .insert_header(etag_head)
-                .insert_header(ctype_head)
-                .body(body)
         }
     }
 }
@@ -309,6 +273,7 @@ pub async fn put_new_moose(
                 });
         }
     };
+
     if let Ok(Some(author)) = session.get::<Author>("login") {
         moose.author = author;
     } else {

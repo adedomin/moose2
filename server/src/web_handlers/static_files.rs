@@ -39,25 +39,23 @@ impl Responder for StaticResp {
         let etag_head = ETag(EntityTag::new_strong(crc32.to_string()));
         let ctype_head = ("Content-Type", ctype);
 
+        let mut res_build = HttpResponse::Ok();
+        let res_build = res_build
+            .insert_header(etag_head)
+            .insert_header(ctype_head)
+            .insert_header(CacheControl(vec![
+                CacheDirective::Public,
+                CacheDirective::Extension("immutable".to_owned(), None),
+                CacheDirective::MaxAge(3600),
+                CacheDirective::Extension(
+                    "stale-while-revalidate".to_owned(),
+                    Some("86400".to_owned()),
+                ),
+            ]));
         if etag_match {
-            HttpResponse::Ok()
-                .insert_header(etag_head)
-                .insert_header(ctype_head)
-                .insert_header(CacheControl(vec![
-                    CacheDirective::Public,
-                    CacheDirective::MaxAge(3600),
-                ]))
-                .status(StatusCode::NOT_MODIFIED)
-                .body(())
+            res_build.status(StatusCode::NOT_MODIFIED).body(())
         } else {
-            HttpResponse::Ok()
-                .insert_header(etag_head)
-                .insert_header(ctype_head)
-                .insert_header(CacheControl(vec![
-                    CacheDirective::Public,
-                    CacheDirective::MaxAge(3600),
-                ]))
-                .body(body)
+            res_build.body(body)
         }
     }
 }
