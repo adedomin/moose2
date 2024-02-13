@@ -115,6 +115,21 @@ fn handle_opt_q(res: Result<Moose, rusqlite::Error>) -> Result<Option<Moose>, Qu
     }
 }
 
+impl TryFrom<&rusqlite::Row<'_>> for Moose {
+    type Error = rusqlite::Error;
+
+    fn try_from(row: &rusqlite::Row<'_>) -> Result<Self, Self::Error> {
+        Ok(Moose {
+            name: row.get(0)?,
+            image: row.get(1)?,
+            dimensions: row.get(2)?,
+            created: row.get(3)?,
+            author: row.get(4)?,
+            upvotes: row.get(5)?,
+        })
+    }
+}
+
 impl MooseDB for Pool {
     async fn len(&self) -> Result<usize, QueryError> {
         let conn = self.get().await?;
@@ -129,16 +144,9 @@ impl MooseDB for Pool {
     async fn last(&self) -> Result<Option<Moose>, QueryError> {
         let conn = self.get().await?;
         conn.interact(|conn| {
-            let q = conn.prepare_cached(LAST_MOOSE)?.query_row([], |row| {
-                Ok(Moose {
-                    name: row.get(0)?,
-                    image: row.get(1)?,
-                    dimensions: row.get(2)?,
-                    created: row.get(3)?,
-                    author: row.get(4)?,
-                    upvotes: row.get(5)?,
-                })
-            });
+            let q = conn
+                .prepare_cached(LAST_MOOSE)?
+                .query_row([], |row| row.try_into());
             handle_opt_q(q)
         })
         .await?
@@ -158,16 +166,9 @@ impl MooseDB for Pool {
         let conn = self.get().await?;
         let moose = moose.to_owned();
         conn.interact(move |conn| {
-            let q = conn.prepare_cached(GET_MOOSE)?.query_row([moose], |row| {
-                Ok(Moose {
-                    name: row.get(0)?,
-                    image: row.get(1)?,
-                    dimensions: row.get(2)?,
-                    created: row.get(3)?,
-                    author: row.get(4)?,
-                    upvotes: row.get(5)?,
-                })
-            });
+            let q = conn
+                .prepare_cached(GET_MOOSE)?
+                .query_row([moose], |row| row.try_into());
             handle_opt_q(q)
         })
         .await?
@@ -176,16 +177,9 @@ impl MooseDB for Pool {
     async fn get_moose_idx(&self, idx: usize) -> Result<Option<Moose>, QueryError> {
         let conn = self.get().await?;
         conn.interact(move |conn| {
-            let q = conn.prepare_cached(GET_MOOSE_IDX)?.query_row([idx], |row| {
-                Ok(Moose {
-                    name: row.get(0)?,
-                    image: row.get(1)?,
-                    dimensions: row.get(2)?,
-                    created: row.get(3)?,
-                    author: row.get(4)?,
-                    upvotes: row.get(5)?,
-                })
-            });
+            let q = conn
+                .prepare_cached(GET_MOOSE_IDX)?
+                .query_row([idx], |row| row.try_into());
             handle_opt_q(q)
         })
         .await?
@@ -199,16 +193,7 @@ impl MooseDB for Pool {
                 let end = page_num * PAGE_SIZE + PAGE_SIZE;
                 Ok(conn
                     .prepare_cached(GET_MOOSE_PAGE)?
-                    .query_map([start, end], |row| {
-                        Ok(Moose {
-                            name: row.get(0)?,
-                            image: row.get(1)?,
-                            dimensions: row.get(2)?,
-                            created: row.get(3)?,
-                            author: row.get(4)?,
-                            upvotes: row.get(5)?,
-                        })
-                    })?
+                    .query_map([start, end], |row| row.try_into())?
                     .flat_map(|m| match m {
                         Ok(moose) => Some(moose),
                         Err(e) => {
@@ -240,14 +225,7 @@ impl MooseDB for Pool {
                     .query_map([query], |row| {
                         Ok(MooseSearch {
                             page: row.get::<_, usize>(0)? / PAGE_SIZE,
-                            moose: Moose {
-                                name: row.get(1)?,
-                                image: row.get(2)?,
-                                dimensions: row.get(3)?,
-                                created: row.get(4)?,
-                                author: row.get(5)?,
-                                upvotes: row.get(6)?,
-                            },
+                            moose: row.try_into()?,
                         })
                     })?
                     .flat_map(|m| match m {
