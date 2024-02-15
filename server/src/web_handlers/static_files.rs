@@ -51,6 +51,7 @@ impl Responder for StaticResp {
                     "stale-while-revalidate".to_owned(),
                     Some("86400".to_owned()),
                 ),
+                CacheDirective::Extension("stale-if-error".to_owned(), Some("86400".to_owned())),
             ]));
         if etag_match {
             res_build.status(StatusCode::NOT_MODIFIED).body(())

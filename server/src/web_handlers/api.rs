@@ -3,7 +3,7 @@ use crate::{
     db::{MooseDB, Pool},
     model::{
         author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage,
-        queries::SearchQuery,
+        queries::SearchQuery, PAGE_SIZE,
     },
     render::{moose_irc, moose_png, moose_term},
     templates,
@@ -62,13 +62,17 @@ impl Responder for ApiResp {
     ) -> HttpResponse<<ApiResp as Responder>::Body> {
         match self {
             ApiResp::Body(body, ctype) => HttpResponse::Ok()
-                .insert_header(CacheControl(vec![CacheDirective::MaxAge(3600)]))
+                .insert_header(CacheControl(vec![
+                    CacheDirective::MaxAge(3600),
+                    CacheDirective::Extension("stale-if-error".to_owned(), Some("3600".to_owned())),
+                ]))
                 .insert_header(("Content-Type", ctype))
                 .body(body),
             ApiResp::BodyCacheTime(body, ctype, duration) => HttpResponse::Ok()
-                .insert_header(CacheControl(vec![CacheDirective::MaxAge(
-                    duration.as_secs() as u32,
-                )]))
+                .insert_header(CacheControl(vec![
+                    CacheDirective::MaxAge(duration.as_secs() as u32),
+                    CacheDirective::Extension("stale-if-error".to_owned(), Some("3600".to_owned())),
+                ]))
                 .insert_header(("Content-Type", ctype))
                 .body(body),
             ApiResp::Redirect(path) => HttpResponse::Ok()
@@ -194,8 +198,18 @@ pub async fn get_page(db: MooseWebData, page_id: web::Path<usize>) -> ApiResp {
             eprintln!("{}", err);
             vec![]
         });
+    // if the page is full, it probably won't change in hours, if ever.
+    // if the page isn't full, it's the last page or a page we haven't gotten to yet and can change.
+    let cache_duration = if meese.is_empty() {
+        Duration::from_secs(60) // this page is empty (technically doesn't exist)
+    } else if meese.len() < PAGE_SIZE {
+        Duration::from_secs(300) // last page
+    } else {
+        Duration::from_secs(3600) // full page
+    };
+
     let meese = serde_json::to_vec(&meese).unwrap();
-    ApiResp::BodyCacheTime(meese, "application/json", Duration::from_secs(300))
+    ApiResp::BodyCacheTime(meese, "application/json", cache_duration)
 }
 
 #[get("/nav/{page_num}")]
