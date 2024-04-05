@@ -70,7 +70,9 @@ const MOOSE_SIZES = new Map([
     [{}, [{}, {}]],
     [{}, [{}, {}]],
 ]);
-export {{PIX_FMT_WIDTH, PIX_FMT_HEIGHT, MOOSE_SIZES}};
+const MOOSE_SIZE_DEFAULT_KEY = {};
+const MOOSE_SIZE_HD_KEY = {};
+export {{PIX_FMT_WIDTH, PIX_FMT_HEIGHT, MOOSE_SIZES, MOOSE_SIZE_DEFAULT_KEY, MOOSE_SIZE_HD_KEY}};
 "###,
     PIX_FMT_WIDTH,
     PIX_FMT_HEIGHT,
@@ -80,6 +82,8 @@ export {{PIX_FMT_WIDTH, PIX_FMT_HEIGHT, MOOSE_SIZES}};
     HD_SIZE.2,
     HD_SIZE.0,
     HD_SIZE.1,
+    DEFAULT_SIZE.2,
+    HD_SIZE.2,
 )
 .as_bytes();
 

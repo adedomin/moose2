@@ -2,13 +2,28 @@
 <html lang=en>
   <head>
     <title>Moose2 Client</title>
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name=viewport>
+    <meta charset=utf-8>
+    <link rel="stylesheet" href="/root/public/index.css">
   </head>
   <body>
-    <h1>Currently only the gallery is implemented</h1>
-    <ul>
-      <li><a href=/gallery/0>Page 0.</a></li>
-      <li><a href=/gallery/random>Random page.</a></li>
-      <li><a href=/gallery/latest>Newest Moose page.</a></li>
-    </ul>
+    <div id=painter-frame>
+      <div id=painter-area><!-- canvas here --></div>
+      <div id=painter-controls>
+        <div id=painter-tools>
+          <button class=btn id=pencil>pencil</button>
+          <button class=btn id=line>line</button>
+          <button class=btn id=bucket>bucket</button>
+        </div>
+        <div id=painter-actions>
+          <button class=btn id=undo>undo</button>
+          <button class=btn id=redo>redo</button>
+          <button class=btn id=clear>clear</button>
+        </div>
+        <div id=painter-palette><!-- palette colors here --></div>
+        <div id=painter-palette-sub><!-- palette colors here --></div>
+      </div>
+    </div>
+    <script src=/root/public/index.js type=module></script>
   </body>
 </html>

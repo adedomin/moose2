@@ -215,7 +215,6 @@ input[type="submit"]:hover {
 }
 
 @media only screen and (max-width: 480px) {
-
     .paddle-edge {
         display: none;
     }
@@ -235,8 +234,6 @@ input[type="submit"]:hover {
     .arrow-right {
         flex: 0 0 100%;
     }
-
-
 }
 
 .selected {
