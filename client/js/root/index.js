@@ -18,9 +18,11 @@ const PAINTER_AREA = document.getElementById('painter-area');
 const PENCIL = document.getElementById('pencil');
 const LINE = document.getElementById('line');
 const BUCKET = document.getElementById('bucket');
+const TOOLS = [PENCIL, LINE, BUCKET];
 
 const UNDO = document.getElementById('undo');
 const REDO = document.getElementById('redo');
+const HD = document.getElementById('hd');
 const CLEAR = document.getElementById('clear');
 
 const PALETTE = document.getElementById('painter-palette');
@@ -136,9 +138,13 @@ function init() {
 
   PAINTER = painter;
 
-  [PENCIL, LINE, BUCKET].forEach(el => {
+  TOOLS.forEach(el => {
     el.addEventListener('click', () => {
       PAINTER.setTool(el.id);
+      TOOLS.forEach(el => {
+        el.classList.remove('selected');
+      })
+      el.classList.add('selected');
       if (!PAINTER.drawing) PAINTER.draw();
     });
   });
@@ -149,6 +155,19 @@ function init() {
       if (!PAINTER.drawing) PAINTER.draw();
     });
   });
+
+  HD.addEventListener('click', () => {
+    if (MOOSE_SIZE == MOOSE_SIZE_DEFAULT_KEY) {
+      MOOSE_SIZE = MOOSE_SIZE_HD_KEY;
+      HD.classList.add('selected');
+    } else {
+      MOOSE_SIZE = MOOSE_SIZE_DEFAULT_KEY;
+      HD.classList.remove('selected');
+    }
+    let [width, height] = MOOSE_SIZES.get(MOOSE_SIZE);
+    PAINTER.resizePainting(width, height, DEFAULT_COLOR);
+    if (!PAINTER.drawing) PAINTER.draw();
+  })
 
   CLEAR.addEventListener('click', () => {
     PAINTER.clearWith(DEFAULT_COLOR);

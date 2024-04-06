@@ -6,8 +6,8 @@ import { clear, clearWith } from './clear.js';
 import { replace } from './replace.js';
 import { line, line_approx } from './line.js';
 const MAX_HISTORY = 64;
-function clone(obj) {
-    return JSON.parse(JSON.stringify(obj));
+function clone_painting(painting) {
+    return Array.from(painting, el => el.slice());
 }
 function pushHistory(top, bottom) {
     if (top.length === 0) {
@@ -52,7 +52,7 @@ function compare() {
             return;
         }
     }
-    this.undoHistory.push(clone(this.oldPainting));
+    this.undoHistory.push(clone_painting(this.oldPainting));
     this.undoHistory.splice(0, this.undoHistory.length - MAX_HISTORY);
     this.redoHistory.length = 0;
 }

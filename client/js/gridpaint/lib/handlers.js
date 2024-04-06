@@ -2,8 +2,8 @@
 // Copyright (C) 2021  Anthony DeDominic
 // See COPYING for License
 import { isBrowser } from './browser.js';
-function clone(obj) {
-    return JSON.parse(JSON.stringify(obj));
+function clone_painting(painting) {
+    return Array.from(painting, el => el.slice());
 }
 function calcPosition(e) {
     const w = this.width;
@@ -35,7 +35,7 @@ function Handlers(that) {
                 return;
             calcPos(e);
             // create a clone to compare changes for undo history
-            that.oldPainting = clone(that.painting);
+            that.oldPainting = clone_painting(that.painting);
             apply(true);
         },
         pointerup(e) {
