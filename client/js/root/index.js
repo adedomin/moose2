@@ -42,15 +42,15 @@ let MOOSE_SIZE = MOOSE_SIZE_DEFAULT_KEY;
 
 // helpers
 function isMobile() {
-    return document.documentElement.clientWidth < 700;
+  return document.documentElement.clientWidth < 700;
 }
 
 function defaultLightness() {
-    if (DARK_THEME.matches) {
-      return 'light'
-    } else {
-      return 'dark'
-    }
+  if (DARK_THEME.matches) {
+    return 'light'
+  } else {
+    return 'dark'
+  }
 }
 
 /** serialize the paining to base64 for moose api */
@@ -202,6 +202,14 @@ function init() {
 
   PAINTER.attachHandlers();
   PAINTER.draw();
+
+  document.addEventListener('keyup', e => {
+    if (e.ctrlKey && e.key === 'z') {
+      UNDO.click();
+    } else if (e.ctrlKey && e.key === 'y') {
+      REDO.click();
+    }
+  })
 }
 // end helpers
 
