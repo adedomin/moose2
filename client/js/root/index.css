@@ -2,6 +2,7 @@
     --bg: white;
     --fg: black;
     --bg-body: whitesmoke;
+    --bg-btn: grey;
     --select-col: #276cda;
     --select-hover: #276caa;
     --destructive-col: #ff2b56;
@@ -49,8 +50,8 @@ body {
 .btn {
   font-size: 1.5em;
   text-align: center;
-  border: 0px solid var(--bg);
-  background-color: var(--bg);
+  border: 0px solid var(--bg-btn);
+  background-color: var(--bg-btn);
   color: var(--fg); 
 }
 
@@ -93,7 +94,8 @@ body {
 
 .palette-btn {
     border-color: transparent;
-    margin-right: 4px;
+    border-radius: 6px;
+    margin: 2px;
     color: white;
     width: 3em;
     height: 3em;
@@ -112,7 +114,28 @@ body {
   border-color: black;
 }
 
-/* .center-in-screen {
-  margin: auto;
-  max-width: fit-content;
-} */
+.push {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.full-width {
+  width: 100%;
+}
+
+input {
+    background: var(--bg);
+    color: var(--fg);
+    border: none;
+    font-size: 1.5em;
+}
+
+.btn-grp > input[type=text] {
+  flex: 1;
+}
+
+#painter-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}

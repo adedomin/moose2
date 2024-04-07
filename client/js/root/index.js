@@ -23,10 +23,16 @@ const TOOLS = [PENCIL, LINE, BUCKET];
 const UNDO = document.getElementById('undo');
 const REDO = document.getElementById('redo');
 const HD = document.getElementById('hd');
+const GRID = document.getElementById('grid');
 const CLEAR = document.getElementById('clear');
 
 const PALETTE = document.getElementById('painter-palette');
 const PALETTE_SUB = document.getElementById('painter-palette-sub');
+
+const NAME_INPUT = document.getElementById('name');
+const SAVE = document.getElementById('save');
+
+const DARK_THEME = window.matchMedia('(prefers-color-scheme: dark)');
 // end html elements
 
 // state
@@ -37,6 +43,14 @@ let MOOSE_SIZE = MOOSE_SIZE_DEFAULT_KEY;
 // helpers
 function isMobile() {
     return document.documentElement.clientWidth < 700;
+}
+
+function defaultLightness() {
+    if (DARK_THEME.matches) {
+      return 'light'
+    } else {
+      return 'dark'
+    }
 }
 
 /** serialize the paining to base64 for moose api */
@@ -52,11 +66,9 @@ function serialize_painting_to_b64(painter = PAINTER) {
 
 function lightness(c) {
     const color = EXTENDED_COLORS[c];
-    if (color.indexOf('#') !== 0 || color.length !== 9) return 'dark';
+    if (color.indexOf('#') !== 0 || color.length !== 9) return defaultLightness();
     // translucient, don't handle.
-    if (color.slice(-2).toLowerCase() !== 'ff') {
-      return 'dark';
-    }
+    if (color.slice(-2).toLowerCase() !== 'ff') return defaultLightness();
     const rgb = parseInt(color.slice(1, 7), 16);
     const r = rgb >> 16 ;
     const g = ( rgb >> 8 ) & 0xFF;
@@ -84,8 +96,7 @@ function createPaletteBtn(color, sub = false) {
   const b = document.createElement('button');
   if (color !== DEFAULT_COLOR) {
     b.style.backgroundColor = EXTENDED_COLORS[color];
-  }
-  else {
+  } else {
     b.classList.add('transparent');
   }
   b.classList.add('palette-btn');
@@ -123,7 +134,7 @@ function init() {
     height,
     cellWidth: PIX_FMT_WIDTH,
     cellHeight: PIX_FMT_HEIGHT,
-    outline: true,
+    outline: false,
     grid: true,
     palette: EXTENDED_COLORS,
     colour: DEFAULT_COLOR,
@@ -157,28 +168,37 @@ function init() {
   });
 
   HD.addEventListener('click', () => {
-    if (MOOSE_SIZE == MOOSE_SIZE_DEFAULT_KEY) {
+    if (HD.classList.toggle('selected')) {
       MOOSE_SIZE = MOOSE_SIZE_HD_KEY;
-      HD.classList.add('selected');
     } else {
       MOOSE_SIZE = MOOSE_SIZE_DEFAULT_KEY;
-      HD.classList.remove('selected');
     }
     let [width, height] = MOOSE_SIZES.get(MOOSE_SIZE);
     PAINTER.resizePainting(width, height, DEFAULT_COLOR);
     if (!PAINTER.drawing) PAINTER.draw();
-  })
+  });
+
+  GRID.addEventListener('click', () => {
+    if (GRID.classList.toggle('selected')) {
+      PAINTER.grid = true;
+    } else {
+      PAINTER.grid = false;
+    }
+    if (!PAINTER.drawing) PAINTER.draw();
+  });
 
   CLEAR.addEventListener('click', () => {
     PAINTER.clearWith(DEFAULT_COLOR);
     if (!PAINTER.drawing) PAINTER.draw();
   });
 
-  PALETTE.appendChild(createPaletteBtn(DEFAULT_COLOR));
+  const dbtn = createPaletteBtn(DEFAULT_COLOR);
+  PALETTE.appendChild(dbtn);
   for (let i = START_PAL; i < END_PAL; ++i) {
     const b = createPaletteBtn(i);
     PALETTE.appendChild(b);
   }
+  dbtn.click();
 
   PAINTER.attachHandlers();
   PAINTER.draw();
