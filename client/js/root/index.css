@@ -1,46 +1,64 @@
 :root {
-    --bg: white;
-    --fg: black;
-    --bg-body: whitesmoke;
-    --bg-btn: grey;
-    --select-col: #276cda;
-    --select-hover: #276caa;
-    --destructive-col: #ff2b56;
+  --bg: white;
+  --fg: black;
+  --bg-body: whitesmoke;
+  --bg-btn: grey;
+  --select-col: #276cda;
+  --select-hover: #276caa;
+  --destructive-col: #ff2b56;
 }
 
 @media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #333;
-        --fg: whitesmoke;
-        --bg-body: #252525;
-    }
+  :root {
+    --bg: #333;
+    --fg: whitesmoke;
+    --bg-body: #252525;
+  }
 }
 
 * {
-    box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 
 body,
 html {
-    margin: 0;
-    padding: 0;
+  margin: 0;
+  padding: 0;
 }
 
 html {
-    min-width: 300px;
-    overflow-x: hidden;
-    overflow-y: scroll;
+  min-width: 300px;
+  overflow-x: hidden;
+  overflow-y: scroll;
 }
 
 body {
-    background-color: var(--bg-body);
-    color: var(--fg);
-    font-family: sans-serif;
-    width: 100vw;
-    height: 100vh;
-    display: grid;
-    place-content: center;
+  background-color: var(--bg-body);
+  color: var(--fg);
+  font-family: sans-serif;
+  /* width: 100vw; */
+  height: 100vh;
+}
+
+.nav {
+  margin: 0.5em;
+}
+
+.nav > a {
+  text-decoration: none;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* .nav > a.selected {
+  pointer-events: none;
+} */
+
+.center-me {
+  display: grid;
+  place-content: center;
+  height: 100%;
 }
 
 .transparent {
@@ -50,6 +68,7 @@ body {
 .btn {
   font-size: 1.5em;
   text-align: center;
+  padding: 0.25em 0.5em 0.25em 0.5em;
   border: 0px solid var(--bg-btn);
   background-color: var(--bg-btn);
   color: var(--fg); 
@@ -93,12 +112,12 @@ body {
 }
 
 .palette-btn {
-    border-color: transparent;
-    border-radius: 6px;
-    margin: 2px;
-    color: white;
-    width: 3em;
-    height: 3em;
+  border-color: transparent;
+  border-radius: 6px;
+  margin: 2px;
+  color: white;
+  width: 3em;
+  height: 3em;
 }
 
 .palette-btn.selected {
@@ -124,10 +143,10 @@ body {
 }
 
 input {
-    background: var(--bg);
-    color: var(--fg);
-    border: none;
-    font-size: 1.5em;
+  background: var(--bg);
+  color: var(--fg);
+  border: none;
+  font-size: 1.5em;
 }
 
 .btn-grp > input[type=text] {
