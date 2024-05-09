@@ -129,29 +129,31 @@ pub const EXTENDED_COLORS: [RGBA; 100] = [
 ];
 
 /// PNG Indexed color palette
-const PLTE: [u8; EXTENDED_COLORS.len() * 3] = {
-    let mut a = [0x00u8; EXTENDED_COLORS.len() * 3];
-    let mut i = 0;
-    loop {
-        if i == EXTENDED_COLORS.len() {
-            break a;
-        }
-        let j = i * 3;
-        a[j] = EXTENDED_COLORS[i].0;
-        a[j + 1] = EXTENDED_COLORS[i].1;
-        a[j + 2] = EXTENDED_COLORS[i].2;
-        i += 1;
-    }
-};
+// NOTE: This was replaced with a dynamically generated one for space saving.
+// const PLTE: [u8; EXTENDED_COLORS.len() * 3] = {
+//     let mut a = [0x00u8; EXTENDED_COLORS.len() * 3];
+//     let mut i = 0;
+//     loop {
+//         if i == EXTENDED_COLORS.len() {
+//             break a;
+//         }
+//         let j = i * 3;
+//         a[j] = EXTENDED_COLORS[i].0;
+//         a[j + 1] = EXTENDED_COLORS[i].1;
+//         a[j + 2] = EXTENDED_COLORS[i].2;
+//         i += 1;
+//     }
+// };
 
 /// PNG section that defines indexed colors' 8bit alpha channel.
-const TRNS: [u8; EXTENDED_COLORS.len()] = {
-    let mut a = [0xFFu8; EXTENDED_COLORS.len()];
-    // only the last color is transparent
-    // last() is non const
-    a[EXTENDED_COLORS.len() - 1] = 0x00u8;
-    a
-};
+// NOTE: This was replaced with a dynamically generated one for space saving.
+// const TRNS: [u8; EXTENDED_COLORS.len()] = {
+//     let mut a = [0xFFu8; EXTENDED_COLORS.len()];
+//     // only the last color is transparent
+//     // last() is non const
+//     a[EXTENDED_COLORS.len() - 1] = 0x00u8;
+//     a
+// };
 
 pub const TRANSPARENT: u8 = 99u8;
 
@@ -298,26 +300,37 @@ fn idx_1dto2d(x: usize, y: usize, width: usize) -> usize {
     x + y * width
 }
 
+fn get_real_pix_idx(
+    pixel: u8,
+    color_idx: &mut u8,
+    color_map: &mut [u8; EXTENDED_COLORS.len()],
+) -> u8 {
+    assert!(*color_idx < EXTENDED_COLORS.len() as u8 && pixel < EXTENDED_COLORS.len() as u8);
+    if color_map[pixel as usize] == EXTENDED_COLORS.len() as u8 {
+        let new_pix = *color_idx;
+        color_map[pixel as usize] = new_pix;
+        *color_idx += 1;
+        new_pix
+    } else {
+        color_map[pixel as usize]
+    }
+}
+
 pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
     // 4KiB
     let mut cursor = std::io::Cursor::new(Vec::with_capacity(4096usize));
     {
         let (dim_x, dim_y, total) = moose.dimensions.width_height();
-        let mut encoder = png::Encoder::new(
-            &mut cursor,
-            (PIX_FMT_WIDTH * dim_x) as u32,
-            (PIX_FMT_HEIGHT * dim_y) as u32,
-        );
 
-        encoder.set_compression(png::Compression::Best);
-        encoder.set_depth(png::BitDepth::Eight);
-        encoder.set_color(png::ColorType::Indexed);
-        encoder.set_palette(&PLTE[..]);
-        encoder.set_trns(&TRNS[..]);
-        let mut writer = encoder.write_header()?;
-
+        // Generate the moose bitmap.
+        // We use indexed colors to save on space.
+        // To further save space, we remap colors based on first use since
+        // it's unlikely that all 100 colors will be used in every image.
+        let mut color_idx = 0u8;
+        let mut color_map = [EXTENDED_COLORS.len() as u8; EXTENDED_COLORS.len()];
         let mut bitmap = vec![0x99u8; total * PIX_FMT_HEIGHT * PIX_FMT_WIDTH];
         for (idx, &pixel) in moose.image.iter().enumerate() {
+            let pixel = get_real_pix_idx(pixel, &mut color_idx, &mut color_map);
             let base_y = (idx / dim_x) * PIX_FMT_HEIGHT;
             let base_x = (idx % dim_x) * PIX_FMT_WIDTH;
 
@@ -329,7 +342,37 @@ pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
             }
         }
 
-        writer.write_image_data(&bitmap)?;
+        // Generate the _real_ PLTE and TRNS (indexed colors map)
+        let mut plte = [00u8; EXTENDED_COLORS.len() * 3];
+        let mut trns = [0xffu8; EXTENDED_COLORS.len()];
+        let mut len = 0usize;
+        color_map
+            .into_iter()
+            .enumerate()
+            .filter(|&(_, nidx)| nidx < EXTENDED_COLORS.len() as u8)
+            .for_each(|(cidx, nidx)| {
+                let i = nidx as usize;
+                let j = nidx as usize * 3usize;
+
+                plte[j] = EXTENDED_COLORS[cidx].0;
+                plte[j + 1] = EXTENDED_COLORS[cidx].1;
+                plte[j + 2] = EXTENDED_COLORS[cidx].2;
+                trns[i] = EXTENDED_COLORS[cidx].3;
+                len += 1;
+            });
+
+        // Create the PNG
+        let mut encoder = png::Encoder::new(
+            &mut cursor,
+            (PIX_FMT_WIDTH * dim_x) as u32,
+            (PIX_FMT_HEIGHT * dim_y) as u32,
+        );
+        encoder.set_compression(png::Compression::Best);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.set_color(png::ColorType::Indexed);
+        encoder.set_palette(&plte[..len * 3]);
+        encoder.set_trns(&trns[..len]);
+        encoder.write_header()?.write_image_data(&bitmap)?;
     }
     Ok(cursor.into_inner())
 }
