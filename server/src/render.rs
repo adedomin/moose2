@@ -368,6 +368,7 @@ pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
             (PIX_FMT_HEIGHT * dim_y) as u32,
         );
         encoder.set_compression(png::Compression::Best);
+        encoder.set_filter(png::FilterType::NoFilter);
         encoder.set_depth(png::BitDepth::Eight);
         encoder.set_color(png::ColorType::Indexed);
         encoder.set_palette(&plte[..len * 3]);
