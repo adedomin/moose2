@@ -55,3 +55,19 @@ fn page_num_default() -> usize {
 fn nojs_default() -> bool {
     false
 }
+
+// #[derive(Deserialize)]
+// pub struct LoginRedir {
+//     #[serde(default = "redir_default")]
+//     pub redir: String,
+//     #[serde(default = "debug_default")]
+//     pub debug: bool,
+// }
+
+// fn redir_default() -> String {
+//     "/".to_owned()
+// }
+
+// fn debug_default() -> bool {
+//     false
+// }

@@ -1,6 +1,5 @@
-use crate::model::author::Author;
-
 use super::MooseWebData;
+use crate::model::author::Author;
 use actix_session::Session;
 use actix_web::{get, http::header, web, HttpResponse};
 use oauth2::{
@@ -70,6 +69,7 @@ async fn oa2_reqwest(request: oauth2::HttpRequest) -> Result<oauth2::HttpRespons
 pub async fn login(
     auth_client: MooseWebData,
     session: Session,
+    // query: web::Query<LoginRedir>,
 ) -> Result<HttpResponse, AuthApiError> {
     if let Some(oauth2_client) = &auth_client.oauth2_client {
         if let Some(login) = session.get::<String>("login")? {
@@ -79,6 +79,10 @@ pub async fn login(
         let (authorize_url, csrf_state) = oauth2_client.authorize_url(CsrfToken::new_random).url();
 
         session.insert("csrf", csrf_state.secret()).unwrap();
+        // let LoginRedir { redir, debug } = query.into_inner();
+        // session.insert("redir", redir).unwrap();
+        // session.insert("login_debug", debug).unwrap();
+
         Ok(HttpResponse::Found()
             .insert_header((header::LOCATION, authorize_url.to_string()))
             .body(()))
@@ -130,8 +134,11 @@ pub async fn auth(
             .await?;
 
         let login_name = res.login;
-        let html = format!(
-            r#"<html>
+
+        #[cfg(debug_assertions)]
+        {
+            let html = format!(
+                r#"<html>
                 <head><title>OAuth2 Test</title></head>
                 <body>
                     Github returned the following info:
@@ -139,11 +146,17 @@ pub async fn auth(
                     <pre>login: {login_name}</pre>
                 </body>
             </html>"#
-        );
-
-        session.insert("login", Author::Oauth2(login_name))?;
-
-        Ok(HttpResponse::Ok().body(html))
+            );
+            session.insert("login", Author::Oauth2(login_name))?;
+            Ok(HttpResponse::Ok().body(html))
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            session.insert("login", Author::Oauth2(login_name))?;
+            Ok(HttpResponse::Found()
+                .insert_header((header::LOCATION, "/"))
+                .body(()))
+        }
     } else {
         Ok(HttpResponse::NotImplemented()
             .body("Authentication is disabled; the admin has to add an OAuth2 provider."))

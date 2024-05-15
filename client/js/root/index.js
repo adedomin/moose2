@@ -32,12 +32,18 @@ const PALETTE_SUB = document.getElementById('painter-palette-sub');
 const NAME_INPUT = document.getElementById('name');
 const SAVE = document.getElementById('save');
 
-const DARK_THEME = window.matchMedia('(prefers-color-scheme: dark)');
+const MODAL_BACKDROP = document.getElementById('modal-backdrop');
+const MODAL = document.getElementById('modal');
+const MODAL_TITLE = document.getElementById('modal-title');
+const MODAL_CONTENT = document.getElementById('modal-content');
+
 // end html elements
+
 
 // state
 let PAINTER = null;
 let MOOSE_SIZE = MOOSE_SIZE_DEFAULT_KEY;
+const DARK_THEME = window.matchMedia('(prefers-color-scheme: dark)');
 // end state
 
 // helpers
@@ -65,16 +71,16 @@ function serialize_painting_to_b64(painter = PAINTER) {
 }
 
 function lightness(c) {
-    const color = EXTENDED_COLORS[c];
-    if (color.indexOf('#') !== 0 || color.length !== 9) return defaultLightness();
-    // translucient, don't handle.
-    if (color.slice(-2).toLowerCase() !== 'ff') return defaultLightness();
-    const rgb = parseInt(color.slice(1, 7), 16);
-    const r = rgb >> 16 ;
-    const g = ( rgb >> 8 ) & 0xFF;
-    const b = rgb & 0xFF;
-    const lightness = ((r*299)+(g*587)+(b*114)) / 1000;
-    return (lightness > 125) ? 'dark' : 'light';
+  const color = EXTENDED_COLORS[c];
+  if (color.indexOf('#') !== 0 || color.length !== 9) return defaultLightness();
+  // translucient, don't handle.
+  if (color.slice(-2).toLowerCase() !== 'ff') return defaultLightness();
+  const rgb = parseInt(color.slice(1, 7), 16);
+  const r = rgb >> 16 ;
+  const g = ( rgb >> 8 ) & 0xFF;
+  const b = rgb & 0xFF;
+  const lightness = ((r*299)+(g*587)+(b*114)) / 1000;
+  return (lightness > 125) ? 'dark' : 'light';
 }
 
 // function removePainter(painter = PAINTER) {
@@ -87,8 +93,20 @@ function lightness(c) {
 // }
 
 function addSelect(b, color) {
-    b.classList.add('selected');
-    b.classList.add(lightness(color));
+  b.classList.add('selected');
+  b.classList.add(lightness(color));
+}
+
+function closeModal() {
+  MODAL_BACKDROP.classList.add('close');
+  MODAL.classList.add('close');
+}
+
+function openModal(title, content) {
+  MODAL_TITLE.textContent = title;
+  MODAL_CONTENT.textContent = content;
+  MODAL.classList.remove('close');
+  MODAL_BACKDROP.classList.remove('close');
 }
 
 function createPaletteBtn(color, sub = false) {
@@ -200,6 +218,14 @@ function init() {
   }
   dbtn.click();
 
+  MODAL.addEventListener('click', e => {
+    e.stopPropagation();
+  })
+
+  MODAL_BACKDROP.addEventListener('click', () => {
+    closeModal();
+  });
+
   PAINTER.attachHandlers();
   PAINTER.draw();
 
@@ -208,9 +234,12 @@ function init() {
       UNDO.click();
     } else if (e.ctrlKey && e.key === 'y') {
       REDO.click();
+    } else if (e.key == 'Escape') {
+      closeModal()
     }
   })
 }
 // end helpers
 
 init()
+// openModal('test modal', 'this is content.');

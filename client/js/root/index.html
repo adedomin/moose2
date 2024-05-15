@@ -7,39 +7,52 @@
     <link rel="stylesheet" href="/root/public/index.css">
   </head>
   <body>
-    <div class="nav btn-grp">
-      <a href="/" class="selected btn" onclick="return false;">Moose2</a>
-      <a href="/gallery/0" class="btn">Gallery</a>
-    </div>
-    <div class=center-me>
-      <div id=painter-frame>
-        <div id=painter-area><!-- canvas here --></div>
-        <div id=painter-controls>
-          <div class=push>
-            <div class="btn-grp full-width">
-              <input type=text id=name placeholder="Moose Name">
-              <button class=btn id=save>Save</button>
+    <div class=divider>
+      <div id=modal-backdrop class="close center-me">
+        <div id=modal class=close>
+          <span><h1 id=modal-title>header</h1><button class=close-btn>&times;</button></span>
+          <p id=modal-content>
+            test
+          </p>
+        </div>
+      </div>
+      <div class="nav">
+        <div class=btn-grp>
+          <a href="/" class="selected btn" onclick="return false;">Moose2</a>
+          <a href="/gallery/0" class="btn">Gallery</a>
+        </div>
+        <div class="btn-grp float-right"><a id=login class=btn href="/login">Login</a></div>
+      </div>
+      <div class=center-me>
+        <div id=painter-frame>
+          <div id=painter-area><!-- canvas here --></div>
+          <div id=painter-controls>
+            <div class=push>
+              <div class="btn-grp full-width">
+                <input type=text id=name placeholder="Moose Name">
+                <button class=btn id=save>Save</button>
+              </div>
             </div>
-          </div>
-          <div class=push>
-            <div class=btn-grp id=painter-tools>
-              <button class="btn selected" id=pencil>Pencil</button>
-              <button class=btn id=line>Line</button>
-              <button class=btn id=bucket>Bucket</button>
+            <div class=push>
+              <div class=btn-grp id=painter-tools>
+                <button class="btn selected" id=pencil>Pencil</button>
+                <button class=btn id=line>Line</button>
+                <button class=btn id=bucket>Bucket</button>
+              </div>
+              <div class=btn-grp id=painter-actions>
+                <button class=btn id=undo>Undo</button>
+                <button class=btn id=redo>Redo</button>
+              </div>
+              <div class=btn-grp>
+                <button class=btn id=hd>HD</button>
+                <button class="btn selected" id=grid>Grid</button>
+                <button class="btn is-destructive" id=clear>Clear</button>
+              </div>
             </div>
-            <div class=btn-grp id=painter-actions>
-              <button class=btn id=undo>Undo</button>
-              <button class=btn id=redo>Redo</button>
+            <div class=push>
+              <div id=painter-palette><!-- palette colors here --></div>
+              <div id=painter-palette-sub><!-- palette colors here --></div>
             </div>
-            <div class=btn-grp>
-              <button class=btn id=hd>HD</button>
-              <button class="btn selected" id=grid>Grid</button>
-              <button class="btn is-destructive" id=clear>Clear</button>
-            </div>
-          </div>
-          <div class=push>
-            <div id=painter-palette><!-- palette colors here --></div>
-            <div id=painter-palette-sub><!-- palette colors here --></div>
           </div>
         </div>
       </div>
