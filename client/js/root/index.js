@@ -36,6 +36,7 @@ const MODAL_BACKDROP = document.getElementById('modal-backdrop');
 const MODAL = document.getElementById('modal');
 const MODAL_TITLE = document.getElementById('modal-title');
 const MODAL_CONTENT = document.getElementById('modal-content');
+const MODAL_CLOSE = document.getElementById('modal-close');
 
 // end html elements
 
@@ -68,6 +69,22 @@ function serialize_painting_to_b64(painter = PAINTER) {
     }
   }
   return btoa(ret);
+}
+
+function saveMoose() {
+  return fetch("/new", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "same-origin",
+    body: JSON.stringify({
+      name: NAME_INPUT.value,
+      image: serialize_painting_to_b64(),
+      dimensions: HD.classList.contains('selected') ? 'HD' : 'Default',
+      created: (new Date()).toISOString(),
+    }),
+  });
 }
 
 function lightness(c) {
@@ -107,6 +124,14 @@ function openModal(title, content) {
   MODAL_CONTENT.textContent = content;
   MODAL.classList.remove('close');
   MODAL_BACKDROP.classList.remove('close');
+}
+
+function toggleHD() {
+  if (HD.classList.toggle('selected')) {
+    MOOSE_SIZE = MOOSE_SIZE_HD_KEY;
+  } else {
+    MOOSE_SIZE = MOOSE_SIZE_DEFAULT_KEY;
+  }
 }
 
 function createPaletteBtn(color, sub = false) {
@@ -180,18 +205,19 @@ function init() {
 
   [UNDO, REDO].forEach(el => {
     el.addEventListener('click', () => {
+      const oldh = PAINTER.height;
+      const oldw = PAINTER.width;
       PAINTER.singleAction(el.id);
+      if (oldh != PAINTER.height || oldw != PAINTER.width) {
+        toggleHD();
+      }
       if (!PAINTER.drawing) PAINTER.draw();
     });
   });
 
   HD.addEventListener('click', () => {
-    if (HD.classList.toggle('selected')) {
-      MOOSE_SIZE = MOOSE_SIZE_HD_KEY;
-    } else {
-      MOOSE_SIZE = MOOSE_SIZE_DEFAULT_KEY;
-    }
-    let [width, height] = MOOSE_SIZES.get(MOOSE_SIZE);
+    toggleHD();
+    const [width, height] = MOOSE_SIZES.get(MOOSE_SIZE);
     PAINTER.resizePainting(width, height, DEFAULT_COLOR);
     if (!PAINTER.drawing) PAINTER.draw();
   });
@@ -220,10 +246,28 @@ function init() {
 
   MODAL.addEventListener('click', e => {
     e.stopPropagation();
-  })
+  });
 
-  MODAL_BACKDROP.addEventListener('click', () => {
-    closeModal();
+  [MODAL_BACKDROP, MODAL_CLOSE].forEach(el => {
+    el.addEventListener('click', () => {
+      closeModal();
+    });
+  });
+
+  SAVE.addEventListener('click', () => {
+    let isOk = false;
+    saveMoose().then(res => {
+      isOk = res.ok;
+      return res.json()
+    }).then(body => {
+      if (isOk) {
+        openModal('Success', 'Moose Saved');
+      } else {
+        openModal('Error', body.msg);
+      }
+    }).catch(e => {
+      openModal('Error', e.toString());
+    }); 
   });
 
   PAINTER.attachHandlers();
@@ -242,4 +286,4 @@ function init() {
 // end helpers
 
 init()
-// openModal('test modal', 'this is content.');
+openModal('test modal', 'this is content.');

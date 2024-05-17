@@ -7,27 +7,11 @@ use std::{
     io::{BufReader, BufWriter},
     path::PathBuf,
 };
-use time::{format_description::FormatItem, macros::format_description, OffsetDateTime};
+use time::{
+    format_description::FormatItem, macros::format_description, OffsetDateTime, PrimitiveDateTime,
+};
 
 const MOOSE_MAX_NAME_LEN: usize = 64usize;
-
-/// SEE: https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-date-time-string-format
-/// It's a simplified ISO-8601.
-/// YYYY is mandatory.
-/// MM-DD or DD are optional.
-/// ss.mmm or ss are optional
-/// mmm must be exactly 3 significant figures. It's representing milliseconds, not the full 9 sig fig nanoseconds.
-/// we only ever care about UTC (Z) timezone and should reject any other offsets.
-const JS_DATE_TIME_FORMAT: &[FormatItem<'_>] = format_description!(
-    version = 2,
-    "[year]-[optional [[first [[month]-[day]] [[month]]]]]T[hour]:[minute]:[optional [[first [[second].[subsecond digits:3]] [[second]]]]]Z"
-);
-
-time::serde::format_description!(
-    javascript_date_time_formatter,
-    OffsetDateTime,
-    JS_DATE_TIME_FORMAT
-);
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(remote = "Self")]
@@ -37,7 +21,7 @@ pub struct Moose {
     #[serde(serialize_with = "as_base64", deserialize_with = "from_base64")]
     pub image: Vec<u8>,
     pub dimensions: Dimensions,
-    #[serde(with = "javascript_date_time_formatter")]
+    #[serde(serialize_with = "as_js", deserialize_with = "from_js")]
     pub created: OffsetDateTime,
     #[serde(default = "super::author::default_author")]
     pub author: Author,
@@ -154,7 +138,7 @@ pub struct MooseLegacy {
     pub name: String,
     pub image: String,
     pub shade: String,
-    #[serde(with = "javascript_date_time_formatter")]
+    #[serde(serialize_with = "as_js", deserialize_with = "from_js")]
     pub created: OffsetDateTime,
     pub hd: bool,
     pub shaded: bool,
@@ -274,4 +258,35 @@ fn extended_color_code(color: u8, shade: u8) -> Option<u8> {
             _ => None,
         }
     }
+}
+
+/// SEE: https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-date-time-string-format
+/// It's a simplified ISO-8601.
+/// YYYY is mandatory.
+/// MM-DD or DD are optional.
+/// ss.mmm or ss are optional
+/// mmm must be exactly 3 significant figures. It's representing milliseconds, not the full 9 sig fig nanoseconds.
+/// we only ever care about UTC (Z) timezone and should reject any other offsets.
+///
+/// NOTE: this has been highly simplified due to unfortunate pains with format_description!, issues with OffsetDateTime deserialization.
+const JS_DATE_TIME_FORMAT: &[FormatItem<'_>] = format_description!(
+    version = 2,
+    "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z"
+);
+
+fn as_js<S: Serializer>(datetime: &OffsetDateTime, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_str(
+        datetime
+            .format(JS_DATE_TIME_FORMAT)
+            .map_err(serde::ser::Error::custom)?
+            .as_str(),
+    )
+}
+
+fn from_js<'de, D: Deserializer<'de>>(deserializer: D) -> Result<OffsetDateTime, D::Error> {
+    String::deserialize(deserializer).and_then(|string| {
+        PrimitiveDateTime::parse(&string, JS_DATE_TIME_FORMAT)
+            .map(|parsed| parsed.assume_utc())
+            .map_err(serde::de::Error::custom)
+    })
 }

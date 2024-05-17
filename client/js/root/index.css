@@ -176,6 +176,14 @@ input {
   color: var(--fg);
   border-color: transparent;
   border-radius: 8px;
+  padding: 1em;
+  display: grid;
+  grid-template-columns: auto min-content; 
+  align-items: center;
+}
+
+#modal-content {
+  grid-column: 1 / span 2;
 }
 
 #modal-backdrop.close {
@@ -184,6 +192,20 @@ input {
 
 #modal.close {
   display: none;
+}
+
+#modal-title {
+  font-weight: bold;
+  padding-right: 1em;
+}
+
+#modal-close {
+  opacity: 0.6;
+  /* margin-left: auto; */
+}
+
+#modal-close:hover {
+  opacity: 1;
 }
 
 .divider {
