@@ -78,7 +78,7 @@ async fn nojs_gallery_search(
 ) -> HttpResponse {
     let db = &db.db;
     let meese = db
-        .search_moose(&query, search_page)
+        .search_moose(query, search_page)
         .await
         .unwrap_or_else(|err| {
             eprintln!("{}", err);

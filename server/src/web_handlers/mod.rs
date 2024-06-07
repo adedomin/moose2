@@ -39,7 +39,7 @@ pub fn if_none_match_md5(body: &[u8], req: &HttpRequest) -> (bool, String) {
             .as_bytes()
             .iter()
             .cloned()
-            .filter(|x| matches!(x, b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F'))
+            .filter(|x| x.is_ascii_hexdigit())
             .collect::<Vec<u8>>()
     }) {
         etag == comp_md5.as_bytes()

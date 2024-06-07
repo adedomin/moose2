@@ -66,7 +66,7 @@ fn get_static_file_from(d: &'static Dir, file: &str, ext: &str) -> Static {
         .map(|file| {
             Static::Body(
                 file.contents(),
-                *mime::MIME.get(ext).unwrap_or(&"application/octet-string"),
+                mime::MIME.get(ext).unwrap_or(&"application/octet-string"),
             )
         })
         .unwrap_or(Static::NotFound)
@@ -100,7 +100,7 @@ pub async fn static_gallery_file(file: web::Path<(String, String)>) -> StaticRes
 pub async fn const_js_modules(c: web::Path<String>) -> StaticResp {
     let body = match c.into_inner().as_str() {
         "colors" => COLORS_JS.as_ref(),
-        "sizes" => SIZ_JS.as_ref(),
+        "sizes" => SIZ_JS,
         _ => return StaticResp(Static::NotFound),
     };
     StaticResp(Static::Body(body, "application/javascript"))

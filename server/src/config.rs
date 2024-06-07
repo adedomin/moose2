@@ -158,8 +158,8 @@ where
 
 pub fn parse_args() -> (Option<SubCommand>, RunConfig) {
     let args = <Args as clap::Parser>::parse();
-    let config_file_path = args.config.unwrap_or_else(|| find_config());
-    if let Some(mut conf) = open_or_write_default(&config_file_path) {
+    let config_file_path = args.config.unwrap_or_else(find_config);
+    if let Some(mut conf) = open_or_write_default(config_file_path) {
         if let Some(listen) = args.listen {
             // command line listen does not override configuration.
             if conf.listen.is_none() {

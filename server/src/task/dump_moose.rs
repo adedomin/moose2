@@ -47,10 +47,10 @@ async fn dump_moose_real(con: Connection, moose_dump: PathBuf) -> Result<(), Dum
         let mut w = q.query([])?;
         while let Ok(Some(row)) = w.next() {
             if start {
-                bufw.write(b"[")?;
+                bufw.write_all(b"[")?;
                 start = false;
             } else {
-                bufw.write(b",")?;
+                bufw.write_all(b",")?;
             }
             let moose = model::moose::Moose {
                 name: row.get(0)?,
@@ -61,9 +61,9 @@ async fn dump_moose_real(con: Connection, moose_dump: PathBuf) -> Result<(), Dum
                 upvotes: row.get(5)?,
             };
             let moose = serde_json::to_vec(&moose)?;
-            bufw.write(&moose)?;
+            bufw.write_all(&moose)?;
         }
-        bufw.write(b"]")?;
+        bufw.write_all(b"]")?;
         let inner = bufw.into_inner()?;
         inner.sync_data()?;
         drop(inner);
