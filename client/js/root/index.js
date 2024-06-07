@@ -279,9 +279,9 @@ function init() {
     } else if (e.ctrlKey && e.key === 'y') {
       REDO.click();
     } else if (e.key == 'Escape') {
-      closeModal()
+      closeModal();
     }
-  })
+  });
 }
 // end helpers
 

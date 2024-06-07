@@ -17,11 +17,15 @@ function current_page() {
     return get_page_num(window.location.pathname);
 }
 
-const blob_urls = [];
-function del_old_search() {
-    moose_cards.innerHTML = '';
+let blob_urls = [];
+function del_or_replace_cards(new_cards = undefined, new_blobs = undefined) {
+    if (new_cards === undefined) {
+        moose_cards.innerHTML = '';
+    } else {
+        moose_cards.replaceChildren(...new_cards);
+    }
     blob_urls.forEach(URL.revokeObjectURL);
-    blob_urls.length = 0;
+    blob_urls = new_blobs ?? [];
 }
 
 function draw_moose(image) {
@@ -87,19 +91,19 @@ function renumber_nav() {
         const last_page = nav.children[nav.childElementCount - 2];
 
         if (left_arrow.dataset.page < 0) {
-            left_arrow.classList.add('hidden');
-            first_page.classList.add('hidden');
+            left_arrow.classList.add('disable');
+            first_page.classList.add('disable');
         } else {
-            left_arrow.classList.remove('hidden');
-            first_page.classList.remove('hidden');
+            left_arrow.classList.remove('disable');
+            first_page.classList.remove('disable');
         }
 
         if (page_count - 1 < right_arrow.dataset.page) {
-            right_arrow.classList.add('hidden');
-            last_page.classList.add('hidden');
+            right_arrow.classList.add('disable');
+            last_page.classList.add('disable');
         } else {
-            right_arrow.classList.remove('hidden');
-            last_page.classList.remove('hidden');
+            right_arrow.classList.remove('disable');
+            last_page.classList.remove('disable');
         }
     })
 }
@@ -113,6 +117,8 @@ function build_cards(meese_) {
             meese = meese.map(moose => ({ page: curr, moose }));
         }
         const new_els = [];
+        const new_urls = [];
+        const blob_promises = [];
         for (const { page, moose } of meese) {
             const template = moose_card_template.content.cloneNode(true);
 
@@ -122,19 +128,27 @@ function build_cards(meese_) {
             const text_node = template.querySelector('a.black-link');
 
             card.id = `-m-${encodeURIComponent(moose.name)}`;
-            draw_moose(moose.image).toBlob(blob => {
-                const url = URL.createObjectURL(blob);
-                blob_urls.push(url);
-                img_link.src = url;
-            });
             img_link_a.href = `/img/${encodeURIComponent(moose.name)}`;
             text_node.href = `/gallery/${page}#-m-${encodeURIComponent(moose.name)}`;
             text_node.textContent = moose.name;
+            blob_promises.push(new Promise(resolve => {
+                draw_moose(moose.image).toBlob(blob => {
+                    const url = URL.createObjectURL(blob);
+                    img_link.src = url;
+                    new_urls.push(url);
+                    resolve();
+                });
+            }));
 
             new_els.push(card);
         }
-        del_old_search();
-        moose_cards.append(...new_els);
+        moose_cards.classList.add('disable');
+        Promise
+            .all(blob_promises)
+            .then(() => {
+                moose_cards.classList.remove('disable');
+                del_or_replace_cards(new_els, new_urls);
+            });
     } else {
         throw NO_MOOSE_ERR;
     }
@@ -169,7 +183,7 @@ function fetch_moose_arr(type, path) {
             case SEARCH: build_cards(meese.result); break;
         }
     }).catch(e => {
-        del_old_search();
+        del_or_replace_cards();
         error_banner.classList.remove('hidden');
         error_banner.textContent = e.toString();
         console.error(e);
