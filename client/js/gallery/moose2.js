@@ -131,8 +131,12 @@ function build_cards(meese_) {
             img_link_a.href = `/img/${encodeURIComponent(moose.name)}`;
             text_node.href = `/gallery/${page}#-m-${encodeURIComponent(moose.name)}`;
             text_node.textContent = moose.name;
+
+            const canv = draw_moose(moose.image);
+            img_link.height = canv.height;
+            img_link.width = canv.width;
             blob_promises.push(new Promise(resolve => {
-                draw_moose(moose.image).toBlob(blob => {
+                canv.toBlob(blob => {
                     const url = URL.createObjectURL(blob);
                     img_link.src = url;
                     new_urls.push(url);
