@@ -14,7 +14,7 @@ use actix_web::{
 };
 use include_dir::{include_dir, Dir};
 
-const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/js");
+const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client");
 
 pub enum Static {
     Body(&'static [u8], &'static str),
@@ -82,14 +82,14 @@ pub async fn favicon() -> StaticResp {
     StaticResp(get_static_file_from(&CLIENT_DIR, "root/favicon", "ico"))
 }
 
-#[get("/root/public/{file}.{ext}")]
+#[get("/public/root/{file}.{ext}")]
 pub async fn static_root_file(file: web::Path<(String, String)>) -> StaticResp {
     let root_fname = format!("root/{}", file.0.as_str());
     let root_body = get_static_file_from(&CLIENT_DIR, root_fname.as_str(), file.1.as_str());
     StaticResp(root_body)
 }
 
-#[get("/gallery/public/{file}.{ext}")]
+#[get("/public/gallery/{file}.{ext}")]
 pub async fn static_gallery_file(file: web::Path<(String, String)>) -> StaticResp {
     let gallery_fname = format!("gallery/{}", file.0.as_str());
     let gallery_body = get_static_file_from(&CLIENT_DIR, gallery_fname.as_str(), file.1.as_str());

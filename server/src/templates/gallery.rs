@@ -26,7 +26,7 @@ pub fn gallery(
                     @if let Some(meese) = meese {
                         @let njs = if nojs { "?nojs=true" } else { "" };
                         @for MooseSearch { moose, page } in meese {
-                            (moose_card(&moose.name, format!("/gallery/{page}{njs}").as_str()))
+                            (moose_card(&moose, format!("/gallery/{page}{njs}").as_str()))
                         }
                     }
                 }
@@ -34,7 +34,7 @@ pub fn gallery(
                 (moose_card_template())
                 @if !nojs {
                     script src="/public/global-modules/err.js" {}
-                    script src="/gallery/public/moose2.js" type="module" {}
+                    script src="/public/gallery/moose2.js" type="module" {}
                 }
             }
         }

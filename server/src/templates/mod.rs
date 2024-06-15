@@ -1,6 +1,8 @@
 use maud::{html, Markup};
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 
+use crate::model::{moose::Moose, PIX_FMT_HEIGHT, PIX_FMT_WIDTH};
+
 pub mod gallery;
 
 pub fn header(page_title: &str) -> Markup {
@@ -9,7 +11,7 @@ pub fn header(page_title: &str) -> Markup {
             meta charset="utf-8";
             meta name="description" content="Draw and Share Moose with your IRC friends.";
             meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no";
-            link rel="stylesheet" href="/gallery/public/moose2.css";
+            link rel="stylesheet" href="/public/gallery/moose2.css";
             title { "Moose2 - " (page_title) }
         }
     }
@@ -51,15 +53,19 @@ pub fn pager(page: usize, page_count: usize, disabled: bool, nojs: bool) -> Mark
 }
 
 /// the moose HTML card to display, only need the name.
-pub fn moose_card(moose: &str, href_pre: &str) -> Markup {
-    let moose_enc = percent_encode(moose.as_bytes(), NON_ALPHANUMERIC);
+pub fn moose_card(moose: &Moose, href_pre: &str) -> Markup {
+    let moose_name = &moose.name;
+    let (pix_w, pix_h, _) = moose.dimensions.width_height();
+    let pix_w = pix_w * PIX_FMT_WIDTH;
+    let pix_h = pix_h * PIX_FMT_HEIGHT;
+    let moose_enc = percent_encode(moose_name.as_bytes(), NON_ALPHANUMERIC);
     html! {
        #{"-m-" (moose_enc)} .card {
             a href={"/img/" (moose_enc)} {
-                img .img src={"/img/" (moose_enc)};
+                img .img width=(pix_w) height=(pix_h) src={"/img/" (moose_enc)};
             }
             br;
-            a .black-link href={(href_pre) "#-m-" (moose_enc)} { (moose) }
+            a .black-link href={(href_pre) "#-m-" (moose_enc)} { (moose_name) }
         }
     }
 }
@@ -87,6 +93,6 @@ pub fn search_bar() -> Markup {
                 input #submit                   type="submit" value="Search";
             }
         }
-        // script type="module" src="/gallery/public/moose2.js" {}
+        // script type="module" src="/public/gallery/moose2.js" {}
     }
 }
