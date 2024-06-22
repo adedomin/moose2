@@ -4,7 +4,7 @@ use std::cmp::Ordering::{Equal, Greater, Less};
 #[derive(Copy, Clone)]
 pub struct RGBA(pub u8, pub u8, pub u8, pub u8);
 
-// deal with this later.
+// TODO: deal with this later.
 // pub const PALETTE_SEGMENTS: [std::ops::Range<u8>; 8] = [
 //     0..16,  // legacy
 //     16..28, // darkest shades
@@ -128,34 +128,8 @@ pub const EXTENDED_COLORS: [RGBA; 100] = [
     RGBA(0x00, 0x00, 0x00, 0x00), // transparent (code 99)
 ];
 
-/// PNG Indexed color palette
-// NOTE: This was replaced with a dynamically generated one for space saving.
-// const PLTE: [u8; EXTENDED_COLORS.len() * 3] = {
-//     let mut a = [0x00u8; EXTENDED_COLORS.len() * 3];
-//     let mut i = 0;
-//     loop {
-//         if i == EXTENDED_COLORS.len() {
-//             break a;
-//         }
-//         let j = i * 3;
-//         a[j] = EXTENDED_COLORS[i].0;
-//         a[j + 1] = EXTENDED_COLORS[i].1;
-//         a[j + 2] = EXTENDED_COLORS[i].2;
-//         i += 1;
-//     }
-// };
-
-/// PNG section that defines indexed colors' 8bit alpha channel.
-// NOTE: This was replaced with a dynamically generated one for space saving.
-// const TRNS: [u8; EXTENDED_COLORS.len()] = {
-//     let mut a = [0xFFu8; EXTENDED_COLORS.len()];
-//     // only the last color is transparent
-//     // last() is non const
-//     a[EXTENDED_COLORS.len() - 1] = 0x00u8;
-//     a
-// };
-
 pub const TRANSPARENT: u8 = 99u8;
+const COLOR_MAP_SIGIL: u8 = EXTENDED_COLORS.len() as u8;
 
 fn pix_char(pixel: u8) -> u8 {
     if pixel == TRANSPARENT {
@@ -296,70 +270,98 @@ pub fn moose_line(moose: &Moose, l: LineType) -> Vec<u8> {
     ret
 }
 
+/// helper function that maps a 2D (x, y) coordinate system on a 1D array.
 fn idx_1dto2d(x: usize, y: usize, width: usize) -> usize {
     x + y * width
 }
 
-fn get_real_pix_idx(
-    pixel: u8,
-    color_idx: &mut u8,
-    color_map: &mut [u8; EXTENDED_COLORS.len()],
-) -> u8 {
-    assert!(*color_idx < EXTENDED_COLORS.len() as u8 && pixel < EXTENDED_COLORS.len() as u8);
-    if color_map[pixel as usize] == EXTENDED_COLORS.len() as u8 {
-        let new_pix = *color_idx;
-        color_map[pixel as usize] = new_pix;
-        *color_idx += 1;
-        new_pix
-    } else {
-        color_map[pixel as usize]
-    }
+/// To reduce the size of the PLTE, we first select only the colors our moose has.
+/// this map serves as the proto PLTE.
+fn gen_color_map(image: &[u8]) -> [u8; EXTENDED_COLORS.len()] {
+    image
+        .iter()
+        .fold(
+            (
+                [COLOR_MAP_SIGIL; EXTENDED_COLORS.len()],
+                0u8,
+                COLOR_MAP_SIGIL,
+            ),
+            |(mut colmap, curr, zeroth), &pix| {
+                assert!(curr < COLOR_MAP_SIGIL);
+                if colmap[pix as usize] != COLOR_MAP_SIGIL {
+                    return (colmap, curr, zeroth);
+                }
+
+                colmap[pix as usize] = curr;
+                let zeroth = if curr == 0 { pix } else { zeroth };
+                // only one color (99) is "transparent"
+                // the tRNS segment does not need to be complete, weirdly enough
+                // so we can just move the transparent color to the front and make trns = 1 "tRNS" 0 CRC
+                if pix == TRANSPARENT {
+                    colmap.swap(TRANSPARENT as usize, zeroth as usize);
+                }
+
+                (colmap, curr + 1, zeroth)
+            },
+        )
+        .0
 }
 
+/// Generate the moose bitmap.
+fn draw_bitmap(
+    image: &[u8],
+    color_map: &[u8; EXTENDED_COLORS.len()],
+    dim_x: usize,
+    dim_y: usize,
+    total: usize,
+) -> Vec<u8> {
+    let mut bitmap = vec![0x99u8; total * PIX_FMT_WIDTH * PIX_FMT_HEIGHT];
+    for y in 0..dim_y {
+        let base_y = y * PIX_FMT_HEIGHT;
+        for by in base_y..(base_y + PIX_FMT_HEIGHT) {
+            for x in 0..dim_x {
+                let pixel = image[idx_1dto2d(x, y, dim_x)];
+                let pixel = color_map[pixel as usize];
+                let base_x = x * PIX_FMT_WIDTH;
+                for bx in base_x..(base_x + PIX_FMT_WIDTH) {
+                    bitmap[idx_1dto2d(bx, by, PIX_FMT_WIDTH * dim_x)] = pixel;
+                }
+            }
+        }
+    }
+    bitmap
+}
+
+// Generate the PLTE (palette) from our color_map.
+fn gen_plte(color_map: [u8; EXTENDED_COLORS.len()]) -> ([u8; EXTENDED_COLORS.len() * 3], usize) {
+    let mut plte = [00u8; EXTENDED_COLORS.len() * 3];
+    let mut len = 0usize;
+    color_map
+        .into_iter()
+        .enumerate()
+        .filter(|&(_, nidx)| nidx < COLOR_MAP_SIGIL)
+        .for_each(|(cidx, nidx)| {
+            let i = nidx as usize * 3usize;
+
+            plte[i] = EXTENDED_COLORS[cidx].0;
+            plte[i + 1] = EXTENDED_COLORS[cidx].1;
+            plte[i + 2] = EXTENDED_COLORS[cidx].2;
+            len += 1;
+        });
+    (plte, len)
+}
+
+/// Given a moose, returns an encoded PNG rendering.
 pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
     // 4KiB
     let mut cursor = std::io::Cursor::new(Vec::with_capacity(4096usize));
     {
         let (dim_x, dim_y, total) = moose.dimensions.width_height();
-
-        // Generate the moose bitmap.
-        // We use indexed colors to save on space.
-        // To further save space, we remap colors based on first use since
-        // it's unlikely that all 100 colors will be used in every image.
-        let mut color_idx = 0u8;
-        let mut color_map = [EXTENDED_COLORS.len() as u8; EXTENDED_COLORS.len()];
-        let mut bitmap = vec![0x99u8; total * PIX_FMT_HEIGHT * PIX_FMT_WIDTH];
-        for (idx, &pixel) in moose.image.iter().enumerate() {
-            let pixel = get_real_pix_idx(pixel, &mut color_idx, &mut color_map);
-            let base_y = (idx / dim_x) * PIX_FMT_HEIGHT;
-            let base_x = (idx % dim_x) * PIX_FMT_WIDTH;
-
-            // Each pixel needs to occupy a (w * h) square around its position.
-            for y in base_y..(base_y + PIX_FMT_HEIGHT) {
-                for x in base_x..(base_x + PIX_FMT_WIDTH) {
-                    bitmap[idx_1dto2d(x, y, PIX_FMT_WIDTH * dim_x)] = pixel;
-                }
-            }
-        }
-
-        // Generate the _real_ PLTE and TRNS (indexed colors map)
-        let mut plte = [00u8; EXTENDED_COLORS.len() * 3];
-        let mut trns = [0xffu8; EXTENDED_COLORS.len()];
-        let mut len = 0usize;
-        color_map
-            .into_iter()
-            .enumerate()
-            .filter(|&(_, nidx)| nidx < EXTENDED_COLORS.len() as u8)
-            .for_each(|(cidx, nidx)| {
-                let i = nidx as usize;
-                let j = nidx as usize * 3usize;
-
-                plte[j] = EXTENDED_COLORS[cidx].0;
-                plte[j + 1] = EXTENDED_COLORS[cidx].1;
-                plte[j + 2] = EXTENDED_COLORS[cidx].2;
-                trns[i] = EXTENDED_COLORS[cidx].3;
-                len += 1;
-            });
+        let color_map = gen_color_map(&moose.image);
+        let bitmap = draw_bitmap(&moose.image, &color_map, dim_x, dim_y, total);
+        let trns = color_map[TRANSPARENT as usize] != COLOR_MAP_SIGIL;
+        let (plte, plte_len) = gen_plte(color_map);
+        let plte = &plte[..plte_len * 3];
 
         // Create the PNG
         let mut encoder = png::Encoder::new(
@@ -371,8 +373,13 @@ pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
         encoder.set_filter(png::FilterType::NoFilter);
         encoder.set_depth(png::BitDepth::Eight);
         encoder.set_color(png::ColorType::Indexed);
-        encoder.set_palette(&plte[..len * 3]);
-        encoder.set_trns(&trns[..len]);
+        encoder.set_palette(plte);
+        // the tRNS segment does not need to be map each palette color
+        // when generating the color_map & PLTE above, we make sure the only
+        // transparent character is index 0 in the PLTE
+        if trns {
+            encoder.set_trns(&[0u8]);
+        }
         encoder.write_header()?.write_image_data(&bitmap)?;
     }
     Ok(cursor.into_inner())
