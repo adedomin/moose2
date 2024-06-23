@@ -1,6 +1,6 @@
 use crate::{
     model::pages::MooseSearch,
-    templates::{ebanner, header, moose_card, moose_card_template, pager, search_bar},
+    templates::{ebanner, header, moose_card, moose_card_template, navbar, pager, search_bar},
 };
 use maud::{html, Markup, DOCTYPE};
 
@@ -11,15 +11,17 @@ pub fn gallery(
     meese: Option<Vec<MooseSearch>>,
     search: bool,
     nojs: bool,
+    username: Option<String>,
 ) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
             (header(page_title))
             body {
+                (navbar(username))
                 // we duplicate this top and bottom, might as well reuse it?
-                @let p = pager(page, page_count, search, nojs);
-                (p)
+                @let pager_widget = pager(page, page_count, search, nojs);
+                (pager_widget)
                 (search_bar())
                 (ebanner(meese.as_ref().map(|meese| meese.is_empty()).unwrap_or(false)))
                 #moose-cards .cards {
@@ -30,7 +32,7 @@ pub fn gallery(
                         }
                     }
                 }
-                (p)
+                (pager_widget)
                 (moose_card_template())
                 @if !nojs {
                     script src="/public/global-modules/err.js" {}

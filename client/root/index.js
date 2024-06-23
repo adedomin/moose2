@@ -286,4 +286,3 @@ function init() {
 // end helpers
 
 init()
-openModal('test modal', 'this is content.');

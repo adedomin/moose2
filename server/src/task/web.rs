@@ -69,6 +69,7 @@ pub fn web_task(
             .service(web_handlers::api::get_search_page)
             .service(web_handlers::api::put_new_moose)
             .service(web_handlers::api::get_dump)
+            .service(web_handlers::api::logged_in)
             .service(web_handlers::display::gallery_redir)
             .service(web_handlers::display::gallery_random_redir)
             .service(web_handlers::display::gallery_latest_redir)

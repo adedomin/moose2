@@ -317,12 +317,13 @@ fn draw_bitmap(
 ) -> Vec<u8> {
     let mut bitmap = vec![0x99u8; total * PIX_FMT_WIDTH * PIX_FMT_HEIGHT];
     for y in 0..dim_y {
-        let base_y = y * PIX_FMT_HEIGHT;
-        for by in base_y..(base_y + PIX_FMT_HEIGHT) {
-            for x in 0..dim_x {
-                let pixel = image[idx_1dto2d(x, y, dim_x)];
-                let pixel = color_map[pixel as usize];
-                let base_x = x * PIX_FMT_WIDTH;
+        for x in 0..dim_x {
+            let pixel = image[idx_1dto2d(x, y, dim_x)];
+            let pixel = color_map[pixel as usize];
+
+            let base_y = y * PIX_FMT_HEIGHT;
+            let base_x = x * PIX_FMT_WIDTH;
+            for by in base_y..(base_y + PIX_FMT_HEIGHT) {
                 for bx in base_x..(base_x + PIX_FMT_WIDTH) {
                     bitmap[idx_1dto2d(bx, by, PIX_FMT_WIDTH * dim_x)] = pixel;
                 }

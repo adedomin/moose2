@@ -17,6 +17,25 @@ pub fn header(page_title: &str) -> Markup {
     }
 }
 
+pub fn navbar(username: Option<String>) -> Markup {
+    html! {
+        .nav-actual {
+            .btn-grp {
+                a.btn href="/" { "Moose2" }
+                a.btn.selected href="/gallery" onclick="return false" { "Gallery" }
+            }
+            .btn-grp.float-right {
+                @if let Some(username) = username {
+                    a.btn id="login" href="/login" onclick="return false" { (username) }
+                }
+                @else {
+                    a.btn id="login" href="/login" { "Login" }
+                }
+            }
+        }
+    }
+}
+
 pub fn ebanner(is_empty: bool) -> Markup {
     html!(h1 #hidden-banner-error .center-banner .hidden[!is_empty] { "No Moose!" })
 }

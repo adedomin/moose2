@@ -26,7 +26,13 @@ use futures::stream::StreamExt;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use rand::Rng;
 use serde::Serialize;
-use std::time::Duration;
+use std::{
+    sync::atomic::{AtomicU64, Ordering::Relaxed},
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
+/// TODO: Use a proper rate limiter
+static LIMITER: AtomicU64 = AtomicU64::new(0);
 
 pub enum ApiResp {
     Body(Vec<u8>, &'static str),
@@ -252,6 +258,27 @@ pub async fn put_new_moose(
     session: Session,
     mut payload: Payload,
 ) -> HttpResponse {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    if let Err(old) = LIMITER.fetch_update(Relaxed, Relaxed, |time| {
+        println!("{now} {time}");
+        if now - time > 60 {
+            Some(now)
+        } else {
+            None
+        }
+    }) {
+        let retry_after = format!("{}", 60 - (now - old));
+        return HttpResponse::TooManyRequests()
+            .insert_header(("Retry-After", retry_after.as_str()))
+            .json(ApiError {
+                status: "error",
+                msg: format!("Retry again in {retry_after}"),
+            });
+    }
+
     let mut body = web::BytesMut::new();
     while let Some(chunk) = payload.next().await {
         let chunk = match chunk {
@@ -321,4 +348,18 @@ pub async fn put_new_moose(
 pub async fn get_dump(data: MooseWebData) -> impl Responder {
     let dump = data.moose_dump.clone();
     actix_files::NamedFile::open_async(dump).await
+}
+
+#[post("/login/username")]
+pub async fn logged_in(session: Session) -> HttpResponse {
+    match session
+        .get::<Author>("login")
+        .unwrap_or_default()
+        .and_then(|author| std::convert::TryInto::<String>::try_into(author).ok())
+    {
+        Some(username) => HttpResponse::Ok().insert_header(JSON_TYPE).json(username),
+        None => HttpResponse::Ok()
+            .insert_header(JSON_TYPE)
+            .json("".to_owned()),
+    }
 }

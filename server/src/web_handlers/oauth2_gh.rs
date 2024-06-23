@@ -72,8 +72,15 @@ pub async fn login(
     // query: web::Query<LoginRedir>,
 ) -> Result<HttpResponse, AuthApiError> {
     if let Some(oauth2_client) = &auth_client.oauth2_client {
-        if let Some(login) = session.get::<String>("login")? {
-            return Ok(HttpResponse::Ok().body(format!("Already logged in as: {login}")));
+        match session.get::<Author>("login") {
+            Ok(login) => {
+                if let Some(author) = login {
+                    return Ok(HttpResponse::Ok().body(format!("Already logged in as: {author:?}")));
+                }
+            }
+            Err(e) => {
+                eprintln!("{e}");
+            }
         }
 
         let (authorize_url, csrf_state) = oauth2_client.authorize_url(CsrfToken::new_random).url();

@@ -2,11 +2,13 @@ use super::MooseWebData;
 use crate::{
     db::MooseDB,
     model::{
+        author::Author,
         pages::{MooseSearch, MooseSearchPage},
         queries::SearchQuery,
     },
     templates::gallery,
 };
+use actix_session::Session;
 use actix_web::{
     get,
     http::{header::LOCATION, StatusCode},
@@ -75,6 +77,7 @@ async fn nojs_gallery_search(
     query: &str,
     search_page: usize,
     nojs: bool,
+    username: Option<String>,
 ) -> HttpResponse {
     let db = &db.db;
     let meese = db
@@ -84,6 +87,7 @@ async fn nojs_gallery_search(
             eprintln!("{}", err);
             MooseSearchPage::default()
         });
+
     let html = gallery::gallery(
         &format!("Search: {query}"),
         page_num,
@@ -91,6 +95,7 @@ async fn nojs_gallery_search(
         Some(meese.result),
         true,
         nojs,
+        username,
     )
     .into_string();
     HttpResponse::Ok()
@@ -98,7 +103,12 @@ async fn nojs_gallery_search(
         .body(html)
 }
 
-async fn normal_gallery_page(db: MooseWebData, page_num: usize, nojs: bool) -> HttpResponse {
+async fn normal_gallery_page(
+    db: MooseWebData,
+    page_num: usize,
+    nojs: bool,
+    username: Option<String>,
+) -> HttpResponse {
     let db = &db.db;
     let meese = if nojs {
         let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
@@ -124,6 +134,7 @@ async fn normal_gallery_page(db: MooseWebData, page_num: usize, nojs: bool) -> H
         meese,
         false,
         nojs,
+        username,
     )
     .into_string();
     HttpResponse::Ok()
@@ -134,15 +145,21 @@ async fn normal_gallery_page(db: MooseWebData, page_num: usize, nojs: bool) -> H
 #[get("/gallery/{page_id}")]
 async fn gallery_page(
     db: MooseWebData,
+    session: Session,
     page_id: web::Path<usize>,
     query: web::Query<SearchQuery>,
 ) -> HttpResponse {
     let page_num = page_id.into_inner();
     let SearchQuery { query, page, nojs } = query.into_inner();
 
+    let username = session
+        .get::<Author>("login")
+        .unwrap_or_default()
+        .and_then(|author| author.try_into().ok());
+
     if !query.is_empty() && nojs {
-        nojs_gallery_search(db, page_num, &query, page, nojs).await
+        nojs_gallery_search(db, page_num, &query, page, nojs, username).await
     } else {
-        normal_gallery_page(db, page_num, nojs).await
+        normal_gallery_page(db, page_num, nojs, username).await
     }
 }

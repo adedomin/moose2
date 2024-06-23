@@ -28,3 +28,14 @@ impl FromSql for Author {
         }
     }
 }
+
+impl TryInto<String> for Author {
+    type Error = ();
+
+    fn try_into(self) -> Result<String, Self::Error> {
+        match self {
+            Author::Anonymous => Err(()),
+            Author::Oauth2(user) => Ok(user),
+        }
+    }
+}

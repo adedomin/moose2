@@ -5,6 +5,9 @@
     --paddle-bg: grey;
     --paddle-fg: white;
     --paddle-select: burlywood;
+    --select-col: #276cda;
+    --select-hover: #276caa;
+    --destructive-col: #ff2b56;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -80,6 +83,17 @@ body {
     display: flex;
     justify-content: center;
     margin: 1em 1em;
+}
+
+.nav-actual {
+    display: flex;
+    justify-content: space-between;
+    margin: 0.5em 0.5em;
+}
+
+.nav-actual a {
+  text-align: center;
+  text-decoration: none;
 }
 
 @media only screen and (max-width: 480px) {
@@ -239,3 +253,50 @@ input[type="submit"]:hover {
 .selected {
     background-color: var(--paddle-select);
 }
+
+.btn {
+  font-size: 1.5em;
+  text-align: center;
+  padding: 0.25em 0.5em 0.25em 0.5em;
+  border: 0px solid var(--paddle-bg);
+  background-color: var(--paddle-bg);
+  color: var(--fg); 
+}
+
+.btn:hover {
+  background-color: var(--select-hover);
+}
+
+.btn.is-destructive {
+	background-color: var(--destructive-col);
+	color: #fff;
+}
+
+.btn.selected {
+  background-color: var(--select-col);
+}
+
+.btn-grp {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.btn-grp > .btn {
+  flex: 0 1 auto;
+}
+
+.btn-grp > .btn:first-child {
+  margin-left: 0;
+  border-left: 0;
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+  
+}
+
+.btn-grp > .btn:last-child {
+  margin-right: 0;
+  border-right: 0;
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
