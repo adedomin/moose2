@@ -1,7 +1,7 @@
 use super::MooseWebData;
-use crate::model::author::Author;
+use crate::{model::author::Author, web_handlers::api::JSON_TYPE};
 use actix_session::Session;
-use actix_web::{get, http::header, web, HttpResponse};
+use actix_web::{get, http::header, post, web, HttpResponse};
 use oauth2::{
     basic::BasicErrorResponseType, AuthorizationCode, CsrfToken, StandardErrorResponse,
     TokenResponse,
@@ -162,10 +162,30 @@ pub async fn auth(
             session.insert("login", Author::Oauth2(login_name))?;
             Ok(HttpResponse::Found()
                 .insert_header((header::LOCATION, "/"))
-                .body(()))
+                .finish())
         }
     } else {
         Ok(HttpResponse::NotImplemented()
             .body("Authentication is disabled; the admin has to add an OAuth2 provider."))
     }
+}
+
+#[post("/login/username")]
+pub async fn logged_in(session: Session) -> HttpResponse {
+    match session
+        .get::<Author>("login")
+        .unwrap_or_default()
+        .and_then(|author| std::convert::TryInto::<String>::try_into(author).ok())
+    {
+        Some(username) => HttpResponse::Ok().insert_header(JSON_TYPE).json(username),
+        None => HttpResponse::Ok().insert_header(JSON_TYPE).body("null"),
+    }
+}
+
+#[post("/logout")]
+pub async fn logout(session: Session) -> HttpResponse {
+    session.purge();
+    HttpResponse::Ok()
+        .insert_header((header::LOCATION, "/"))
+        .finish()
 }

@@ -57,7 +57,7 @@ impl ApiError {
     }
 }
 
-const JSON_TYPE: (&str, &str) = ("Content-Type", "application/json");
+pub const JSON_TYPE: (&str, &str) = ("Content-Type", "application/json");
 
 impl Responder for ApiResp {
     type Body = BoxBody;
@@ -262,8 +262,8 @@ pub async fn put_new_moose(
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
+    // nothing depends on stores to the value of LIMITER other than here.
     if let Err(old) = LIMITER.fetch_update(Relaxed, Relaxed, |time| {
-        println!("{now} {time}");
         if now - time > 60 {
             Some(now)
         } else {
@@ -303,7 +303,6 @@ pub async fn put_new_moose(
         body.extend_from_slice(&chunk);
     }
 
-    println!("{}", unsafe { std::str::from_utf8_unchecked(&body) });
     let mut moose = match serde_json::from_slice::<Moose>(&body) {
         Ok(moose) => moose,
         Err(msg) => {
@@ -348,18 +347,4 @@ pub async fn put_new_moose(
 pub async fn get_dump(data: MooseWebData) -> impl Responder {
     let dump = data.moose_dump.clone();
     actix_files::NamedFile::open_async(dump).await
-}
-
-#[post("/login/username")]
-pub async fn logged_in(session: Session) -> HttpResponse {
-    match session
-        .get::<Author>("login")
-        .unwrap_or_default()
-        .and_then(|author| std::convert::TryInto::<String>::try_into(author).ok())
-    {
-        Some(username) => HttpResponse::Ok().insert_header(JSON_TYPE).json(username),
-        None => HttpResponse::Ok()
-            .insert_header(JSON_TYPE)
-            .json("".to_owned()),
-    }
 }
