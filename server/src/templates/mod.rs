@@ -26,12 +26,20 @@ pub fn navbar(username: Option<String>) -> Markup {
             }
             .btn-grp.float-right {
                 @if let Some(username) = username {
-                    a.btn id="login" href="/login" onclick="return false" { (username) }
+                    input.btn type="submit" form="logout-form" id="login" value=(username);
                 }
                 @else {
                     a.btn id="login" href="/login" { "Login" }
                 }
             }
+        }
+    }
+}
+
+pub fn logout_form(redir_to: &str) -> Markup {
+    html! {
+        form id="logout-form" action="/logout" method="post" style="display: none;" {
+            input name="redirect" type="hidden" value=(redir_to);
         }
     }
 }

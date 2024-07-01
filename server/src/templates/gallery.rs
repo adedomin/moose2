@@ -1,6 +1,8 @@
 use crate::{
     model::pages::MooseSearch,
-    templates::{ebanner, header, moose_card, moose_card_template, navbar, pager, search_bar},
+    templates::{
+        ebanner, header, logout_form, moose_card, moose_card_template, navbar, pager, search_bar,
+    },
 };
 use maud::{html, Markup, DOCTYPE};
 
@@ -13,6 +15,7 @@ pub fn gallery(
     nojs: bool,
     username: Option<String>,
 ) -> Markup {
+    let njs = if nojs { "?nojs=true" } else { "" };
     html! {
         (DOCTYPE)
         html lang="en" {
@@ -26,17 +29,19 @@ pub fn gallery(
                 (ebanner(meese.as_ref().map(|meese| meese.is_empty()).unwrap_or(false)))
                 #moose-cards .cards {
                     @if let Some(meese) = meese {
-                        @let njs = if nojs { "?nojs=true" } else { "" };
                         @for MooseSearch { moose, page } in meese {
                             (moose_card(&moose, format!("/gallery/{page}{njs}").as_str()))
                         }
                     }
                 }
                 (pager_widget)
-                (moose_card_template())
                 @if !nojs {
+                    (moose_card_template())
                     script src="/public/global-modules/err.js" {}
                     script src="/public/gallery/moose2.js" type="module" {}
+                }
+                @else {
+                    (logout_form(format!("/gallery/{page}{njs}").as_str()))
                 }
             }
         }

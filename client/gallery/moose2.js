@@ -6,6 +6,7 @@ const search_field = document.getElementById('search-field');
 const moose_cards = document.getElementById('moose-cards');
 const moose_card_template = document.getElementById('moose-card-template');
 const error_banner = document.getElementById('hidden-banner-error');
+const login = document.getElementById('login');
 
 const NO_MOOSE_ERR = "No Moose!";
 
@@ -244,7 +245,33 @@ window.addEventListener('popstate', () => {
 });
 search_form.addEventListener('submit', debounce_ev.bind(null, search, true));
 search_field.addEventListener('input', debounce_ev.bind(null, search, false));
-// if (search_field.value !== '') search();
+
+if (login.tagName.toLowerCase() == 'input') {
+    const lev = e => {
+        e.preventDefault();
+        fetch('/logout', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: new Headers({'Content-Type': 'application/x-www-form-urlencoded'}),
+        }).then(res => {
+          if (res.ok) {
+              login.removeEventListener('click', lev);
+              const a = document.createElement('a');
+              a.href = `/login?redirect=${window.location.pathname}`;
+              a.textContent = 'Login';
+              login.classList.forEach(css => {
+                  a.classList.add(css);
+              });
+              login.replaceWith(a);
+          }
+        }).catch(err => {
+          login.textContent = 'LOGOUT FAILED (SEE CONSOLE)';
+          console.error(err);
+        });
+    };
+    login.addEventListener('click', lev);
+}
+
 const query_obj = new URLSearchParams(window.location.search);
 if (query_obj.has('q')) {
     const q = query_obj.get('q');

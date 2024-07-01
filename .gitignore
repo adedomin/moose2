@@ -1,5 +1,6 @@
 /target
 # just in case
 /client/target
+/client/root/unpack
 moose*.json
 config.json

@@ -8,6 +8,8 @@ pub mod static_files;
 
 pub type MooseWebData = web::Data<AppData>;
 
+pub const JSON_TYPE: (&str, &str) = ("Content-Type", "application/json");
+
 /// Intended to be used with: .iter().fold(num, fold_decimal)
 fn fold_decimal(acc: u32, chr: &u8) -> u32 {
     acc * 10 + (chr - b'0') as u32

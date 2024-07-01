@@ -1,5 +1,5 @@
 use super::MooseWebData;
-use crate::{model::author::Author, web_handlers::api::JSON_TYPE};
+use crate::{model::author::Author, web_handlers::JSON_TYPE};
 use actix_session::Session;
 use actix_web::{get, http::header, post, web, HttpResponse};
 use oauth2::{
@@ -36,6 +36,11 @@ impl actix_web::ResponseError for AuthApiError {}
 pub struct AuthRequest {
     code: String,
     state: String,
+}
+
+#[derive(Deserialize)]
+pub struct LogInOutRedir {
+    redirect: Option<String>,
 }
 
 async fn oa2_reqwest(request: oauth2::HttpRequest) -> Result<oauth2::HttpResponse, reqwest::Error> {
@@ -183,9 +188,13 @@ pub async fn logged_in(session: Session) -> HttpResponse {
 }
 
 #[post("/logout")]
-pub async fn logout(session: Session) -> HttpResponse {
+pub async fn logout(session: Session, params: web::Form<LogInOutRedir>) -> HttpResponse {
+    let redir = params
+        .into_inner()
+        .redirect
+        .unwrap_or_else(|| "/".to_owned());
     session.purge();
-    HttpResponse::Ok()
-        .insert_header((header::LOCATION, "/"))
+    HttpResponse::SeeOther()
+        .insert_header((header::LOCATION, redir))
         .finish()
 }

@@ -7,6 +7,7 @@ use crate::{
     },
     render::{moose_irc, moose_png, moose_term},
     templates,
+    web_handlers::JSON_TYPE,
 };
 use ::time::OffsetDateTime;
 use actix_session::Session;
@@ -56,8 +57,6 @@ impl ApiError {
         }
     }
 }
-
-pub const JSON_TYPE: (&str, &str) = ("Content-Type", "application/json");
 
 impl Responder for ApiResp {
     type Body = BoxBody;
