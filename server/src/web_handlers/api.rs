@@ -305,7 +305,7 @@ pub async fn put_new_moose(
     let mut moose = match serde_json::from_slice::<Moose>(&body) {
         Ok(moose) => moose,
         Err(msg) => {
-            return HttpResponse::UnprocessableEntity()
+            return HttpResponse::BadRequest()
                 .insert_header(JSON_TYPE)
                 .json(ApiError {
                     status: "error",
@@ -328,7 +328,7 @@ pub async fn put_new_moose(
     let db = db.db.clone();
     let moose_name = moose.name.clone();
     if let Err(e) = db.insert_moose(moose).await {
-        HttpResponse::BadRequest()
+        HttpResponse::UnprocessableEntity()
             .insert_header(JSON_TYPE)
             .json(ApiError {
                 status: "error",
