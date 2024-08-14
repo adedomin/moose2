@@ -150,7 +150,7 @@ where
         print!("Creating... ");
         create_parent_dirs(&config_path).unwrap();
         let mut file = std::fs::File::create(&config_path).unwrap();
-        let _ = file.write(EXAMPLE_CONFIG).unwrap();
+        file.write_all(EXAMPLE_CONFIG).unwrap();
         println!("\nEdit the file and restart the application");
         None
     }
