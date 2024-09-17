@@ -3,4 +3,7 @@
 Description=Auto import moose changes
 
 [Service]
+Type=oneshot
+User=moose2
+Environment=MOOSE2_CONFIG=/etc/moose2/config.json
 ExecStart=/usr/local/bin/moose2-autoimport.sh

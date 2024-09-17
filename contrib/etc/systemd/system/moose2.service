@@ -2,12 +2,17 @@
 Description=Next Generation Moose Service
 
 [Service]
-DynamicUser=yes
+# DynamicUser=yes
 User=moose2
-Group=moose2
-ExecStart=/usr/local/bin/moose2 run
-ExecReload=/bin/kill -HUP $MAINPID
+Group=nginx # this application is built around running behind nginx
+UMask=002
 StateDirectory=moose2
+StateDirectoryMode=0770 # nginx accelerator support so we can drop actix-files.
+RuntimeDirectory=moose2
+RuntimeDirectoryMode=0770 # moose2 and nginx
+ExecStart=/usr/local/bin/moose2
+# TODO: Revisit this.
+# ExecReload=/bin/kill -HUP $MAINPID
 
 [Install]
 WantedBy=multi-user.target
