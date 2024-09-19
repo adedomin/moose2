@@ -211,6 +211,7 @@ impl MooseDB for Pool {
         }
     }
 
+    // TODO: Tokenize FTS5 query.
     async fn search_moose(
         &self,
         query: &str,
@@ -231,7 +232,7 @@ impl MooseDB for Pool {
                     .flat_map(|m| match m {
                         Ok(res) => Some(res),
                         Err(e) => {
-                            eprintln!("{}", e);
+                            eprintln!("ERROR: [WEB/SEARCH] {}", e);
                             None
                         }
                     })
@@ -246,9 +247,10 @@ impl MooseDB for Pool {
                 let page_off = page_num * PAGE_SIZE;
                 let page_lim = page_off + PAGE_SIZE;
                 let result = result
-                    .get(page_off..page_lim)
-                    .map(|mslice| mslice.to_vec())
-                    .unwrap_or(vec![]);
+                    .into_iter()
+                    .skip(page_off)
+                    .take(page_lim)
+                    .collect::<Vec<_>>();
                 Ok(MooseSearchPage { pages, result })
             })
             .await?;
