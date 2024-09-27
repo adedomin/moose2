@@ -50,6 +50,7 @@ pub fn web_task(
             .wrap(cookie_session)
             .app_data(app_data.clone())
             .service(web_handlers::oauth2_gh::login)
+            .service(web_handlers::oauth2_gh::login_post)
             .service(web_handlers::oauth2_gh::auth)
             .service(web_handlers::oauth2_gh::logged_in)
             .service(web_handlers::oauth2_gh::logout)

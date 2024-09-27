@@ -7,6 +7,8 @@ const moose_cards = document.getElementById('moose-cards');
 const moose_card_template = document.getElementById('moose-card-template');
 const error_banner = document.getElementById('hidden-banner-error');
 const login = document.getElementById('login');
+const login_form = document.getElementById('log-inout-form');
+const login_redir = document.getElementById('lio-redir');
 
 const NO_MOOSE_ERR = "No Moose!";
 
@@ -205,6 +207,7 @@ function add_nav_handlers() {
                 // if (ev.target.parentElement.classList.has('disable')) return;
                 if (+ev.target.dataset.page === current_page()) return;
                 history.pushState(null, '', ev.target.href);
+                login_redir.value = window.location.pathname;
                 renumber_nav();
                 search();
             });
@@ -222,7 +225,7 @@ function search() {
         });
         fetch_moose_arr(SEARCH, `/search?${form.toString()}`);
     } else {
-        history.replaceState(null, '', `${window.location.pathname}`);
+        history.replaceState(null, '', window.location.pathname);
         document.querySelectorAll('.nav-block').forEach(nav => {
             nav.classList.remove('disable');
         });
@@ -246,7 +249,7 @@ window.addEventListener('popstate', () => {
 search_form.addEventListener('submit', debounce_ev.bind(null, search, true));
 search_field.addEventListener('input', debounce_ev.bind(null, search, false));
 
-if (login.tagName.toLowerCase() == 'input') {
+if (login.dataset.login === 'true') {
     const lev = e => {
         e.preventDefault();
         fetch('/logout', {
@@ -255,14 +258,10 @@ if (login.tagName.toLowerCase() == 'input') {
           headers: new Headers({'Content-Type': 'application/x-www-form-urlencoded'}),
         }).then(res => {
           if (res.ok) {
+              login.value = 'Login';
+              login_form.action = '/login';
+              login_redir.value = window.location.pathname;
               login.removeEventListener('click', lev);
-              const a = document.createElement('a');
-              a.href = `/login?redirect=${window.location.pathname}`;
-              a.textContent = 'Login';
-              login.classList.forEach(css => {
-                  a.classList.add(css);
-              });
-              login.replaceWith(a);
           }
         }).catch(err => {
           login.textContent = 'LOGOUT FAILED (SEE CONSOLE)';

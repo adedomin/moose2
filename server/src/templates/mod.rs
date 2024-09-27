@@ -18,6 +18,7 @@ pub fn header(page_title: &str) -> Markup {
 }
 
 pub fn navbar(username: Option<String>) -> Markup {
+    let is_login = username.is_some();
     html! {
         .nav-actual {
             .btn-grp {
@@ -25,21 +26,17 @@ pub fn navbar(username: Option<String>) -> Markup {
                 a.btn.selected href="/gallery" onclick="return false" { "Gallery" }
             }
             .btn-grp.float-right {
-                @if let Some(username) = username {
-                    input.btn type="submit" form="logout-form" id="login" value=(username);
-                }
-                @else {
-                    a.btn id="login" href="/login" { "Login" }
-                }
+                input.btn type="submit" form="log-inout-form" id="login" data-login=(is_login) value=(username.unwrap_or("Login".to_owned()));
             }
         }
     }
 }
 
-pub fn logout_form(redir_to: &str) -> Markup {
+pub fn log_inout_form(redir_to: &str, is_login: bool) -> Markup {
+    let action_url = if is_login { "/logout" } else { "/login" };
     html! {
-        form id="logout-form" action="/logout" method="post" style="display: none;" {
-            input name="redirect" type="hidden" value=(redir_to);
+        form #log-inout-form action=(action_url) method="post" style="display: none;" {
+            input #lio-redir name="redirect" type="hidden" value=(redir_to);
         }
     }
 }

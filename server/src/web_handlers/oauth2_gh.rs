@@ -6,7 +6,7 @@ use oauth2::{
     basic::BasicErrorResponseType, AuthorizationCode, CsrfToken, StandardErrorResponse,
     TokenResponse,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 struct GithubUserApi {
@@ -38,7 +38,7 @@ pub struct AuthRequest {
     state: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct LogInOutRedir {
     redirect: Option<String>,
 }
@@ -74,12 +74,28 @@ async fn oa2_reqwest(request: oauth2::HttpRequest) -> Result<oauth2::HttpRespons
 pub async fn login(
     auth_client: MooseWebData,
     session: Session,
-    // query: web::Query<LoginRedir>,
+) -> Result<HttpResponse, AuthApiError> {
+    login_real(auth_client, session, LogInOutRedir::default()).await
+}
+
+#[post("/login")]
+pub async fn login_post(
+    auth_client: MooseWebData,
+    session: Session,
+    params: web::Form<LogInOutRedir>,
+) -> Result<HttpResponse, AuthApiError> {
+    login_real(auth_client, session, params.into_inner()).await
+}
+
+pub async fn login_real(
+    auth_client: MooseWebData,
+    session: Session,
+    query: LogInOutRedir,
 ) -> Result<HttpResponse, AuthApiError> {
     if let Some(oauth2_client) = &auth_client.oauth2_client {
         match session.get::<Author>("login") {
-            Ok(login) => {
-                if let Some(author) = login {
+            Ok(login_info) => {
+                if let Some(author) = login_info {
                     return Ok(HttpResponse::Ok().body(format!("Already logged in as: {author:?}")));
                 }
             }
@@ -91,9 +107,7 @@ pub async fn login(
         let (authorize_url, csrf_state) = oauth2_client.authorize_url(CsrfToken::new_random).url();
 
         session.insert("csrf", csrf_state.secret()).unwrap();
-        // let LoginRedir { redir, debug } = query.into_inner();
-        // session.insert("redir", redir).unwrap();
-        // session.insert("login_debug", debug).unwrap();
+        session.insert("redirect", query).unwrap();
 
         Ok(HttpResponse::Found()
             .insert_header((header::LOCATION, authorize_url.to_string()))
@@ -146,6 +160,11 @@ pub async fn auth(
             .await?;
 
         let login_name = res.login;
+        let redirect = session
+            .get::<LogInOutRedir>("redirect")?
+            .unwrap_or(LogInOutRedir { redirect: None })
+            .redirect
+            .unwrap_or_else(|| "/".to_owned());
 
         #[cfg(debug_assertions)]
         {
@@ -153,9 +172,11 @@ pub async fn auth(
                 r#"<html>
                 <head><title>OAuth2 Test</title></head>
                 <body>
-                    Github returned the following info:
+                    <p>Github returned the following info:</p>
                     <pre>token: {token_secret}</pre>
                     <pre>login: {login_name}</pre>
+                    <br>
+                    <p>User wanted to redirect to: {redirect}</p>
                 </body>
             </html>"#
             );
@@ -166,7 +187,7 @@ pub async fn auth(
         {
             session.insert("login", Author::Oauth2(login_name))?;
             Ok(HttpResponse::Found()
-                .insert_header((header::LOCATION, "/"))
+                .insert_header((header::LOCATION, redirect))
                 .finish())
         }
     } else {

@@ -48,9 +48,9 @@ const DARK_THEME = window.matchMedia('(prefers-color-scheme: dark)');
 // end state
 
 // helpers
-function isMobile() {
-  return document.documentElement.clientWidth < 700;
-}
+// function isMobile() {
+//   return document.documentElement.clientWidth < 481;
+// }
 
 function defaultLightness() {
   if (DARK_THEME.matches) {
@@ -185,10 +185,6 @@ function init() {
 
   // removePainter();
   PAINTER_AREA.appendChild(painter.canvas);
-
-  if (isMobile()) {
-      setTimeout(() => state.painter.fitToWindow(), 0);
-  }
 
   PAINTER = painter;
 

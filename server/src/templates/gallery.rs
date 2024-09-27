@@ -1,7 +1,7 @@
 use crate::{
     model::pages::MooseSearch,
     templates::{
-        ebanner, header, logout_form, moose_card, moose_card_template, navbar, pager, search_bar,
+        ebanner, header, log_inout_form, moose_card, moose_card_template, navbar, pager, search_bar,
     },
 };
 use maud::{html, Markup, DOCTYPE};
@@ -16,6 +16,7 @@ pub fn gallery(
     username: Option<String>,
 ) -> Markup {
     let njs = if nojs { "?nojs=true" } else { "" };
+    let is_login = username.is_some();
     html! {
         (DOCTYPE)
         html lang="en" {
@@ -40,9 +41,7 @@ pub fn gallery(
                     script src="/public/global-modules/err.js" {}
                     script src="/public/gallery/moose2.js" type="module" {}
                 }
-                @else {
-                    (logout_form(format!("/gallery/{page}{njs}").as_str()))
-                }
+                (log_inout_form(format!("/gallery/{page}{njs}").as_str(), is_login))
             }
         }
     }
