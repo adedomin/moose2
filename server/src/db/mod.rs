@@ -88,8 +88,34 @@ pub enum QueryError {
     Sqlite3(#[from] rusqlite::Error),
 }
 
-// NOTE: you can suppress this lint if you plan to use the trait only in your own code, or do not care about auto traits like `Send` on the `Future`
-// this code is not exported to other users, other than moose2's code.
+/// Escapes a search query similar to how legacy moose does. FTS5 syntax is a bit much.
+fn escape_query(q: &str) -> String {
+    let words = q
+        .split_whitespace()
+        .filter(|substr| !substr.is_empty())
+        .collect::<Vec<_>>();
+    let len = words.len();
+    words
+        .into_iter()
+        .enumerate()
+        .map(|(i, substr)| {
+            if substr == "AND" || substr == "OR" {
+                if i == 0 || i == (len - 1) {
+                    format!("\"{}\"", substr.replace("\"", "\"\""))
+                } else {
+                    substr.to_owned()
+                }
+            } else {
+                format!("\"{}\"", substr.replace("\"", "\"\""))
+            }
+        })
+        .collect::<Vec<String>>()
+        .join(" ")
+}
+
+// NOTE: You can suppress this lint if you plan to use the trait only in your own code,
+//       or do not care about auto traits like `Send` on the `Future`.
+//       This code is not exported to other users, other than moose2's code.
 #[allow(async_fn_in_trait)]
 pub trait MooseDB {
     async fn len(&self) -> Result<usize, QueryError>;
@@ -211,14 +237,13 @@ impl MooseDB for Pool {
         }
     }
 
-    // TODO: Tokenize FTS5 query.
     async fn search_moose(
         &self,
         query: &str,
         page_num: usize,
     ) -> Result<MooseSearchPage, QueryError> {
         let conn = self.get().await?;
-        let query = query.to_owned();
+        let query = escape_query(query);
         let q = conn
             .interact(move |conn| -> Result<MooseSearchPage, rusqlite::Error> {
                 let result = conn
