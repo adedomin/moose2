@@ -204,9 +204,9 @@ function add_nav_handlers() {
             child.dataset.page = get_page_num((new URL(child.href)).pathname);
             child.addEventListener('click', ev => {
                 ev.preventDefault();
-                // if (ev.target.parentElement.classList.has('disable')) return;
-                if (+ev.target.dataset.page === current_page()) return;
-                history.pushState(null, '', ev.target.href);
+                // if (ev.currentTarget.parentElement.classList.has('disable')) return;
+                if (+ev.currentTarget.dataset.page === current_page()) return;
+                history.pushState(null, '', ev.currentTarget.href);
                 login_redir.value = window.location.pathname;
                 renumber_nav();
                 search();
