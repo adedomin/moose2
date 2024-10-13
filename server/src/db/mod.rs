@@ -101,7 +101,7 @@ fn escape_query(q: &str) -> String {
         .map(|(i, substr)| {
             if substr == "AND" || substr == "OR" {
                 if i == 0 || i == (len - 1) {
-                    format!("\"{}\"", substr.replace("\"", "\"\""))
+                    format!("\"{substr}\"")
                 } else {
                     substr.to_owned()
                 }

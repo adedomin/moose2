@@ -64,14 +64,20 @@ pub fn pager(page: usize, page_count: usize, disabled: bool, nojs: bool) -> Mark
     html! {
         .nav-block .disable[disabled] {
             a .arrow-left         .disable[page == 0] href={"/gallery/" (&(page.saturating_sub(1))) (njs)} { "Prev" }
-            a .paddle.paddle-edge .disable[page == 0] .paddle-edge href={"/gallery/0" (njs)}               { "Oldest" br; "Page" }
+            a .paddle.paddle-edge .disable[page == 0] .paddle-edge href={"/gallery/0" (njs)} {
+                span.full { "Oldest" br; "Page" }
+                span.short { "Old" }
+            }
 
             @for pnum in page_range(page, page_count) {
                 a .paddle .selected[pnum == page] href={"/gallery/" (pnum) (njs)} { (pnum) }
             }
 
-            a .paddle.paddle-edge .disable[page+1 >= page_count] href={"/gallery/" (&(page_count.saturating_sub(1))) (njs)} { "Newest" br; "Page"}
-            a .arrow-right        .disable[page+1 >= page_count] href={"/gallery/" (&(page       + 1)) (njs)}               { "Next" }
+            a .paddle.paddle-edge .disable[page+1 >= page_count] href={"/gallery/" (&(page_count.saturating_sub(1))) (njs)} {
+                span.full { "Newest" br; "Page" }
+                span.short { "New" }
+            }
+            a .arrow-right        .disable[page+1 >= page_count] href={"/gallery/" (&(page       + 1)) (njs)} { "Next" }
         }
     }
 }

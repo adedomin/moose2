@@ -46,12 +46,6 @@ body {
     font-family: sans-serif;
 }
 
-/* @media only screen and (max-width: 480px) {
-    html {
-        font-size: 1.5em;
-    }
-} */
-
 .cards {
     clear: both;
     display: flex;
@@ -230,8 +224,15 @@ input[type="submit"]:hover {
     background-size: 100% 50%;
 }
 
+
+@media only screen and (min-width: 481px) {
+    .paddle-edge > span.short {
+        display: none;
+    }
+}
+
 @media only screen and (max-width: 480px) {
-    .paddle-edge {
+    .paddle-edge > span.full {
         display: none;
     }
 
