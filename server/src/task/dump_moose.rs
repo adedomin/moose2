@@ -2,6 +2,7 @@ use std::{
     fs::File,
     io::{BufWriter, IntoInnerError, Write},
     path::PathBuf,
+    sync::atomic::AtomicBool,
     time::Duration,
 };
 
@@ -10,6 +11,13 @@ use tokio::{sync::broadcast::Receiver, task::JoinHandle, time};
 
 use crate::db::{query::DUMP_MOOSE, Connection, Pool};
 use crate::model::{self};
+
+static NEW_MOOSE_NOTIFY: AtomicBool = AtomicBool::new(true);
+
+/// Let the Moose Dump Task know a new moose has been written.
+pub fn notify_new() {
+    NEW_MOOSE_NOTIFY.store(true, std::sync::atomic::Ordering::Relaxed)
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum DumpTaskError {
@@ -81,7 +89,7 @@ async fn dump_moose(
     db: Pool,
     mut stop_broadcast: Receiver<bool>,
 ) -> Result<(), DumpTaskError> {
-    let mut interval = time::interval(Duration::from_secs(3600));
+    let mut interval = time::interval(Duration::from_secs(300));
 
     loop {
         tokio::select! {
@@ -89,10 +97,14 @@ async fn dump_moose(
                 return Ok(());
             },
             _ = interval.tick() => {
-                println!("INFO: [DUMP] Timer Triggered, dumping Moose to json file: {moose_dump:?}");
-                let con = db.get().await.unwrap();
-                let md = moose_dump.clone();
-                dump_moose_real(con, md).await?;
+                if NEW_MOOSE_NOTIFY.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                    println!("INFO: [DUMP] Dumping moose to json file: {moose_dump:?}");
+                    let con = db.get().await.unwrap();
+                    let md = moose_dump.clone();
+                    dump_moose_real(con, md).await?;
+                } else {
+                    println!("DEBUG: [DUMP] Timer Triggered, no new moose to dump.");
+                }
             }
         }
     }

@@ -6,6 +6,7 @@ use crate::{
         queries::SearchQuery, PAGE_SIZE,
     },
     render::{moose_irc, moose_png, moose_term},
+    task::notify_new,
     templates,
     web_handlers::JSON_TYPE,
 };
@@ -107,7 +108,7 @@ async fn simple_get<'m>(db: &'m Pool, name: &str) -> Result<Option<Moose>, Strin
             }
             Ok(None) => unreachable!(),
             Err(e) => {
-                panic!("DB is broken (trying to get random): {}", e);
+                panic!("DB is broken (trying to get random): {e}");
             }
         }
     } else if name == LATEST {
@@ -117,14 +118,14 @@ async fn simple_get<'m>(db: &'m Pool, name: &str) -> Result<Option<Moose>, Strin
             }
             Ok(None) => unreachable!(),
             Err(e) => {
-                panic!("DB is broken (trying to get latest): {}", e);
+                panic!("DB is broken (trying to get latest): {e}");
             }
         }
     } else {
         match db.get_moose(name).await {
             Ok(moose) => Ok(moose),
             Err(e) => {
-                panic!("DB is broken (trying to get moose {}): {}", name, e);
+                panic!("DB is broken (trying to get moose {name}): {e}");
             }
         }
     }
@@ -186,7 +187,7 @@ pub async fn get_moose_term(db: MooseWebData, moose_name: web::Path<String>) -> 
 pub async fn get_page_count(db: MooseWebData) -> HttpResponse {
     let db = &db.db;
     let count = db.get_page_count().await.unwrap_or_else(|err| {
-        eprintln!("{}", err);
+        eprintln!("WARN: [WEB/PAGE/COUNT] {err}");
         0
     });
     // response too small to make caching worth it.
@@ -196,19 +197,15 @@ pub async fn get_page_count(db: MooseWebData) -> HttpResponse {
 #[get("/page/{page_num}")]
 pub async fn get_page(db: MooseWebData, page_id: web::Path<usize>) -> ApiResp {
     let db = &db.db;
-    let meese = db
-        .get_moose_page(page_id.into_inner())
-        .await
-        .unwrap_or_else(|err| {
-            eprintln!("{}", err);
-            vec![]
-        });
+    let pagenum = page_id.into_inner();
+    let meese = db.get_moose_page(pagenum).await.unwrap_or_else(|err| {
+        eprintln!("WARN: [WEB/PAGE/{pagenum}] {err}");
+        vec![]
+    });
     // if the page is full, it probably won't change in hours, if ever.
     // if the page isn't full, it's the last page or a page we haven't gotten to yet and can change.
-    let cache_duration = if meese.is_empty() {
-        Duration::from_secs(60) // this page is empty (technically doesn't exist)
-    } else if meese.len() < PAGE_SIZE {
-        Duration::from_secs(300) // last page
+    let cache_duration = if meese.len() < PAGE_SIZE {
+        Duration::from_secs(30) // last page or non-existent page.
     } else {
         Duration::from_secs(3600) // full page
     };
@@ -233,7 +230,7 @@ pub async fn get_search_page(db: MooseWebData, query: web::Query<SearchQuery>) -
     let db = &db.db;
     let SearchQuery { page, query, .. } = query.into_inner();
     let meese = db.search_moose(&query, page).await.unwrap_or_else(|err| {
-        eprintln!("{}", err);
+        eprintln!("WARN: [WEB/SEARCH] {err}");
         MooseSearchPage::default()
     });
     let meese = serde_json::to_vec(&meese).unwrap();
@@ -251,12 +248,9 @@ fn moose_validation_err(msg: &str) -> HttpResponse {
         })
 }
 
-#[post("/new")]
-pub async fn put_new_moose(
-    db: MooseWebData,
-    session: Session,
-    mut payload: Payload,
-) -> HttpResponse {
+/// Global Moose rate-limiter, prevents a new moose every minute.
+/// TODO: make this session based.
+fn check_ratelimit() -> Result<(), HttpResponse> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -270,12 +264,25 @@ pub async fn put_new_moose(
         }
     }) {
         let retry_after = format!("{}", 60 - (now - old));
-        return HttpResponse::TooManyRequests()
+        Err(HttpResponse::TooManyRequests()
             .insert_header(("Retry-After", retry_after.as_str()))
             .json(ApiError {
                 status: "error",
                 msg: format!("Retry again in {retry_after}"),
-            });
+            }))
+    } else {
+        Ok(())
+    }
+}
+
+#[post("/new")]
+pub async fn put_new_moose(
+    webdata: MooseWebData,
+    session: Session,
+    mut payload: Payload,
+) -> HttpResponse {
+    if let Err(e) = check_ratelimit() {
+        return e;
     }
 
     let mut body = web::BytesMut::new();
@@ -325,7 +332,7 @@ pub async fn put_new_moose(
         return moose_validation_err("Custom dimensions are not allowed through the public API.");
     }
 
-    let db = db.db.clone();
+    let db = webdata.db.clone();
     let moose_name = moose.name.clone();
     if let Err(e) = db.insert_moose(moose).await {
         HttpResponse::UnprocessableEntity()
@@ -335,6 +342,7 @@ pub async fn put_new_moose(
                 msg: e.to_string(),
             })
     } else {
+        notify_new();
         HttpResponse::Ok().insert_header(JSON_TYPE).json(ApiError {
             status: "ok",
             msg: format!("moose {moose_name} saved."),
