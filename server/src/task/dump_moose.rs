@@ -72,10 +72,10 @@ async fn dump_moose_real(con: Connection, moose_dump: PathBuf) -> Result<(), Dum
             bufw.write_all(&moose)?;
         }
         bufw.write_all(b"]")?;
+
         let inner = bufw.into_inner()?;
         inner.sync_data()?;
         drop(inner);
-
         std::fs::rename(tdir, moose_dump)?;
 
         println!("INFO: [DUMP] Done dumping moose.");
@@ -87,7 +87,7 @@ async fn dump_moose_real(con: Connection, moose_dump: PathBuf) -> Result<(), Dum
 async fn dump_moose(
     moose_dump: PathBuf,
     db: Pool,
-    mut stop_broadcast: Receiver<bool>,
+    mut stop_broadcast: Receiver<()>,
 ) -> Result<(), DumpTaskError> {
     let mut interval = time::interval(Duration::from_secs(300));
 
@@ -113,7 +113,7 @@ async fn dump_moose(
 pub fn dump_moose_task(
     moose_dump: PathBuf,
     db: Pool,
-    stop_broadcast: Receiver<bool>,
+    stop_broadcast: Receiver<()>,
 ) -> JoinHandle<Result<(), DumpTaskError>> {
     println!("INFO: [DUMP] Setting up Auto-dumps of database.");
     tokio::spawn(async move {

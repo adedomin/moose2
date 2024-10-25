@@ -4,7 +4,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-pub fn shutdown_task(shutdown_channel: Sender<bool>) -> JoinHandle<Result<(), SendError<bool>>> {
+pub fn shutdown_task(shutdown_channel: Sender<()>) -> JoinHandle<Result<(), SendError<()>>> {
     tokio::spawn(async move {
         let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate()).unwrap();
         tokio::select! {
@@ -15,7 +15,7 @@ pub fn shutdown_task(shutdown_channel: Sender<bool>) -> JoinHandle<Result<(), Se
                 println!("WARN: [SHUTDOWN] SIGTERM: shutting down.");
             }
         }
-        shutdown_channel.send(true)?;
+        shutdown_channel.send(())?;
         Ok(())
     })
 }

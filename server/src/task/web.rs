@@ -13,7 +13,7 @@ use crate::{
 pub fn web_task(
     rc: RunConfig,
     db: Pool,
-    mut shutdown_signal: Receiver<bool>,
+    mut shutdown_signal: Receiver<()>,
 ) -> JoinHandle<Result<(), std::io::Error>> {
     let listen_addr = rc.get_bind_addr();
     println!(
