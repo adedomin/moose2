@@ -1,7 +1,7 @@
 use crate::{
     config::{self, RunConfig},
     model::{
-        moose::Moose,
+        moose::{Moose, MooseAny},
         pages::{MooseSearch, MooseSearchPage},
         PAGE_SEARCH_LIM, PAGE_SIZE,
     },
@@ -43,10 +43,14 @@ pub async fn moose_bulk_import(moose_in: Option<PathBuf>, ignore_dup: bool, db: 
     let mut moose_in = match moose_in {
         Some(path) => {
             let file = BufReader::new(std::fs::File::open(path).unwrap());
-            serde_json::from_reader::<_, Vec<Moose>>(file).unwrap()
+            serde_json::from_reader::<_, Vec<MooseAny>>(file).unwrap()
         }
-        None => serde_json::from_reader::<_, Vec<Moose>>(std::io::stdin().lock()).unwrap(),
-    };
+        None => serde_json::from_reader::<_, Vec<MooseAny>>(std::io::stdin().lock()).unwrap(),
+    }
+    .drain(..)
+    .map(|m| m.into())
+    .collect::<Vec<Moose>>();
+
     moose_in.sort_unstable_by(|lhs, rhs| lhs.created.cmp(&rhs.created));
     let conn = db.get().await.unwrap();
     conn.interact(move |conn| {

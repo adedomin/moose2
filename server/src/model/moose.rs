@@ -201,6 +201,22 @@ impl From<Moose> for Vec<u8> {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum MooseAny {
+    Moose(Moose),
+    MooseLegacy(MooseLegacy),
+}
+
+impl From<MooseAny> for Moose {
+    fn from(variant: MooseAny) -> Self {
+        match variant {
+            MooseAny::Moose(m) => m,
+            MooseAny::MooseLegacy(ml) => ml.into(),
+        }
+    }
+}
+
 pub fn moose_bulk_transform(moose_in: Option<PathBuf>, moose_out: Option<PathBuf>) {
     let mut moose_in = match moose_in {
         Some(path) => {
