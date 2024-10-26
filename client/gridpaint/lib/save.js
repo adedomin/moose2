@@ -1,6 +1,6 @@
 // Copyright (C) 2016  Zorian Medwin
 // Copyright (C) 2021  Anthony DeDominic
-// See COPYING for License
+// SPDX-License-Identifier: LGPL-3.0-or-later
 import { Canvas } from './canvas.js';
 import { isBrowser } from './browser.js';
 /**

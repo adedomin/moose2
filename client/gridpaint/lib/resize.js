@@ -1,6 +1,6 @@
 // Copyright (C) 2016  Zorian Medwin
 // Copyright (C) 2021  Anthony DeDominic
-// See COPYING for License
+// SPDX-License-Identifier: LGPL-3.0-or-later
 import { isBrowser } from './browser.js';
 /**
  * Resize the actual canvas and cell widths and heighs so they can fit to the parent window

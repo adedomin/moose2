@@ -1,5 +1,5 @@
 // Copyright (C) 2020  Anthony DeDominic
-// See COPYING for License
+// SPDX-License-Identifier: LGPL-3.0-or-later
 /** Stateful global for holding the start of a line drawing */
 const previous_point = { x: -1, y: -1 };
 /**

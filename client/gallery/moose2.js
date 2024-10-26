@@ -1,3 +1,5 @@
+// Copyright (C) 2024  Anthony DeDominic
+// SPDX-License-Identifier: GPL-3.0-or-later
 import EXTENDED_COLORS from '/public/const/colors.js';
 import { PIX_FMT_WIDTH, PIX_FMT_HEIGHT, MOOSE_SIZES } from '/public/const/sizes.js';
 

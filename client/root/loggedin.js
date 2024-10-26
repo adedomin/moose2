@@ -1,3 +1,5 @@
+// Copyright (C) 2024  Anthony DeDominic
+// SPDX-License-Identifier: GPL-3.0-or-later
 const login = document.getElementById('login');
 let loggedIn = false;
 

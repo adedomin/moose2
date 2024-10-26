@@ -1,6 +1,6 @@
 // Copyright (C) 2016  Zorian Medwin
 // Copyright (C) 2021  Anthony DeDominic
-// See COPYING for License
+// SPDX-License-Identifier: LGPL-3.0-or-later
 import { isBrowser } from './browser.js';
 function clone_painting(painting) {
     return Array.from(painting, el => el.slice());

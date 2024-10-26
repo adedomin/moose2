@@ -1,5 +1,5 @@
 // Copyright (C) 2017  Anthony DeDominic
-// See COPYING for License
+// SPDX-License-Identifier: LGPL-3.0-or-later
 function bucket(replace, x, y) {
     const colour = this.colour;
     x = x !== undefined ? x : this.cursor.x;
