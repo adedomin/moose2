@@ -52,6 +52,12 @@ use std::{
 /// TODO: Use a proper rate limiter
 static LIMITER: AtomicU64 = AtomicU64::new(0);
 
+pub enum HeadType {
+    Found,
+    NotFound,
+    UnknownError,
+}
+
 pub enum ApiResp {
     Body(Vec<u8>, &'static str),
     BodyCacheTime(Vec<u8>, &'static str, time::Duration),
@@ -72,6 +78,10 @@ impl ApiError {
             status: "error",
             msg,
         }
+    }
+
+    fn new_ok(msg: String) -> Self {
+        ApiError { status: "ok", msg }
     }
 }
 
@@ -156,6 +166,20 @@ pub async fn get_all_moose_types(
         Ok(Some(moose)) => func(moose),
         Ok(None) => ApiResp::NotFound(moose_name.to_string()),
         Err(redir) => ApiResp::Redirect(redir),
+    }
+}
+
+#[get("/api-helper/resolve/{moose_name}")]
+pub async fn resolve_moose(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+    let db = &db.db;
+    let moose_name = moose_name.into_inner();
+    match simple_get(db, &moose_name).await {
+        Ok(Some(moose)) => ApiResp::CustomError(
+            StatusCode::OK,
+            ApiError::new_ok(percent_encode(moose.name.as_bytes(), NON_ALPHANUMERIC).to_string()),
+        ),
+        Ok(None) => ApiResp::NotFound(moose_name),
+        Err(redir) => ApiResp::CustomError(StatusCode::OK, ApiError::new_ok(redir)),
     }
 }
 

@@ -78,6 +78,7 @@ pub fn web_task(
             .service(web_handlers::static_files::static_root_file)
             .service(web_handlers::static_files::gridpaint_modules)
             .service(web_handlers::static_files::gridpaint_lib_modules)
+            .service(web_handlers::api::resolve_moose)
             .service(web_handlers::api::get_moose)
             .service(web_handlers::api::get_moose_img)
             .service(web_handlers::api::get_moose_irc)
