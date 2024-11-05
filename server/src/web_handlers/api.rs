@@ -390,6 +390,32 @@ pub async fn put_new_moose(
     }
 }
 
+#[cfg(not(feature = "serve_static"))]
+const DUMP_PROD_MSG: &str = r###"
+Release moose does not implement read and serving file-system content.
+You are expected to use a Reverse Proxy to host moose2 over the internet.
+
+To serve the /dump file, Please see the example nginx snippet:
+
+```nginx.conf
+location = /dump {
+    # moose2 dumps new moose every 5 minutes.
+    add_header Cache-Control "max-age=300, public, stale-if-error"
+    default_type "application/json";
+    alias /var/lib/moose2/dump.json;
+}
+```
+"###;
+
+#[cfg(not(feature = "serve_static"))]
+#[get("/dump")]
+pub async fn get_dump() -> impl Responder {
+    HttpResponse::Ok()
+        .insert_header(("Content-Type", "text/plain; charset=utf8"))
+        .body(DUMP_PROD_MSG)
+}
+
+#[cfg(feature = "serve_static")]
 #[get("/dump")]
 pub async fn get_dump(data: MooseWebData) -> impl Responder {
     let dump = data.moose_dump.clone();
