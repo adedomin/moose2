@@ -6,11 +6,10 @@
     --bg: white;
     --fg: black;
     --bg-body: whitesmoke;
-    --paddle-bg: grey;
-    --paddle-fg: white;
-    --paddle-select: burlywood;
-    --select-col: #276cda;
-    --select-hover: #276caa;
+    --paddle-bg: #ddd;
+    --paddle-fg: black;
+    --select-col: #4e92ff;
+    --select-hover: #7bc0ff;
     --destructive-col: #ff2b56;
 }
 
@@ -18,7 +17,11 @@
     :root {
         --bg: #333;
         --fg: whitesmoke;
+        --paddle-bg: grey;
+        --paddle-fg: white;
         --bg-body: #252525;
+        --select-col: #276cda;
+        --select-hover: #276caa;
     }
 }
 
@@ -130,9 +133,9 @@ input {
     border: none;
 }
 
-input[type="submit"]:hover {
-    background: var(--paddle-select);
-}
+/* input[type="submit"]:hover {
+    background: var(--select-hover);
+} */
 
 .full-width > input[type="text"] {
     flex: 1;
@@ -261,7 +264,7 @@ input[type="submit"]:hover {
 }
 
 .selected {
-    background-color: var(--paddle-select);
+    background-color: var(--select-col);
 }
 
 .btn {
@@ -273,7 +276,7 @@ input[type="submit"]:hover {
   color: var(--fg); 
 }
 
-.btn:hover {
+.btn:hover, .paddle:hover, input[type="submit"]:hover {
   background-color: var(--select-hover);
 }
 

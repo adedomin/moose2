@@ -6,16 +6,19 @@
   --bg: white;
   --fg: black;
   --bg-body: whitesmoke;
-  --bg-btn: grey;
-  --select-col: #276cda;
-  --select-hover: #276caa;
+  --bg-btn: #ddd;
+  --select-col: #4e92ff;
+  --select-hover: #7bc0ff;
   --destructive-col: #ff2b56;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --bg-btn: grey;
     --bg: #333;
     --fg: whitesmoke;
+    --select-col: #276cda;
+  --select-hover: #276caa;
     --bg-body: #252525;
   }
 }
