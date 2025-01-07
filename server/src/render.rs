@@ -358,9 +358,8 @@ fn draw_bitmap(
             base_y,
             base_y + PIX_FMT_HEIGHT,
         )
-        .for_each(|(bx, by)| {
-            bitmap[idx_1dto2d(bx, by, PIX_FMT_WIDTH * dim_x)] = pixel;
-        });
+        .map(|(x, y)| idx_1dto2d(x, y, PIX_FMT_WIDTH * dim_x))
+        .for_each(|i| bitmap[i] = pixel);
     });
     bitmap
 }
