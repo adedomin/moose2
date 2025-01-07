@@ -295,11 +295,6 @@ pub fn moose_line(moose: &Moose, l: LineType) -> Vec<u8> {
     ret
 }
 
-/// helper function that maps a 2D (x, y) coordinate system on a 1D array.
-fn idx_1dto2d(x: usize, y: usize, width: usize) -> usize {
-    x + y * width
-}
-
 /// To reduce the size of the PLTE, we first select only the colors our moose has.
 /// this map serves as the proto PLTE.
 fn gen_color_map(image: &[&[u8]]) -> [u8; EXTENDED_COLORS.len()] {
@@ -333,6 +328,12 @@ fn gen_color_map(image: &[&[u8]]) -> [u8; EXTENDED_COLORS.len()] {
         .0
 }
 
+/// helper function that maps a 2D (x, y) coordinate to a 1D array.
+fn idx_1dto2d(x: usize, y: usize, width: usize) -> usize {
+    x + y * width
+}
+
+/// helper to generate every coordinate in a grid.
 fn xyrange(sx: usize, ex: usize, sy: usize, ey: usize) -> impl Iterator<Item = (usize, usize)> {
     (sy..ey).flat_map(move |j| (sx..ex).map(move |i| (i, j)))
 }
