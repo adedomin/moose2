@@ -302,9 +302,10 @@ fn idx_1dto2d(x: usize, y: usize, width: usize) -> usize {
 
 /// To reduce the size of the PLTE, we first select only the colors our moose has.
 /// this map serves as the proto PLTE.
-fn gen_color_map(image: &[u8]) -> [u8; EXTENDED_COLORS.len()] {
+fn gen_color_map(image: &[&[u8]]) -> [u8; EXTENDED_COLORS.len()] {
     image
         .iter()
+        .flat_map(|row| row.iter())
         .fold(
             (
                 [COLOR_MAP_SIGIL; EXTENDED_COLORS.len()],
@@ -312,7 +313,7 @@ fn gen_color_map(image: &[u8]) -> [u8; EXTENDED_COLORS.len()] {
                 COLOR_MAP_SIGIL,
             ),
             |(mut colmap, curr, zeroth), &pix| {
-                assert!(curr < COLOR_MAP_SIGIL);
+                debug_assert!(curr < COLOR_MAP_SIGIL);
                 if colmap[pix as usize] != COLOR_MAP_SIGIL {
                     return (colmap, curr, zeroth);
                 }
@@ -332,29 +333,35 @@ fn gen_color_map(image: &[u8]) -> [u8; EXTENDED_COLORS.len()] {
         .0
 }
 
+fn xyrange(sx: usize, ex: usize, sy: usize, ey: usize) -> impl Iterator<Item = (usize, usize)> {
+    (sy..ey).flat_map(move |j| (sx..ex).map(move |i| (i, j)))
+}
+
 /// Generate the moose bitmap.
 fn draw_bitmap(
-    image: &[u8],
+    image: &[&[u8]],
     color_map: &[u8; EXTENDED_COLORS.len()],
     dim_x: usize,
     dim_y: usize,
     total: usize,
 ) -> Vec<u8> {
     let mut bitmap = vec![0x99u8; total * PIX_FMT_WIDTH * PIX_FMT_HEIGHT];
-    for y in 0..dim_y {
-        for x in 0..dim_x {
-            let pixel = image[idx_1dto2d(x, y, dim_x)];
-            let pixel = color_map[pixel as usize];
+    xyrange(0, dim_x, 0, dim_y).for_each(|(x, y)| {
+        let pixel = image[y][x];
+        let pixel = color_map[pixel as usize];
 
-            let base_y = y * PIX_FMT_HEIGHT;
-            let base_x = x * PIX_FMT_WIDTH;
-            for by in base_y..(base_y + PIX_FMT_HEIGHT) {
-                for bx in base_x..(base_x + PIX_FMT_WIDTH) {
-                    bitmap[idx_1dto2d(bx, by, PIX_FMT_WIDTH * dim_x)] = pixel;
-                }
-            }
-        }
-    }
+        let base_y = y * PIX_FMT_HEIGHT;
+        let base_x = x * PIX_FMT_WIDTH;
+        xyrange(
+            base_x,
+            base_x + PIX_FMT_WIDTH,
+            base_y,
+            base_y + PIX_FMT_HEIGHT,
+        )
+        .for_each(|(bx, by)| {
+            bitmap[idx_1dto2d(bx, by, PIX_FMT_WIDTH * dim_x)] = pixel;
+        });
+    });
     bitmap
 }
 
@@ -382,9 +389,17 @@ pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
     // 4KiB
     let mut cursor = std::io::Cursor::new(Vec::with_capacity(4096usize));
     {
-        let (dim_x, dim_y, total) = moose.dimensions.width_height();
-        let color_map = gen_color_map(&moose.image);
-        let bitmap = draw_bitmap(&moose.image, &color_map, dim_x, dim_y, total);
+        let mut trimmed = trim_moose(&moose.image, &moose.dimensions);
+        let (dim_x, dim_y, total) = trimmed
+            .first()
+            .map(|row| (row.len(), trimmed.len(), row.len() * trimmed.len()))
+            .unwrap_or_else(|| {
+                // PNGs must contain at least one pixel.
+                trimmed = vec![&[0]];
+                (1, 1, 1)
+            });
+        let color_map = gen_color_map(&trimmed);
+        let bitmap = draw_bitmap(&trimmed, &color_map, dim_x, dim_y, total);
         let trns = color_map[TRANSPARENT as usize] != COLOR_MAP_SIGIL;
         let (plte, plte_len) = gen_plte(color_map);
         let plte = &plte[..plte_len * 3];
