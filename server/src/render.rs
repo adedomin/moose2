@@ -183,14 +183,12 @@ fn trim_moose<'m>(image: &'m [u8], dim: &Dimensions) -> Vec<&'m [u8]> {
         .chunks_exact(dim_x)
         .skip_while(is_same) // skip over all the rows that are transparent at start.
         .collect::<Vec<&'m [u8]>>()
-        .iter()
+        .into_iter()
         .rev() // now repeat, but from the bottom
-        .skip_while(|&row| is_same(row))
-        .cloned()
+        .skip_while(is_same)
         .collect::<Vec<&'m [u8]>>()
-        .iter()
+        .into_iter()
         .rev() // now flip again to restore original orientation.
-        .cloned()
         .collect::<Vec<&'m [u8]>>();
 
     if let Some((left_trim, right_trim)) = partials
