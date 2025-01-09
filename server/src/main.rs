@@ -72,7 +72,7 @@ fn main() {
         let moose_dump_file = rc.get_moose_dump();
         let dbx = db.clone();
         let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
-        let dump_task = dump_moose_task(moose_dump_file, dbx, stopchan_rx);
+        let dump_task = dump_moose_task(moose_dump_file, rc.get_moose_path(), dbx, stopchan_rx);
 
         let stopchan_rx = stopchan_tx.subscribe();
         let web_task = web_task(rc, db, stopchan_rx);

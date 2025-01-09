@@ -15,8 +15,9 @@
  */
 
 use std::{
-    fs::File,
-    io::{BufWriter, IntoInnerError, Write},
+    fs::{self, File},
+    io::{self, BufWriter, IntoInnerError, Write},
+    os::unix::fs::MetadataExt,
     path::PathBuf,
     sync::atomic::AtomicBool,
     time::Duration,
@@ -28,7 +29,7 @@ use tokio::{sync::broadcast::Receiver, task::JoinHandle, time};
 use crate::db::{query::DUMP_MOOSE, Connection, Pool};
 use crate::model::{self};
 
-static NEW_MOOSE_NOTIFY: AtomicBool = AtomicBool::new(true);
+static NEW_MOOSE_NOTIFY: AtomicBool = AtomicBool::new(false);
 
 /// Let the Moose Dump Task know a new moose has been written.
 pub fn notify_new() {
@@ -92,7 +93,7 @@ async fn dump_moose_real(con: Connection, moose_dump: PathBuf) -> Result<(), Dum
         let inner = bufw.into_inner()?;
         inner.sync_data()?;
         drop(inner);
-        std::fs::rename(tdir, moose_dump)?;
+        fs::rename(tdir, moose_dump)?;
 
         println!("INFO: [DUMP] Done dumping moose.");
         Ok(())
@@ -102,9 +103,25 @@ async fn dump_moose_real(con: Connection, moose_dump: PathBuf) -> Result<(), Dum
 
 async fn dump_moose(
     moose_dump: PathBuf,
+    dbpath: PathBuf,
     db: Pool,
     mut stop_broadcast: Receiver<()>,
 ) -> Result<(), DumpTaskError> {
+    // check if database was "likely" changed to prevent wastefully dumping every startup.
+    let mdc = moose_dump.clone();
+    match tokio::task::spawn_blocking(move || -> Result<bool, io::Error> {
+        let dump = fs::metadata(mdc)?;
+        let db = fs::metadata(dbpath)?;
+        Ok(dump.mtime() < db.mtime())
+    })
+    .await
+    .unwrap()
+    {
+        Ok(false) => (),
+        // either dumpfile is missing or it is older than the database file.
+        _ => notify_new(),
+    }
+
     let mut interval = time::interval(Duration::from_secs(300));
 
     loop {
@@ -128,12 +145,13 @@ async fn dump_moose(
 
 pub fn dump_moose_task(
     moose_dump: PathBuf,
+    dbpath: PathBuf,
     db: Pool,
     stop_broadcast: Receiver<()>,
 ) -> JoinHandle<Result<(), DumpTaskError>> {
     println!("INFO: [DUMP] Setting up Auto-dumps of database.");
     tokio::spawn(async move {
-        let e = dump_moose(moose_dump, db, stop_broadcast).await;
+        let e = dump_moose(moose_dump, dbpath, db, stop_broadcast).await;
         println!("WARN: [DUMP] Task has shut down: {:?}", e);
         e
     })
