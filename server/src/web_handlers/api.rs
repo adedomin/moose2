@@ -121,7 +121,7 @@ impl Responder for ApiResp {
 
 const RANDOM: &str = "random";
 const LATEST: &str = "latest";
-async fn simple_get<'m>(db: &'m Pool, name: &str) -> Result<Option<Moose>, String> {
+async fn simple_get(db: &Pool, name: &str) -> Result<Option<Moose>, String> {
     if db.is_empty().await {
         return Ok(None);
     }

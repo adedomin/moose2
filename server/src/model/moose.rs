@@ -101,7 +101,7 @@ fn control_len_bound_string<'de, D: Deserializer<'de>>(
             return Err(serde::de::Error::custom("Moose.name is empty."));
         }
 
-        if name.as_bytes().len() > MOOSE_MAX_NAME_LEN {
+        if name.len() > MOOSE_MAX_NAME_LEN {
             return Err(serde::de::Error::custom(
                 "Moose.name is too long: >64 bytes.",
             ));
