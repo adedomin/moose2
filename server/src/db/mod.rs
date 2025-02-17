@@ -46,7 +46,6 @@ pub async fn open_db(rc: &RunConfig) -> Pool {
     {
         let con = pool.get().await.unwrap();
         con.interact(|con| {
-            con.set_prepared_statement_cache_capacity(32);
             con.execute_batch(CREATE_TABLE).unwrap();
         })
         .await
