@@ -16,7 +16,7 @@
 
 use super::MooseWebData;
 use crate::{
-    db::{MooseDB, Pool},
+    db::{MooseDB, Pool, QueryError},
     model::{
         author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage,
         queries::SearchQuery, PAGE_SIZE,
@@ -121,6 +121,20 @@ impl Responder for ApiResp {
 
 const RANDOM: &str = "random";
 const LATEST: &str = "latest";
+const OLDEST: &str = "oldest";
+
+// NOTE: For the special meese names (see constants above).
+//       If the DB is non-empty, they should always return something.
+fn special_moose(moose: Result<Option<Moose>, QueryError>) -> Result<Option<Moose>, String> {
+    match moose {
+        Ok(Some(moose)) => Err(percent_encode(moose.name.as_bytes(), NON_ALPHANUMERIC).to_string()),
+        Ok(None) => unreachable!(),
+        Err(e) => {
+            panic!("DB is broken (trying to get random): {e}");
+        }
+    }
+}
+
 async fn simple_get(db: &Pool, name: &str) -> Result<Option<Moose>, String> {
     if db.is_empty().await {
         return Ok(None);
@@ -128,25 +142,11 @@ async fn simple_get(db: &Pool, name: &str) -> Result<Option<Moose>, String> {
 
     if name == RANDOM {
         let rand_idx = rand::thread_rng().gen_range(0..db.len().await.unwrap());
-        match db.get_moose_idx(rand_idx).await {
-            Ok(Some(moose)) => {
-                Err(percent_encode(moose.name.as_bytes(), NON_ALPHANUMERIC).to_string())
-            }
-            Ok(None) => unreachable!(),
-            Err(e) => {
-                panic!("DB is broken (trying to get random): {e}");
-            }
-        }
+        special_moose(db.get_moose_idx(rand_idx).await)
     } else if name == LATEST {
-        match db.last().await {
-            Ok(Some(moose)) => {
-                Err(percent_encode(moose.name.as_bytes(), NON_ALPHANUMERIC).to_string())
-            }
-            Ok(None) => unreachable!(),
-            Err(e) => {
-                panic!("DB is broken (trying to get latest): {e}");
-            }
-        }
+        special_moose(db.last().await)
+    } else if name == OLDEST {
+        special_moose(db.get_moose_idx(0).await)
     } else {
         match db.get_moose(name).await {
             Ok(moose) => Ok(moose),
