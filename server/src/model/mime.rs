@@ -14,12 +14,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use phf::phf_map;
+pub const MIME: [(&str, &str); 5] = [
+    ("css", "text/css; charset=utf-8"),
+    ("html", "text/html; charset=utf-8"),
+    ("js", "application/javascript; charset=utf-8"),
+    ("wasm", "application/wasm"),
+    ("ico", "image/x-icon"),
+];
 
-pub const MIME: phf::Map<&'static str, &'static str> = phf_map! {
-    "css" => "text/css; charset=utf-8",
-    "html" => "text/html; charset=utf-8",
-    "js" => "application/javascript; charset=utf-8",
-    "wasm" => "application/wasm",
-    "ico" => "image/x-icon",
-};
+pub fn get_mime(ext: &str) -> &'static str {
+    match MIME.iter().find(|(e, _)| ext == *e) {
+        Some((_, t)) => t,
+        None => "application/octet-string",
+    }
+}

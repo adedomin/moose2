@@ -136,15 +136,16 @@ fn special_moose(moose: Result<Option<Moose>, QueryError>) -> Result<Option<Moos
 }
 
 async fn simple_get(db: &Pool, name: &str) -> Result<Option<Moose>, String> {
-    if db.is_empty().await {
+    let len = db.len().await.expect("Could not get length of database.");
+    if len == 0 {
         return Ok(None);
     }
 
     if name == RANDOM {
-        let rand_idx = rand::thread_rng().gen_range(0..db.len().await.unwrap());
+        let rand_idx = rand::thread_rng().r#gen_range(0..len);
         special_moose(db.get_moose_idx(rand_idx).await)
     } else if name == LATEST {
-        special_moose(db.last().await)
+        special_moose(db.get_moose_idx(len - 1).await)
     } else if name == OLDEST {
         special_moose(db.get_moose_idx(0).await)
     } else {

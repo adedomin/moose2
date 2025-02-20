@@ -17,7 +17,7 @@
 use super::author::Author;
 use super::dimensions::Dimensions;
 use crate::render::TRANSPARENT;
-use base64::DecodeError;
+use base64::{DecodeError, Engine};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     io::{BufReader, BufWriter},
@@ -130,12 +130,13 @@ fn control_len_bound_string<'de, D: Deserializer<'de>>(
 }
 
 fn as_base64<S: Serializer>(image: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
-    serializer.serialize_str(&base64::encode(image))
+    serializer.serialize_str(&base64::engine::general_purpose::STANDARD.encode(image))
 }
 
 fn from_base64<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     String::deserialize(deserializer).and_then(|string| {
-        base64::decode(string)
+        base64::engine::general_purpose::STANDARD
+            .decode(string)
             .and_then(|decoded| {
                 if let Some(pos) = decoded.iter().position(
                     |&b| b > TRANSPARENT, /* anything bigger than Transparent is invalid */

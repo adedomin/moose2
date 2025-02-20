@@ -16,7 +16,7 @@
 
 use super::if_none_match;
 use crate::{
-    model::mime,
+    model::mime::get_mime,
     shared_data::{COLORS_JS, ERR_JS, SIZ_JS},
 };
 use actix_web::{
@@ -79,12 +79,7 @@ impl Responder for StaticResp {
 
 fn get_static_file_from(d: &'static Dir, file: &str, ext: &str) -> Static {
     d.get_file(format!("{file}.{ext}"))
-        .map(|file| {
-            Static::Body(
-                file.contents(),
-                mime::MIME.get(ext).unwrap_or(&"application/octet-string"),
-            )
-        })
+        .map(|file| Static::Body(file.contents(), get_mime(ext)))
         .unwrap_or(Static::NotFound)
 }
 

@@ -86,8 +86,7 @@ BEGIN
 END;
 "###;
 
-pub const INSERT_MOOSE: &str =
-    "INSERT INTO Moose(name, pos, image, dimensions, created, author, upvotes) VALUES (?, ?, ?, ?, ?, ?, 0)";
+pub const INSERT_MOOSE: &str = "INSERT INTO Moose(name, pos, image, dimensions, created, author, upvotes) VALUES (?, ?, ?, ?, ?, ?, 0)";
 
 pub const INSERT_VOTE: &str =
     "INSERT INTO Vote(author_name, moose_name, vote_type) VALUES (?, ?, ?)";
@@ -98,7 +97,8 @@ pub const LAST_MOOSE: &str = r###"
      WHERE pos = ( SELECT MAX(pos) FROM Moose )
 "###;
 
-pub const LEN_MOOSE: &str = "SELECT MAX(pos) FROM Moose";
+// COUNT is always a table scan?
+pub const LEN_MOOSE: &str = "SELECT COALESCE(MAX(pos) + 1, 0) FROM Moose";
 
 pub const GET_MOOSE: &str =
     "SELECT name, image, dimensions, created, author, upvotes FROM Moose WHERE name = ?";
@@ -141,8 +141,8 @@ INNER JOIN
 );
 
 pub const INSERT_MOOSE_WITH_COMPUTED_POS: &str = r###"
-    INSERT INTO Moose(name,                              pos, image, dimensions, created, author)
-    VALUES           (   ?, (SELECT MAX(pos) FROM Moose) + 1,     ?,          ?,       ?,      ?);
+    INSERT INTO Moose(name,                                            pos, image, dimensions, created, author)
+    VALUES           (   ?,  (SELECT COALESCE(MAX(pos) + 1, 0) FROM Moose),     ?,          ?,       ?,      ?);
 "###;
 
 pub const DUMP_MOOSE: &str = "SELECT name, image, dimensions, created, author, upvotes FROM Moose";

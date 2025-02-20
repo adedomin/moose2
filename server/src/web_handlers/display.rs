@@ -51,7 +51,7 @@ pub async fn gallery_random_redir(db: MooseWebData) -> HttpResponse {
                     .status(StatusCode::SEE_OTHER)
                     .body(())
             } else {
-                let rand_idx = rand::thread_rng().gen_range(0..page_count);
+                let rand_idx = rand::thread_rng().r#gen_range(0..page_count);
                 HttpResponse::Ok()
                     .insert_header((LOCATION, format!("/gallery/{}", rand_idx)))
                     .status(StatusCode::SEE_OTHER)

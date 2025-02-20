@@ -17,7 +17,6 @@
 use crate::shared_data::EXAMPLE_CONFIG;
 use bcrypt_pbkdf::bcrypt_pbkdf;
 use directories::ProjectDirs;
-use rand::Rng;
 use serde::Deserialize;
 use std::{
     fs,
@@ -33,6 +32,7 @@ const PBKDF_ROUNDS: u32 = 8u32;
 pub struct GitHubOauth2 {
     pub id: String,
     pub secret: String,
+    pub redirect: Option<String>,
 }
 
 #[derive(Clone)]
@@ -185,7 +185,7 @@ pub fn parse_args() -> (Option<SubCommand>, RunConfig) {
         match &conf.cookie_secret {
             None => {
                 for i in 0..64 {
-                    conf.cookie_key.0[i] = rand::thread_rng().gen();
+                    conf.cookie_key.0[i] = rand::random();
                 }
             }
             Some(user_secret) => {

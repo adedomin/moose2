@@ -23,7 +23,6 @@ use std::{
     time::Duration,
 };
 
-use rand::Rng;
 use tokio::{sync::broadcast::Receiver, task::JoinHandle, time};
 
 use crate::db::{query::DUMP_MOOSE, Connection, Pool};
@@ -61,7 +60,7 @@ async fn dump_moose_real(con: Connection, moose_dump: PathBuf) -> Result<(), Dum
             Some(p) => p,
             None => return Err(DumpTaskError::StrangeMooseDumpPath()),
         };
-        let r: u64 = rand::thread_rng().gen();
+        let r: u64 = rand::random();
         let tdir = tdir.join(format!(".moose.json.{:x}", r));
 
         let file = File::create(&tdir)?;

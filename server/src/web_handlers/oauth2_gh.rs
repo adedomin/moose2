@@ -19,8 +19,8 @@ use crate::{model::author::Author, web_handlers::JSON_TYPE};
 use actix_session::Session;
 use actix_web::{get, http::header, post, web, HttpResponse};
 use oauth2::{
-    basic::BasicErrorResponseType, AuthorizationCode, CsrfToken, StandardErrorResponse,
-    TokenResponse,
+    basic::BasicErrorResponseType, AuthorizationCode, CsrfToken, HttpClientError,
+    RequestTokenError, StandardErrorResponse, TokenResponse,
 };
 use serde::{Deserialize, Serialize};
 
@@ -38,6 +38,15 @@ pub enum AuthApiError {
     ),
     #[error("Client error: {0}")]
     Reqwest(#[from] reqwest::Error),
+
+    #[error("[exchange_token] Client error: {0}")]
+    CodeTokenHttp(
+        #[from]
+        RequestTokenError<
+            HttpClientError<reqwest::Error>,
+            StandardErrorResponse<BasicErrorResponseType>,
+        >,
+    ),
 
     #[error("Could not get CSRF or Login.")]
     SessionGet(#[from] actix_session::SessionGetError),
@@ -59,32 +68,29 @@ pub struct LogInOutRedir {
     redirect: Option<String>,
 }
 
-async fn oa2_reqwest(request: oauth2::HttpRequest) -> Result<oauth2::HttpResponse, reqwest::Error> {
-    let client = {
-        let builder = reqwest::Client::builder();
-        let builder = builder.redirect(reqwest::redirect::Policy::none());
-        builder.build()?
-    };
+// async fn oa2_reqwest(
+//     client: &reqwest::Client,
+//     request: oauth2::HttpRequest,
+// ) -> Result<oauth2::HttpResponse, reqwest::Error> {
+//     let mut request_builder = client
+//         .request(request.method().clone(), request.uri().as_str())
+//         .body(request.body());
+//     for (name, value) in &request.headers {
+//         request_builder = request_builder.header(name.as_str(), value.as_bytes());
+//     }
+//     let request = request_builder.build()?;
 
-    let mut request_builder = client
-        .request(request.method, request.url.as_str())
-        .body(request.body);
-    for (name, value) in &request.headers {
-        request_builder = request_builder.header(name.as_str(), value.as_bytes());
-    }
-    let request = request_builder.build()?;
+//     let response = client.execute(request).await?;
 
-    let response = client.execute(request).await?;
-
-    let status_code = response.status();
-    let headers = response.headers().to_owned();
-    let chunks = response.bytes().await?;
-    Ok(oauth2::HttpResponse {
-        status_code,
-        headers,
-        body: chunks.to_vec(),
-    })
-}
+//     let status_code = response.status();
+//     let headers = response.headers().to_owned();
+//     let chunks = response.bytes().await?;
+//     Ok(oauth2::HttpResponse {
+//         status_code,
+//         headers,
+//         body: chunks.to_vec(),
+//     })
+// }
 
 #[get("/login")]
 pub async fn login(
@@ -120,7 +126,8 @@ pub async fn login_real(
             }
         }
 
-        let (authorize_url, csrf_state) = oauth2_client.authorize_url(CsrfToken::new_random).url();
+        let (authorize_url, csrf_state) =
+            oauth2_client.oa.authorize_url(CsrfToken::new_random).url();
 
         session.insert("csrf", csrf_state.secret()).unwrap();
         session.insert("redirect", query).unwrap();
@@ -151,23 +158,17 @@ pub async fn auth(
         }
 
         let token = oauth2_client
+            .oa
             .exchange_code(code)
-            .request_async(oa2_reqwest)
+            .request_async(&oauth2_client.web)
             .await?
             .access_token()
             .clone();
 
         // now get user's Login
-        let api_client = reqwest::Client::builder()
-            .user_agent(concat!(
-                env!("CARGO_PKG_NAME"),
-                "/",
-                env!("CARGO_PKG_VERSION")
-            ))
-            .build()?;
-
         let token_secret = token.secret();
-        let res = api_client
+        let res = oauth2_client
+            .web
             .get("https://api.github.com/user")
             .header("Authorization", format!("BEARER {token_secret}"))
             .send()

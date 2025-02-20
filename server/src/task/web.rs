@@ -16,13 +16,13 @@
 
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie, App, HttpServer};
-use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, TokenUrl};
+use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use tokio::{sync::broadcast::Receiver, task::JoinHandle};
 
 use crate::{
     config::{GitHubOauth2, RunConfig},
     db::Pool,
-    model::app_data::AppData,
+    model::app_data::{AppData, Oa},
     web_handlers,
 };
 
@@ -37,23 +37,49 @@ pub fn web_task(
         listen_addr
     );
     let oauth2_client = match &rc.github_oauth2 {
-        Some(GitHubOauth2 { id, secret }) => {
+        Some(GitHubOauth2 {
+            id,
+            secret,
+            redirect,
+        }) => {
             let client_id = ClientId::new(id.to_string());
-            let secret = Some(ClientSecret::new(secret.to_string()));
+            let secret = ClientSecret::new(secret.to_string());
             let auth_url =
                 AuthUrl::new("https://github.com/login/oauth/authorize".to_string()).unwrap();
-            let token_url = Some(
-                TokenUrl::new("https://github.com/login/oauth/access_token".to_string()).unwrap(),
-            );
-            Some(BasicClient::new(client_id, secret, auth_url, token_url))
+            let token_url =
+                TokenUrl::new("https://github.com/login/oauth/access_token".to_string()).unwrap();
+            let oa = BasicClient::new(client_id)
+                .set_client_secret(secret)
+                .set_auth_uri(auth_url)
+                .set_token_uri(token_url);
+            let oa = if let Some(redir) = redirect {
+                let redir = RedirectUrl::new(redir.clone()).unwrap();
+                oa.set_redirect_uri(redir)
+            } else {
+                oa
+            };
+            Some(Oa {
+                oa,
+                web: {
+                    reqwest::Client::builder()
+                        .user_agent(concat!(
+                            env!("CARGO_PKG_NAME"),
+                            "/",
+                            env!("CARGO_PKG_VERSION")
+                        ))
+                        .redirect(reqwest::redirect::Policy::none())
+                        .build()
+                        .unwrap()
+                },
+            })
         }
         None => None,
     };
     let moose_dump = rc.get_moose_dump();
     let app_data = actix_web::web::Data::new(AppData {
-        oauth2_client,
         db,
         moose_dump,
+        oauth2_client,
     });
     let builder = HttpServer::new(move || {
         let cookie_session = SessionMiddleware::builder(

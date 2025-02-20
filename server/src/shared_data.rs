@@ -112,9 +112,12 @@ pub const EXAMPLE_CONFIG: &[u8] = br###"{ "//": "OPTIONAL: default: $XDG_DATA_HO
 , "//": "A symmetric secret key for session cookies; delete for random; is PBKDF padded to 64 bytes."
 , "cookie_secret": "super-duper-sekret"
 , "//": "github oauth2 client configuration details, omit whole object to disable authentication."
-, "github_oauth2": { "id":     "client id"
-                   , "secret": "client secret"
-                   }
+, "github_oauth2":
+    { "id":     "client id"
+    , "secret": "client secret"
+    , "//": "OPTIONAL: defaults depend on oauth provider, gh will redirect to auth cb url."
+    , "redirect": "http://[::1]:5921/auth"
+    }
 }
 "###;
 
