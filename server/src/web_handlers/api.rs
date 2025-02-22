@@ -335,7 +335,7 @@ pub async fn put_new_moose(
             }
         };
         if body.len().saturating_add(chunk.len()) > MAX_BODY_SIZE {
-            return moose_validation_err(HttpResponse::PayloadTooLarge(), "Payload too large");
+            return moose_validation_err(HttpResponse::PayloadTooLarge(), "Payload too large.");
         }
         body.extend_from_slice(&chunk);
     }
@@ -368,7 +368,7 @@ pub async fn put_new_moose(
             if matches!(e.code, rusqlite::ErrorCode::ConstraintViolation) {
                 return moose_validation_err(
                     HttpResponse::UnprocessableEntity(),
-                    format!("moose {moose_name} already exists."),
+                    format!("{moose_name} already exists."),
                 );
             }
         }
@@ -377,7 +377,7 @@ pub async fn put_new_moose(
         notify_new();
         HttpResponse::Ok().insert_header(JSON_TYPE).json(ApiError {
             status: "ok",
-            msg: format!("moose {moose_name} saved."),
+            msg: format!("Saved {moose_name}."),
         })
     }
 }
