@@ -18,8 +18,8 @@ use super::MooseWebData;
 use crate::{
     db::{MooseDB, Pool, QueryError},
     model::{
-        author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage,
-        queries::SearchQuery, PAGE_SIZE,
+        PAGE_SIZE, author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage,
+        queries::SearchQuery,
     },
     render::{moose_irc, moose_png, moose_term},
     task::notify_new,
@@ -29,27 +29,31 @@ use crate::{
 use ::time::OffsetDateTime;
 use actix_session::Session;
 use actix_web::{
+    HttpResponse, HttpResponseBuilder, Responder,
     body::BoxBody,
     get,
     http::{
-        header::{CacheControl, CacheDirective, LOCATION},
         StatusCode,
+        header::{CacheControl, CacheDirective, LOCATION},
     },
     post,
     web::{self, Payload},
-    HttpResponse, Responder,
 };
 use core::time;
 use futures::stream::StreamExt;
-use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
+use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
 use rand::Rng;
 use serde::Serialize;
+use std::{fmt::Display, time::Duration};
+
+#[cfg(feature = "bad_rate_limiter")]
 use std::{
     sync::atomic::{AtomicU64, Ordering::Relaxed},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 /// TODO: Use a proper rate limiter
+#[cfg(feature = "bad_rate_limiter")]
 static LIMITER: AtomicU64 = AtomicU64::new(0);
 
 pub enum HeadType {
@@ -280,17 +284,16 @@ pub async fn get_search_page(db: MooseWebData, query: web::Query<SearchQuery>) -
 
 pub const MAX_BODY_SIZE: usize = 2usize.pow(14);
 
-fn moose_validation_err(msg: &str) -> HttpResponse {
-    HttpResponse::BadRequest()
-        .insert_header(JSON_TYPE)
-        .json(ApiError {
-            status: "error",
-            msg: msg.to_string(),
-        })
+fn moose_validation_err<T: Display>(mut base: HttpResponseBuilder, msg: T) -> HttpResponse {
+    base.insert_header(JSON_TYPE).json(ApiError {
+        status: "error",
+        msg: msg.to_string(),
+    })
 }
 
 /// Global Moose rate-limiter, prevents a new moose every minute.
 /// TODO: make this session based.
+#[cfg(feature = "bad_rate_limiter")]
 fn check_ratelimit() -> Result<(), HttpResponse> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -298,11 +301,7 @@ fn check_ratelimit() -> Result<(), HttpResponse> {
         .as_secs();
     // nothing depends on stores to the value of LIMITER other than here.
     if let Err(old) = LIMITER.fetch_update(Relaxed, Relaxed, |time| {
-        if now - time > 60 {
-            Some(now)
-        } else {
-            None
-        }
+        if now - time > 60 { Some(now) } else { None }
     }) {
         let retry_after = format!("{}", 60 - (now - old));
         Err(HttpResponse::TooManyRequests()
@@ -322,6 +321,7 @@ pub async fn put_new_moose(
     session: Session,
     mut payload: Payload,
 ) -> HttpResponse {
+    #[cfg(feature = "bad_rate_limiter")]
     if let Err(e) = check_ratelimit() {
         return e;
     }
@@ -331,21 +331,11 @@ pub async fn put_new_moose(
         let chunk = match chunk {
             Ok(chunk) => chunk,
             Err(e) => {
-                return HttpResponse::InternalServerError()
-                    .insert_header(JSON_TYPE)
-                    .json(ApiError {
-                        status: "error",
-                        msg: e.to_string(),
-                    });
+                return moose_validation_err(HttpResponse::InternalServerError(), e);
             }
         };
         if body.len().saturating_add(chunk.len()) > MAX_BODY_SIZE {
-            return HttpResponse::PayloadTooLarge()
-                .insert_header(JSON_TYPE)
-                .json(ApiError {
-                    status: "error",
-                    msg: "Payload too large.".to_string(),
-                });
+            return moose_validation_err(HttpResponse::PayloadTooLarge(), "Payload too large");
         }
         body.extend_from_slice(&chunk);
     }
@@ -353,12 +343,7 @@ pub async fn put_new_moose(
     let mut moose = match serde_json::from_slice::<Moose>(&body) {
         Ok(moose) => moose,
         Err(msg) => {
-            return HttpResponse::BadRequest()
-                .insert_header(JSON_TYPE)
-                .json(ApiError {
-                    status: "error",
-                    msg: msg.to_string(),
-                });
+            return moose_validation_err(HttpResponse::BadRequest(), msg);
         }
     };
 
@@ -370,18 +355,24 @@ pub async fn put_new_moose(
     moose.created = OffsetDateTime::now_utc();
 
     if let Dimensions::Custom(_, _) = moose.dimensions {
-        return moose_validation_err("Custom dimensions are not allowed through the public API.");
+        return moose_validation_err(
+            HttpResponse::BadRequest(),
+            "Custom dimensions are not allowed through the public API.",
+        );
     }
 
     let db = webdata.db.clone();
     let moose_name = moose.name.clone();
     if let Err(e) = db.insert_moose(moose).await {
-        HttpResponse::UnprocessableEntity()
-            .insert_header(JSON_TYPE)
-            .json(ApiError {
-                status: "error",
-                msg: e.to_string(),
-            })
+        if let QueryError::Sqlite3(rusqlite::Error::SqliteFailure(e, _)) = e {
+            if matches!(e.code, rusqlite::ErrorCode::ConstraintViolation) {
+                return moose_validation_err(
+                    HttpResponse::UnprocessableEntity(),
+                    format!("moose {moose_name} already exists."),
+                );
+            }
+        }
+        moose_validation_err(HttpResponse::UnprocessableEntity(), e)
     } else {
         notify_new();
         HttpResponse::Ok().insert_header(JSON_TYPE).json(ApiError {

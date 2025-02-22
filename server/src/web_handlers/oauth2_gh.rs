@@ -17,10 +17,10 @@
 use super::MooseWebData;
 use crate::{model::author::Author, web_handlers::JSON_TYPE};
 use actix_session::Session;
-use actix_web::{get, http::header, post, web, HttpResponse};
+use actix_web::{HttpResponse, get, http::header, post, web};
 use oauth2::{
-    basic::BasicErrorResponseType, AuthorizationCode, CsrfToken, HttpClientError,
-    RequestTokenError, StandardErrorResponse, TokenResponse,
+    AuthorizationCode, CsrfToken, HttpClientError, RequestTokenError, StandardErrorResponse,
+    TokenResponse, basic::BasicErrorResponseType,
 };
 use serde::{Deserialize, Serialize};
 
@@ -67,30 +67,6 @@ pub struct AuthRequest {
 pub struct LogInOutRedir {
     redirect: Option<String>,
 }
-
-// async fn oa2_reqwest(
-//     client: &reqwest::Client,
-//     request: oauth2::HttpRequest,
-// ) -> Result<oauth2::HttpResponse, reqwest::Error> {
-//     let mut request_builder = client
-//         .request(request.method().clone(), request.uri().as_str())
-//         .body(request.body());
-//     for (name, value) in &request.headers {
-//         request_builder = request_builder.header(name.as_str(), value.as_bytes());
-//     }
-//     let request = request_builder.build()?;
-
-//     let response = client.execute(request).await?;
-
-//     let status_code = response.status();
-//     let headers = response.headers().to_owned();
-//     let chunks = response.bytes().await?;
-//     Ok(oauth2::HttpResponse {
-//         status_code,
-//         headers,
-//         body: chunks.to_vec(),
-//     })
-// }
 
 #[get("/login")]
 pub async fn login(

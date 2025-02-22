@@ -14,20 +14,21 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use maud::{html, Markup};
-use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
+use maud::{Markup, html};
+use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
 
-use crate::model::{moose::Moose, PIX_FMT_HEIGHT, PIX_FMT_WIDTH};
+use crate::model::{PIX_FMT_HEIGHT, PIX_FMT_WIDTH, moose::Moose};
 
+// pub mod frontpage;
 pub mod gallery;
 
-pub fn header(page_title: &str) -> Markup {
+pub fn header(page_title: &str, css: &'static str) -> Markup {
     html! {
         head {
             meta charset="utf-8";
             meta name="description" content="Draw and Share Moose with your IRC friends.";
             meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no";
-            link rel="stylesheet" href="/public/gallery/moose2.css";
+            link rel="stylesheet" href=(css);
             title { "Moose2 - " (page_title) }
         }
     }

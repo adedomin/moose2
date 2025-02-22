@@ -7,6 +7,7 @@ edition = "2024"
 
 [features]
 serve_static = ["dep:actix-files"]
+bad_rate_limiter = []
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
