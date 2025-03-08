@@ -128,6 +128,13 @@ pub enum SubCommand {
             default_value_t = false
         )]
         merge: bool,
+        #[arg(
+            short,
+            long,
+            help = "Update existing moose when importing.",
+            default_value_t = false
+        )]
+        update: bool,
         input: Option<PathBuf>,
     },
     #[command(about = "Convert a moose (js) dump to moose2 dump")]

@@ -16,6 +16,7 @@
 
 pub mod app_data;
 pub mod author;
+pub mod color;
 pub mod dimensions;
 pub mod mime;
 pub mod moose;

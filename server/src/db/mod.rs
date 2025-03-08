@@ -17,17 +17,18 @@
 use crate::{
     config::{self, RunConfig},
     model::{
+        PAGE_SEARCH_LIM, PAGE_SIZE,
         moose::{Moose, MooseAny},
         pages::{MooseSearch, MooseSearchPage},
-        PAGE_SEARCH_LIM, PAGE_SIZE,
     },
 };
+use query::UPDATE_MOOSE;
 use rusqlite::params;
 use std::{io::BufReader, path::PathBuf};
 
 use self::query::{
-    CREATE_TABLE, GET_MOOSE, GET_MOOSE_IDX, GET_MOOSE_PAGE, INSERT_MOOSE,
-    INSERT_MOOSE_WITH_COMPUTED_POS, LAST_MOOSE, LEN_MOOSE, SEARCH_MOOSE_PAGE,
+    CREATE_TABLE, GET_MOOSE, GET_MOOSE_IDX, GET_MOOSE_PAGE, INSERT_MOOSE_WITH_COMPUTED_POS,
+    LAST_MOOSE, LEN_MOOSE, SEARCH_MOOSE_PAGE,
 };
 
 pub mod query;
@@ -54,7 +55,14 @@ pub async fn open_db(rc: &RunConfig) -> Pool {
     pool
 }
 
-pub async fn moose_bulk_import(moose_in: Option<PathBuf>, ignore_dup: bool, db: Pool) {
+#[derive(Clone, Copy)]
+pub enum BulkModeDupe {
+    Fail,
+    Ignore,
+    Update,
+}
+
+pub async fn moose_bulk_import(moose_in: Option<PathBuf>, dup_behavior: BulkModeDupe, db: Pool) {
     let mut moose_in = match moose_in {
         Some(path) => {
             let file = BufReader::new(std::fs::File::open(path).unwrap());
@@ -69,27 +77,47 @@ pub async fn moose_bulk_import(moose_in: Option<PathBuf>, ignore_dup: bool, db: 
     moose_in.sort_unstable_by(|lhs, rhs| lhs.created.cmp(&rhs.created));
     let conn = db.get().await.unwrap();
     conn.interact(move |conn| {
-        let tx = conn.transaction().unwrap();
-        for (i, moose) in moose_in.iter().enumerate() {
-            if let Err(e) = tx.prepare_cached(INSERT_MOOSE).unwrap().execute(params![
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .unwrap();
+        moose_in.iter().try_for_each(|moose| {
+            let pm = params![
                 moose.name,
-                i,
                 moose.image,
                 moose.dimensions,
                 moose.created,
                 moose.author,
-            ]) {
-                match (&e, ignore_dup) {
-                    (rusqlite::Error::SqliteFailure(err, _reason), true) => match err.code {
-                        rusqlite::ErrorCode::ConstraintViolation => {
-                            // eprintln!("WARN: {}, already exists in database.", moose.name);
+            ];
+            if let Err(e) = tx
+                .prepare_cached(INSERT_MOOSE_WITH_COMPUTED_POS)
+                .unwrap()
+                .execute(pm)
+            {
+                match (&e, dup_behavior) {
+                    (rusqlite::Error::SqliteFailure(err, _reason), BulkModeDupe::Ignore) => {
+                        match err.code {
+                            rusqlite::ErrorCode::ConstraintViolation => {
+                                // eprintln!("WARN: {}, already exists in database.", moose.name);
+                                Ok(())
+                            }
+                            _ => Err(e),
                         }
-                        _ => return Err(e),
-                    },
-                    _ => return Err(e),
+                    }
+                    (rusqlite::Error::SqliteFailure(err, _reason), BulkModeDupe::Update) => {
+                        match err.code {
+                            rusqlite::ErrorCode::ConstraintViolation => {
+                                let _ = tx.prepare_cached(UPDATE_MOOSE).unwrap().execute(pm)?;
+                                Ok(())
+                            }
+                            _ => Err(e),
+                        }
+                    }
+                    _ => Err(e),
                 }
+            } else {
+                Ok(())
             }
-        }
+        })?;
         tx.commit()
     })
     .await

@@ -14,9 +14,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use super::author::Author;
+use super::color::{SHADE_TO_EXTENDED, SHADE_TRNS};
 use super::dimensions::Dimensions;
-use crate::render::TRANSPARENT;
+use super::{author::Author, color::TRANSPARENT};
 use base64::{DecodeError, Engine};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
@@ -24,7 +24,7 @@ use std::{
     path::PathBuf,
 };
 use time::{
-    format_description::FormatItem, macros::format_description, OffsetDateTime, PrimitiveDateTime,
+    OffsetDateTime, PrimitiveDateTime, format_description::FormatItem, macros::format_description,
 };
 
 const MOOSE_MAX_NAME_LEN: usize = 64usize;
@@ -175,14 +175,18 @@ pub fn truncate_to(s: &str, max_len: usize) -> &str {
 
 impl From<MooseLegacy> for Moose {
     fn from(old: MooseLegacy) -> Self {
-        if old.shaded {
-            panic!("CONVERT TO EXTENDED PALETTE FIRST USING https://github.com/adedomin/moose `moose import < moose`");
-        }
         let new_image: Vec<u8> = if old.extended {
             old.image
                 .bytes()
                 .zip(old.shade.bytes())
-                .flat_map(|(pix, shade)| extended_color_code(pix, shade))
+                .flat_map(|(color, shade)| extended_color_code(color, shade))
+                .collect()
+        } else if old.shaded {
+            old.image
+                .bytes()
+                .zip(old.shade.bytes())
+                .flat_map(|(color, shade)| shaded_color_code(color, shade))
+                .map(|color| SHADE_TO_EXTENDED[color as usize])
                 .collect()
         } else {
             old.image.bytes().flat_map(parse_hexish_opt).collect()
@@ -270,10 +274,22 @@ fn parse_hexish(hex: u8) -> u8 {
 
 fn parse_hexish_opt(hex: u8) -> Option<u8> {
     let phex = parse_hexish(hex);
-    if phex == 100 {
+    if phex == 100 { None } else { Some(phex) }
+}
+
+/// Legacy Moose shaded color value to u8
+/// note shade transparency repeats for each shade
+/// we convert these by mapping them against SHADE_TO_EXTENDED anyway.
+fn shaded_color_code(color: u8, shade: u8) -> Option<u8> {
+    if color == b't' || shade == b't' {
+        Some(SHADE_TRNS)
+    } else if color == b'\n' && shade == b'\n' {
         None
     } else {
-        Some(phex)
+        match (parse_hexish_opt(color), parse_hexish_opt(shade)) {
+            (Some(color), Some(shade)) => Some(1 + color + (17 * shade)),
+            _ => None,
+        }
     }
 }
 

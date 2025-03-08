@@ -86,7 +86,7 @@ BEGIN
 END;
 "###;
 
-pub const INSERT_MOOSE: &str = "INSERT INTO Moose(name, pos, image, dimensions, created, author, upvotes) VALUES (?, ?, ?, ?, ?, ?, 0)";
+// pub const INSERT_MOOSE: &str = "INSERT INTO Moose(name, pos, image, dimensions, created, author, upvotes) VALUES (?, ?, ?, ?, ?, ?, 0)";
 
 pub const INSERT_VOTE: &str =
     "INSERT INTO Vote(author_name, moose_name, vote_type) VALUES (?, ?, ?)";
@@ -139,6 +139,9 @@ INNER JOIN
 "###,
     crate::model::PAGE_SIZE * crate::model::PAGE_SEARCH_LIM
 );
+
+pub const UPDATE_MOOSE: &str =
+    "UPDATE Moose SET image = ?2, dimensions = ?3, created = ?4, author = ?5 WHERE name = ?1";
 
 pub const INSERT_MOOSE_WITH_COMPUTED_POS: &str = r###"
     INSERT INTO Moose(name,                                            pos, image, dimensions, created, author)

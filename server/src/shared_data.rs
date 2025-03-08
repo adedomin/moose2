@@ -14,9 +14,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::{
-    model::{dimensions::DEFAULT_SIZE, dimensions::HD_SIZE, PIX_FMT_HEIGHT, PIX_FMT_WIDTH},
-    render::{EXTENDED_COLORS, RGBA},
+use crate::model::{
+    PIX_FMT_HEIGHT, PIX_FMT_WIDTH,
+    color::{EXTENDED_COLORS, RGBA},
+    dimensions::{DEFAULT_SIZE, HD_SIZE},
 };
 
 const COLOR_PREAMBLE: &[u8] = b"export default [";

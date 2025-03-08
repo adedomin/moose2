@@ -22,6 +22,7 @@ use crate::{
     task::{dump_moose_task, shutdown_task, web_task},
 };
 
+use db::BulkModeDupe;
 use tokio::sync::broadcast;
 
 pub mod config;
@@ -38,9 +39,22 @@ fn main() {
     let (subcmd, rc) = config::parse_args();
     if let Some(sub) = subcmd {
         match sub {
-            SubCommand::Import { merge, input } => {
+            SubCommand::Import {
+                merge,
+                update,
+                input,
+            } => {
                 // We need an async runtime + db open for this.
-                is_import = Some((merge, input));
+                is_import = Some((
+                    if update {
+                        BulkModeDupe::Update
+                    } else if merge {
+                        BulkModeDupe::Ignore
+                    } else {
+                        BulkModeDupe::Fail
+                    },
+                    input,
+                ));
             }
             SubCommand::Convert { input, output } => {
                 // We do not need the runtime or database for this
