@@ -17,12 +17,12 @@
 // use moosedb::MooseDb;
 use crate::{
     config::SubCommand,
-    db::moose_bulk_import,
+    db::utils::moose_bulk_import,
     model::moose::moose_bulk_transform,
     task::{dump_moose_task, shutdown_task, web_task},
 };
 
-use db::BulkModeDupe;
+use db::utils::BulkModeDupe;
 use tokio::sync::broadcast;
 
 pub mod config;
@@ -40,7 +40,7 @@ fn main() {
     if let Some(sub) = subcmd {
         match sub {
             SubCommand::Import {
-                merge,
+                ignore,
                 update,
                 input,
             } => {
@@ -48,7 +48,7 @@ fn main() {
                 is_import = Some((
                     if update {
                         BulkModeDupe::Update
-                    } else if merge {
+                    } else if ignore {
                         BulkModeDupe::Ignore
                     } else {
                         BulkModeDupe::Fail
@@ -75,7 +75,7 @@ fn main() {
             "INFO: [MAIN] Connecting to database: {:?}",
             rc.get_moose_path()
         );
-        let db = db::open_db(&rc).await;
+        let db = db::utils::open_db(&rc).await;
 
         if let Some((merge, moose_in)) = is_import {
             println!("INFO: [MAIN] Importing moose. Shutting down after importing.");

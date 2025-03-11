@@ -26,9 +26,9 @@ use crate::{
 };
 use actix_session::Session;
 use actix_web::{
-    get,
-    http::{header::LOCATION, StatusCode},
-    web, HttpResponse,
+    HttpResponse, get,
+    http::{StatusCode, header::LOCATION},
+    web,
 };
 use rand::Rng;
 

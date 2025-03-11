@@ -25,7 +25,7 @@ use std::{
 
 use tokio::{sync::broadcast::Receiver, task::JoinHandle, time};
 
-use crate::db::{query::DUMP_MOOSE, Connection, Pool};
+use crate::db::{Connection, Pool, query::DUMP_MOOSE};
 use crate::model::{self};
 
 static NEW_MOOSE_NOTIFY: AtomicBool = AtomicBool::new(false);

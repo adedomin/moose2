@@ -16,7 +16,7 @@
 
 use tokio::{
     signal::unix::SignalKind,
-    sync::broadcast::{error::SendError, Sender},
+    sync::broadcast::{Sender, error::SendError},
     task::JoinHandle,
 };
 

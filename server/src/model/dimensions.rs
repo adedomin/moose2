@@ -15,8 +15,8 @@
  */
 
 use rusqlite::{
-    types::{FromSql, ToSqlOutput},
     ToSql,
+    types::{FromSql, ToSqlOutput},
 };
 use serde::{Deserialize, Serialize};
 

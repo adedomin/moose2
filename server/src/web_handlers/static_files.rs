@@ -20,15 +20,16 @@ use crate::{
     shared_data::{COLORS_JS, ERR_JS, SIZ_JS},
 };
 use actix_web::{
+    HttpRequest, HttpResponse, Responder,
     body::BoxBody,
     get,
     http::{
-        header::{CacheControl, CacheDirective, ETag, EntityTag},
         StatusCode,
+        header::{CacheControl, CacheDirective, ETag, EntityTag},
     },
-    web, HttpRequest, HttpResponse, Responder,
+    web,
 };
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 
 const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client");
 

@@ -127,7 +127,7 @@ pub enum SubCommand {
             help = "Ignore existing moose when importing.",
             default_value_t = false
         )]
-        merge: bool,
+        ignore: bool,
         #[arg(
             short,
             long,

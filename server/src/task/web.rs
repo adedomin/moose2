@@ -14,9 +14,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use actix_session::{storage::CookieSessionStore, SessionMiddleware};
-use actix_web::{cookie, App, HttpServer};
-use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
+use actix_session::{SessionMiddleware, storage::CookieSessionStore};
+use actix_web::{App, HttpServer, cookie};
+use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl, basic::BasicClient};
 use tokio::{sync::broadcast::Receiver, task::JoinHandle};
 
 use crate::{
