@@ -1,7 +1,7 @@
 use std::{io::BufReader, path::PathBuf};
 
 use deadpool_sqlite::{Hook, HookError};
-use futures::FutureExt;
+use deadpool_sync::SyncWrapper;
 use rusqlite::Connection;
 
 use crate::{
@@ -18,35 +18,17 @@ pub async fn open_db(rc: &RunConfig) -> Pool {
     let moose_path = rc.get_moose_path();
     config::create_parent_dirs(&moose_path).unwrap();
     let cfg = deadpool_sqlite::Config::new(&moose_path);
-    let poolbuild = cfg
-        .builder(deadpool_sqlite::Runtime::Tokio1)
-        .expect("Expected to build Sqlite3 pool builder.");
-    let pool = poolbuild
-        .post_create(Hook::async_fn(
-            |con: &mut deadpool_sync::SyncWrapper<Connection>, _| {
-                Box::into_pin(Box::new(
-                    con.interact(|con| con.execute_batch(CREATE_TABLE))
-                        .map(|res| match res {
-                            Ok(Ok(_)) => Ok(()),
-                            Ok(Err(e)) => Err(HookError::Backend(e)),
-                            // InteractErrors are only panics or closure aborts.
-                            Err(e) => panic!("{e}"),
-                        }),
-                ))
-            },
-        ))
+    cfg.builder(deadpool_sqlite::Runtime::Tokio1)
+        .expect("Expected to build Sqlite3 pool builder.")
+        .post_create(Hook::async_fn(|con: &mut SyncWrapper<Connection>, _| {
+            Box::pin(async move {
+                con.interact(|con| con.execute_batch(CREATE_TABLE).map_err(HookError::Backend))
+                    .await
+                    .expect("sqlite3 interact should not fail.")
+            })
+        }))
         .build()
-        .expect("expected to build a Sqlite3 pool.");
-
-    // {
-    //     let con = pool.get().await.unwrap();
-    //     con.interact(|con| {
-    //         con.execute_batch(CREATE_TABLE).unwrap();
-    //     })
-    //     .await
-    //     .unwrap()
-    // }
-    pool
+        .expect("expected to build a Sqlite3 pool.")
 }
 
 #[derive(Clone, Copy)]
