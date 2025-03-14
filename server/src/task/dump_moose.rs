@@ -25,8 +25,10 @@ use std::{
 
 use tokio::{sync::broadcast::Receiver, task::JoinHandle, time};
 
-use crate::db::{Connection, Pool, query::DUMP_MOOSE};
-use crate::model::{self};
+use crate::{
+    db::{Connection, Pool, query::DUMP_MOOSE},
+    model::moose::Moose,
+};
 
 static NEW_MOOSE_NOTIFY: AtomicBool = AtomicBool::new(false);
 
@@ -76,14 +78,7 @@ async fn dump_moose_real(con: Connection, moose_dump: PathBuf) -> Result<(), Dum
             } else {
                 bufw.write_all(b",")?;
             }
-            let moose = model::moose::Moose {
-                name: row.get(0)?,
-                image: row.get(1)?,
-                dimensions: row.get(2)?,
-                created: row.get(3)?,
-                author: row.get(4)?,
-                upvotes: row.get(5)?,
-            };
+            let moose: Moose = row.try_into()?;
             let moose = serde_json::to_vec(&moose)?;
             bufw.write_all(&moose)?;
         }

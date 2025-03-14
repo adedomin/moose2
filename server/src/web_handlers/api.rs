@@ -352,7 +352,9 @@ pub async fn put_new_moose(
     } else {
         moose.author = Author::Anonymous;
     }
+    // Ignore these user fields by replacing them with defaults.
     moose.created = OffsetDateTime::now_utc();
+    moose.upvotes = 0;
 
     if let Dimensions::Custom(_, _) = moose.dimensions {
         return moose_validation_err(

@@ -14,7 +14,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::model::{moose::Moose, pages::MooseSearchPage};
+use time::OffsetDateTime;
+
+use crate::model::{author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage};
 
 pub mod pool_impl;
 pub mod query;
@@ -65,5 +67,27 @@ impl TryFrom<&rusqlite::Row<'_>> for Moose {
             author: row.get(4)?,
             upvotes: row.get(5)?,
         })
+    }
+}
+
+pub type MooseToSqlParams<'a> = (
+    &'a str,
+    &'a [u8],
+    &'a Dimensions,
+    &'a OffsetDateTime,
+    &'a Author,
+    &'a i64,
+);
+
+impl<'a> From<&'a Moose> for MooseToSqlParams<'a> {
+    fn from(moose: &'a Moose) -> Self {
+        (
+            &moose.name,
+            &moose.image,
+            &moose.dimensions,
+            &moose.created,
+            &moose.author,
+            &moose.upvotes,
+        )
     }
 }

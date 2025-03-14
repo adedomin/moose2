@@ -1594,6 +1594,7 @@ dependencies = [
  "const_format",
  "crc32fast",
  "deadpool-sqlite",
+ "deadpool-sync",
  "directories",
  "futures",
  "include_dir",

@@ -1,5 +1,3 @@
-use rusqlite::params;
-
 use crate::model::{
     PAGE_SEARCH_LIM, PAGE_SIZE,
     moose::Moose,
@@ -7,7 +5,7 @@ use crate::model::{
 };
 
 use super::{
-    MooseDB, Pool, QueryError,
+    MooseDB, MooseToSqlParams, Pool, QueryError,
     query::{
         GET_MOOSE, GET_MOOSE_IDX, GET_MOOSE_PAGE, INSERT_MOOSE_WITH_COMPUTED_POS, LAST_MOOSE,
         LEN_MOOSE, SEARCH_MOOSE_PAGE,
@@ -153,13 +151,7 @@ impl MooseDB for Pool {
         conn.interact(move |conn| {
             conn.prepare_cached(INSERT_MOOSE_WITH_COMPUTED_POS)
                 .unwrap()
-                .execute(params![
-                    moose.name,
-                    moose.image,
-                    moose.dimensions,
-                    moose.created,
-                    moose.author,
-                ])
+                .execute(MooseToSqlParams::from(&moose))
         })
         .await??;
         Ok(())

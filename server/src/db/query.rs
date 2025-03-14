@@ -14,9 +14,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+// Per-connection configuration.
+// pub const PER_CONN_PRAGMAS: &str = r###"
+// PRAGMA foreign_keys = ON;
+// PRAGMA busy_timeout = 5000;
+// PRAGMA cache_size = 512;
+// PRAGMA temp_store = MEMORY;
+// "###;
+
 pub const CREATE_TABLE: &str = r###"
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
+PRAGMA busy_timeout = 5000;
+PRAGMA cache_size = 512;
+PRAGMA temp_store = MEMORY;
 
 CREATE TABLE IF NOT EXISTS Moose
   ( name       TEXT    PRIMARY KEY
@@ -144,8 +155,8 @@ pub const UPDATE_MOOSE: &str =
     "UPDATE Moose SET image = ?2, dimensions = ?3, created = ?4, author = ?5 WHERE name = ?1";
 
 pub const INSERT_MOOSE_WITH_COMPUTED_POS: &str = r###"
-    INSERT INTO Moose(name,                                            pos, image, dimensions, created, author)
-    VALUES           (   ?,  (SELECT COALESCE(MAX(pos) + 1, 0) FROM Moose),     ?,          ?,       ?,      ?);
+    INSERT INTO Moose(name,                                            pos, image, dimensions, created, author, upvotes)
+    VALUES           (   ?,  (SELECT COALESCE(MAX(pos) + 1, 0) FROM Moose),     ?,          ?,       ?,      ?,       ?);
 "###;
 
 pub const DUMP_MOOSE: &str = "SELECT name, image, dimensions, created, author, upvotes FROM Moose";

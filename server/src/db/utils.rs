@@ -1,6 +1,8 @@
 use std::{io::BufReader, path::PathBuf};
 
-use rusqlite::params;
+use deadpool_sqlite::{Hook, HookError};
+use futures::FutureExt;
+use rusqlite::Connection;
 
 use crate::{
     config::{self, RunConfig},
@@ -8,7 +10,7 @@ use crate::{
 };
 
 use super::{
-    Pool, QueryError,
+    MooseToSqlParams, Pool, QueryError,
     query::{CREATE_TABLE, INSERT_MOOSE_WITH_COMPUTED_POS, UPDATE_MOOSE},
 };
 
@@ -16,18 +18,34 @@ pub async fn open_db(rc: &RunConfig) -> Pool {
     let moose_path = rc.get_moose_path();
     config::create_parent_dirs(&moose_path).unwrap();
     let cfg = deadpool_sqlite::Config::new(&moose_path);
-    let pool = cfg
-        .create_pool(deadpool_sqlite::Runtime::Tokio1)
-        .expect("Expected to build Sqlite3 pool.");
+    let poolbuild = cfg
+        .builder(deadpool_sqlite::Runtime::Tokio1)
+        .expect("Expected to build Sqlite3 pool builder.");
+    let pool = poolbuild
+        .post_create(Hook::async_fn(
+            |con: &mut deadpool_sync::SyncWrapper<Connection>, _| {
+                Box::into_pin(Box::new(
+                    con.interact(|con| con.execute_batch(CREATE_TABLE))
+                        .map(|res| match res {
+                            Ok(Ok(_)) => Ok(()),
+                            Ok(Err(e)) => Err(HookError::Backend(e)),
+                            // InteractErrors are only panics or closure aborts.
+                            Err(e) => panic!("{e}"),
+                        }),
+                ))
+            },
+        ))
+        .build()
+        .expect("expected to build a Sqlite3 pool.");
 
-    {
-        let con = pool.get().await.unwrap();
-        con.interact(|con| {
-            con.execute_batch(CREATE_TABLE).unwrap();
-        })
-        .await
-        .unwrap()
-    }
+    // {
+    //     let con = pool.get().await.unwrap();
+    //     con.interact(|con| {
+    //         con.execute_batch(CREATE_TABLE).unwrap();
+    //     })
+    //     .await
+    //     .unwrap()
+    // }
     pool
 }
 
@@ -57,13 +75,7 @@ pub async fn moose_bulk_import(moose_in: Option<PathBuf>, dup_behavior: BulkMode
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .unwrap();
         moose_in.iter().try_for_each(|moose| {
-            let pm = params![
-                moose.name,
-                moose.image,
-                moose.dimensions,
-                moose.created,
-                moose.author,
-            ];
+            let pm: MooseToSqlParams = moose.into();
             if let Err(e) = tx
                 .prepare_cached(INSERT_MOOSE_WITH_COMPUTED_POS)
                 .unwrap()
