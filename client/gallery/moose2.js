@@ -151,11 +151,11 @@ function build_cards(meese_) {
 
             new_els.push(card);
         }
-        moose_cards.classList.add('disable');
+        // moose_cards.classList.add('disable');
         Promise
             .all(blob_promises)
             .then(() => {
-                moose_cards.classList.remove('disable');
+                // moose_cards.classList.remove('disable');
                 del_or_replace_cards(new_els, new_urls);
             });
     } else {
