@@ -145,8 +145,7 @@ INNER JOIN
     crate::model::PAGE_SIZE * crate::model::PAGE_SEARCH_LIM
 );
 
-pub const UPDATE_MOOSE: &str =
-    "UPDATE Moose SET image = ?2, dimensions = ?3, created = ?4, author = ?5 WHERE name = ?1";
+pub const UPDATE_MOOSE: &str = "UPDATE Moose SET image = ?2, dimensions = ?3, created = ?4, author = ?5, upvotes = ?6 WHERE name = ?1";
 
 pub const INSERT_MOOSE_WITH_COMPUTED_POS: &str = r###"
     INSERT INTO Moose(name,                                            pos, image, dimensions, created, author, upvotes)

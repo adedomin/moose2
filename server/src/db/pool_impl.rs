@@ -36,7 +36,7 @@ impl MooseDB for Pool {
     }
 
     async fn is_empty(&self) -> bool {
-        let count = self.get_page_count().await.unwrap_or(0);
+        let count = self.len().await.unwrap_or(0);
         count == 0
     }
 
