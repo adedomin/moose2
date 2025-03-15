@@ -14,14 +14,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Per-connection configuration.
-// pub const PER_CONN_PRAGMAS: &str = r###"
-// PRAGMA foreign_keys = ON;
-// PRAGMA busy_timeout = 5000;
-// PRAGMA cache_size = 512;
-// PRAGMA temp_store = MEMORY;
-// "###;
-
 pub const CREATE_TABLE: &str = r###"
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
@@ -31,19 +23,18 @@ PRAGMA temp_store = MEMORY;
 
 CREATE TABLE IF NOT EXISTS Moose
   ( name       TEXT    PRIMARY KEY
-  -- pos is unique for all intents and purposes, but not made so
-  -- to make it easier to renumber. It's used for keyset offsetting.
+  -- used for keyset offsetting.
   , pos        INTEGER NOT NULL
   , image      BLOB    NOT NULL
-  , dimensions INTEGER NOT NULL
+  , dimensions TEXT    NOT NULL
   , created    TEXT    NOT NULL
   , author     TEXT    DEFAULT NULL
   -- it's either this or N*M joining on Vote table.
   , upvotes    INTEGER DEFAULT 0
   ) WITHOUT ROWID;
 CREATE UNIQUE INDEX IF NOT EXISTS Moose_NameIdx   ON Moose(name);
+CREATE UNIQUE INDEX IF NOT EXISTS Moose_PosIdx    ON Moose(pos);
 CREATE        INDEX IF NOT EXISTS Moose_AuthorIdx ON Moose(author);
-CREATE        INDEX IF NOT EXISTS Moose_PosIdx    ON Moose(pos);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS MooseSearch USING fts5
   ( moose_name, tokenize = 'porter unicode61' );
@@ -54,12 +45,17 @@ BEGIN
   INSERT INTO MooseSearch(moose_name) VALUES (NEW.name);
 END;
 
+-- Deletes happen through sqlite3 shell, not the app.
 CREATE TRIGGER IF NOT EXISTS Moose_DeleteTrigger
 AFTER DELETE ON Moose
 BEGIN
   DELETE FROM MooseSearch WHERE moose_name = OLD.name;
-  -- Deletes happen through sqlite3 shell, not the app.
-  UPDATE Moose SET pos = pos - 1 WHERE pos > OLD.pos;
+  -- Set moose above OLD.pos negative to clear the values.
+  UPDATE Moose SET pos = -pos WHERE pos > OLD.pos;
+  -- Now re-number all moose above OLD.pos to pos - 1.
+  -- Simply setting pos = pos - 1 will result in unique constraint error
+  -- because updates may not occur in ORDER BY Moose.pos ASC
+  UPDATE Moose SET pos = -(pos + 1) WHERE pos < 0;
 END;
 
 CREATE TABLE IF NOT EXISTS Vote
@@ -70,7 +66,6 @@ CREATE TABLE IF NOT EXISTS Vote
   , PRIMARY KEY (author_name, moose_name)
   ) WITHOUT ROWID;
 CREATE        INDEX IF NOT EXISTS Vote_ByMNameIdx on Vote(moose_name);
-
 
 CREATE TRIGGER IF NOT EXISTS Vote_UpdateTrigger
 AFTER INSERT ON Vote
