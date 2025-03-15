@@ -32,7 +32,6 @@ CREATE TABLE IF NOT EXISTS Moose
   -- it's either this or N*M joining on Vote table.
   , upvotes    INTEGER DEFAULT 0
   ) WITHOUT ROWID;
-CREATE UNIQUE INDEX IF NOT EXISTS Moose_NameIdx   ON Moose(name);
 CREATE UNIQUE INDEX IF NOT EXISTS Moose_PosIdx    ON Moose(pos);
 CREATE        INDEX IF NOT EXISTS Moose_AuthorIdx ON Moose(author);
 
