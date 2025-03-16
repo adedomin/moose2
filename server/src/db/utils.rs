@@ -10,7 +10,7 @@ use crate::{
 };
 
 use super::{
-    MooseToSqlParams, Pool, QueryError,
+    MooseToSqlParams, Pool,
     query::{CREATE_TABLE, INSERT_MOOSE_WITH_COMPUTED_POS, UPDATE_MOOSE},
 };
 
@@ -111,12 +111,4 @@ pub fn escape_query(q: &str) -> String {
         })
         .collect::<Vec<String>>()
         .join(" ")
-}
-
-pub fn handle_opt_q(res: Result<Moose, rusqlite::Error>) -> Result<Option<Moose>, QueryError> {
-    match res {
-        Ok(m) => Ok(Some(m)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(e.into()),
-    }
 }

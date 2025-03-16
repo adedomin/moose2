@@ -42,7 +42,6 @@ use actix_web::{
 use core::time;
 use futures::stream::StreamExt;
 use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
-use rand::Rng;
 use serde::Serialize;
 use std::{fmt::Display, time::Duration};
 
@@ -127,12 +126,10 @@ const RANDOM: &str = "random";
 const LATEST: &str = "latest";
 const OLDEST: &str = "oldest";
 
-// NOTE: For the special meese names (see constants above).
-//       If the DB is non-empty, they should always return something.
 fn special_moose(moose: Result<Option<Moose>, QueryError>) -> Result<Option<Moose>, String> {
     match moose {
         Ok(Some(moose)) => Err(percent_encode(moose.name.as_bytes(), NON_ALPHANUMERIC).to_string()),
-        Ok(None) => unreachable!(),
+        Ok(None) => Ok(None),
         Err(e) => {
             panic!("DB is broken (trying to get random): {e}");
         }
@@ -140,18 +137,12 @@ fn special_moose(moose: Result<Option<Moose>, QueryError>) -> Result<Option<Moos
 }
 
 async fn simple_get(db: &Pool, name: &str) -> Result<Option<Moose>, String> {
-    let len = db.len().await.expect("Could not get length of database.");
-    if len == 0 {
-        return Ok(None);
-    }
-
     if name == RANDOM {
-        let rand_idx = rand::thread_rng().r#gen_range(0..len);
-        special_moose(db.get_moose_idx(rand_idx).await)
+        special_moose(db.random().await)
     } else if name == LATEST {
-        special_moose(db.get_moose_idx(len - 1).await)
+        special_moose(db.latest().await)
     } else if name == OLDEST {
-        special_moose(db.get_moose_idx(0).await)
+        special_moose(db.oldest().await)
     } else {
         match db.get_moose(name).await {
             Ok(moose) => Ok(moose),

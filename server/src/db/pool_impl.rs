@@ -10,8 +10,22 @@ use super::{
         GET_MOOSE, GET_MOOSE_IDX, GET_MOOSE_PAGE, INSERT_MOOSE_WITH_COMPUTED_POS, LAST_MOOSE,
         LEN_MOOSE, SEARCH_MOOSE_PAGE,
     },
-    utils::{escape_query, handle_opt_q},
+    utils::escape_query,
 };
+
+use rand::Rng;
+use rusqlite::{Connection, OptionalExtension, Params};
+
+fn query_moose<P: Params>(
+    conn: &Connection,
+    sql: &'static str,
+    params: P,
+) -> Result<Option<Moose>, QueryError> {
+    conn.prepare_cached(sql)?
+        .query_row(params, |row| row.try_into())
+        .optional()
+        .map_err(|e| e.into())
+}
 
 impl MooseDB for Pool {
     async fn len(&self) -> Result<usize, QueryError> {
@@ -19,18 +33,37 @@ impl MooseDB for Pool {
         conn.interact(|conn| {
             conn.prepare_cached(LEN_MOOSE)?
                 .query_row([], |row| row.get(0))
-                .or(Ok(0usize))
+                .map_err(|e| e.into())
         })
         .await?
     }
 
-    async fn last(&self) -> Result<Option<Moose>, QueryError> {
+    async fn latest(&self) -> Result<Option<Moose>, QueryError> {
+        let conn = self.get().await?;
+        conn.interact(|conn| query_moose(conn, LAST_MOOSE, []))
+            .await?
+    }
+
+    async fn oldest(&self) -> Result<Option<Moose>, QueryError> {
+        let conn = self.get().await?;
+        conn.interact(|conn| query_moose(conn, GET_MOOSE_IDX, [0]))
+            .await?
+    }
+
+    async fn random(&self) -> Result<Option<Moose>, QueryError> {
         let conn = self.get().await?;
         conn.interact(|conn| {
-            let q = conn
-                .prepare_cached(LAST_MOOSE)?
-                .query_row([], |row| row.try_into());
-            handle_opt_q(q)
+            let tx = conn.transaction()?;
+            let len: usize = tx
+                .prepare_cached(LEN_MOOSE)?
+                .query_row([], |row| row.get(0))?;
+            if len == 0 {
+                return Ok(None);
+            }
+            let rand_idx = rand::thread_rng().r#gen_range(0..len);
+            let res = query_moose(&tx, GET_MOOSE_IDX, [rand_idx])?;
+            tx.commit()?;
+            Ok(res)
         })
         .await?
     }
@@ -48,24 +81,8 @@ impl MooseDB for Pool {
     async fn get_moose(&self, moose: &str) -> Result<Option<Moose>, QueryError> {
         let conn = self.get().await?;
         let moose = moose.to_owned();
-        conn.interact(move |conn| {
-            let q = conn
-                .prepare_cached(GET_MOOSE)?
-                .query_row([moose], |row| row.try_into());
-            handle_opt_q(q)
-        })
-        .await?
-    }
-
-    async fn get_moose_idx(&self, idx: usize) -> Result<Option<Moose>, QueryError> {
-        let conn = self.get().await?;
-        conn.interact(move |conn| {
-            let q = conn
-                .prepare_cached(GET_MOOSE_IDX)?
-                .query_row([idx], |row| row.try_into());
-            handle_opt_q(q)
-        })
-        .await?
+        conn.interact(move |conn| query_moose(conn, GET_MOOSE, [moose]))
+            .await?
     }
 
     async fn get_moose_page(&self, page_num: usize) -> Result<Vec<Moose>, QueryError> {

@@ -41,11 +41,12 @@ pub enum QueryError {
 #[allow(async_fn_in_trait)]
 pub trait MooseDB {
     async fn len(&self) -> Result<usize, QueryError>;
-    async fn last(&self) -> Result<Option<Moose>, QueryError>;
+    async fn latest(&self) -> Result<Option<Moose>, QueryError>;
+    async fn oldest(&self) -> Result<Option<Moose>, QueryError>;
+    async fn random(&self) -> Result<Option<Moose>, QueryError>;
     async fn is_empty(&self) -> bool;
     async fn get_page_count(&self) -> Result<usize, QueryError>;
     async fn get_moose(&self, moose: &str) -> Result<Option<Moose>, QueryError>;
-    async fn get_moose_idx(&self, idx: usize) -> Result<Option<Moose>, QueryError>;
     async fn get_moose_page(&self, page_num: usize) -> Result<Vec<Moose>, QueryError>;
     async fn search_moose(
         &self,
