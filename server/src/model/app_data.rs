@@ -33,7 +33,7 @@ type OAClient = oauth2::Client<
     oauth2::EndpointSet,
 >;
 
-use crate::db::Pool;
+use crate::db::sqlite3_impl::Pool;
 
 pub struct AppData {
     pub db: Pool,

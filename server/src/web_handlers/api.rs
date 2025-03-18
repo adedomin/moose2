@@ -16,7 +16,10 @@
 
 use super::MooseWebData;
 use crate::{
-    db::{MooseDB, Pool, QueryError},
+    db::{
+        MooseDB,
+        sqlite3_impl::{Pool, Sqlite3Error},
+    },
     model::{
         PAGE_SIZE, author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage,
         queries::SearchQuery,
@@ -126,7 +129,7 @@ const RANDOM: &str = "random";
 const LATEST: &str = "latest";
 const OLDEST: &str = "oldest";
 
-fn special_moose(moose: Result<Option<Moose>, QueryError>) -> Result<Option<Moose>, String> {
+fn special_moose(moose: Result<Option<Moose>, Sqlite3Error>) -> Result<Option<Moose>, String> {
     match moose {
         Ok(Some(moose)) => Err(percent_encode(moose.name.as_bytes(), NON_ALPHANUMERIC).to_string()),
         Ok(None) => Ok(None),
@@ -357,7 +360,7 @@ pub async fn put_new_moose(
     let db = webdata.db.clone();
     let moose_name = moose.name.clone();
     if let Err(e) = db.insert_moose(moose).await {
-        if let QueryError::Sqlite3(rusqlite::Error::SqliteFailure(e, _)) = e {
+        if let Sqlite3Error::Sqlite3(rusqlite::Error::SqliteFailure(e, _)) = e {
             if matches!(e.code, rusqlite::ErrorCode::ConstraintViolation) {
                 return moose_validation_err(
                     HttpResponse::UnprocessableEntity(),

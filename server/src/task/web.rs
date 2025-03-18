@@ -21,7 +21,7 @@ use tokio::{sync::broadcast::Receiver, task::JoinHandle};
 
 use crate::{
     config::{GitHubOauth2, RunConfig},
-    db::Pool,
+    db::sqlite3_impl::Pool,
     model::app_data::{AppData, Oa},
     web_handlers,
 };

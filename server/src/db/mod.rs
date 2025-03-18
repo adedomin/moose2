@@ -14,46 +14,45 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::path::PathBuf;
+
 use time::OffsetDateTime;
 
 use crate::model::{author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage};
 
-pub mod pool_impl;
 pub mod query;
+pub mod sqlite3_impl;
 pub mod utils;
 
-pub type Pool = deadpool_sqlite::Pool;
-pub type Connection = deadpool_sqlite::Object;
-
-#[derive(thiserror::Error, Debug)]
-pub enum QueryError {
-    #[error("Pool Connection Interaction Error: {0}")]
-    PoolInteractError(#[from] deadpool_sqlite::InteractError),
-    #[error("Pool Connection Error: {0}")]
-    ConnectionPool(#[from] deadpool_sqlite::PoolError),
-    #[error("Sqlite3 Error: {0}")]
-    Sqlite3(#[from] rusqlite::Error),
+#[derive(Clone, Copy)]
+pub enum BulkModeDupe {
+    Fail,
+    Ignore,
+    Update,
 }
 
 // NOTE: You can suppress this lint if you plan to use the trait only in your own code,
 //       or do not care about auto traits like `Send` on the `Future`.
 //       This code is not exported to other users, other than moose2's code.
+/// The MooseDB type represents all the database activities needed to satisfy the Web API.
 #[allow(async_fn_in_trait)]
-pub trait MooseDB {
-    async fn len(&self) -> Result<usize, QueryError>;
-    async fn latest(&self) -> Result<Option<Moose>, QueryError>;
-    async fn oldest(&self) -> Result<Option<Moose>, QueryError>;
-    async fn random(&self) -> Result<Option<Moose>, QueryError>;
+pub trait MooseDB<E> {
+    async fn len(&self) -> Result<usize, E>;
+    async fn latest(&self) -> Result<Option<Moose>, E>;
+    async fn oldest(&self) -> Result<Option<Moose>, E>;
+    async fn random(&self) -> Result<Option<Moose>, E>;
     async fn is_empty(&self) -> bool;
-    async fn get_page_count(&self) -> Result<usize, QueryError>;
-    async fn get_moose(&self, moose: &str) -> Result<Option<Moose>, QueryError>;
-    async fn get_moose_page(&self, page_num: usize) -> Result<Vec<Moose>, QueryError>;
-    async fn search_moose(
+    async fn get_page_count(&self) -> Result<usize, E>;
+    async fn get_moose(&self, moose: &str) -> Result<Option<Moose>, E>;
+    async fn get_moose_page(&self, page_num: usize) -> Result<Vec<Moose>, E>;
+    async fn search_moose(&self, query: &str, page_num: usize) -> Result<MooseSearchPage, E>;
+    async fn insert_moose(&self, moose: Moose) -> Result<(), E>;
+    async fn dump_moose(&self, path: PathBuf) -> Result<(), E>;
+    async fn bulk_import(
         &self,
-        query: &str,
-        page_num: usize,
-    ) -> Result<MooseSearchPage, QueryError>;
-    async fn insert_moose(&self, moose: Moose) -> Result<(), QueryError>;
+        moose_in: Option<PathBuf>,
+        dup_behavior: BulkModeDupe,
+    ) -> Result<(), E>;
 }
 
 impl TryFrom<&rusqlite::Row<'_>> for Moose {

@@ -17,12 +17,11 @@
 // use moosedb::MooseDb;
 use crate::{
     config::SubCommand,
-    db::utils::moose_bulk_import,
     model::moose::moose_bulk_transform,
     task::{dump_moose_task, shutdown_task, web_task},
 };
 
-use db::utils::BulkModeDupe;
+use db::{BulkModeDupe, MooseDB};
 use tokio::sync::broadcast;
 
 pub mod config;
@@ -77,9 +76,9 @@ fn main() {
         );
         let db = db::utils::open_db(&rc).await;
 
-        if let Some((merge, moose_in)) = is_import {
+        if let Some((dup_behavior, moose_in)) = is_import {
             println!("INFO: [MAIN] Importing moose. Shutting down after importing.");
-            moose_bulk_import(moose_in, merge, db).await;
+            db.bulk_import(moose_in, dup_behavior).await.unwrap();
             return;
         }
 
