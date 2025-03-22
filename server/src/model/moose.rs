@@ -64,6 +64,10 @@ impl<'de> Deserialize<'de> for Moose {
         D: Deserializer<'de>,
     {
         Self::deserialize(deserializer).and_then(|moose| {
+            // You're probably wondering why we remote = "Self" our Deserializer
+            // we do it because Dimensions is directly tied to image and without
+            // twiddling the structure of the type, we have to fully deserialize
+            // to validate the dimensions match the image.
             match moose.dimensions {
                 Dimensions::Custom(w, h) => {
                     if moose.image.len() != w * h {

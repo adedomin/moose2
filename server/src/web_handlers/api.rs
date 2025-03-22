@@ -79,14 +79,14 @@ pub struct ApiError {
 }
 
 impl ApiError {
-    fn new(msg: String) -> Self {
+    pub fn new(msg: String) -> Self {
         ApiError {
             status: "error",
             msg,
         }
     }
 
-    fn new_ok(msg: String) -> Self {
+    pub fn new_ok(msg: String) -> Self {
         ApiError { status: "ok", msg }
     }
 }
@@ -156,11 +156,7 @@ async fn simple_get(db: &Pool, name: &str) -> Result<Option<Moose>, String> {
     }
 }
 
-pub async fn get_all_moose_types(
-    db: &Pool,
-    moose_name: &str,
-    func: fn(Moose) -> ApiResp,
-) -> ApiResp {
+async fn get_all_moose_types(db: &Pool, moose_name: &str, func: fn(Moose) -> ApiResp) -> ApiResp {
     match simple_get(db, moose_name).await {
         Ok(Some(moose)) => func(moose),
         Ok(None) => ApiResp::NotFound(moose_name.to_string()),
@@ -169,7 +165,7 @@ pub async fn get_all_moose_types(
 }
 
 #[get("/api-helper/resolve/{moose_name}")]
-pub async fn resolve_moose(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+async fn resolve_moose(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
     let db = &db.db;
     let moose_name = moose_name.into_inner();
     match simple_get(db, &moose_name).await {
@@ -183,7 +179,7 @@ pub async fn resolve_moose(db: MooseWebData, moose_name: web::Path<String>) -> A
 }
 
 #[get("/moose/{moose_name}")]
-pub async fn get_moose(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+async fn get_moose(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
     let db = &db.db;
     let moose_name = moose_name.into_inner();
     get_all_moose_types(db, &moose_name, |moose| {
@@ -193,7 +189,7 @@ pub async fn get_moose(db: MooseWebData, moose_name: web::Path<String>) -> ApiRe
 }
 
 #[get("/img/{moose_name}")]
-pub async fn get_moose_img(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+async fn get_moose_img(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
     let db = &db.db;
     let moose_name = moose_name.into_inner();
     get_all_moose_types(db, &moose_name, |moose| {
@@ -203,7 +199,7 @@ pub async fn get_moose_img(db: MooseWebData, moose_name: web::Path<String>) -> A
 }
 
 #[get("/irc/{moose_name}")]
-pub async fn get_moose_irc(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+async fn get_moose_irc(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
     let db = &db.db;
     let moose_name = moose_name.into_inner();
     get_all_moose_types(db, &moose_name, |moose| {
@@ -213,7 +209,7 @@ pub async fn get_moose_irc(db: MooseWebData, moose_name: web::Path<String>) -> A
 }
 
 #[get("/term/{moose_name}")]
-pub async fn get_moose_term(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+async fn get_moose_term(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
     let db = &db.db;
     let moose_name = moose_name.into_inner();
     get_all_moose_types(db, &moose_name, |moose| {
@@ -223,7 +219,7 @@ pub async fn get_moose_term(db: MooseWebData, moose_name: web::Path<String>) -> 
 }
 
 #[get("/page")]
-pub async fn get_page_count(db: MooseWebData) -> HttpResponse {
+async fn get_page_count(db: MooseWebData) -> HttpResponse {
     let db = &db.db;
     let count = db.get_page_count().await.unwrap_or_else(|err| {
         eprintln!("WARN: [WEB/PAGE/COUNT] {err}");
@@ -234,7 +230,7 @@ pub async fn get_page_count(db: MooseWebData) -> HttpResponse {
 }
 
 #[get("/page/{page_num}")]
-pub async fn get_page(db: MooseWebData, page_id: web::Path<usize>) -> ApiResp {
+async fn get_page(db: MooseWebData, page_id: web::Path<usize>) -> ApiResp {
     let db = &db.db;
     let pagenum = page_id.into_inner();
     let meese = db.get_moose_page(pagenum).await.unwrap_or_else(|err| {
@@ -254,7 +250,7 @@ pub async fn get_page(db: MooseWebData, page_id: web::Path<usize>) -> ApiResp {
 }
 
 #[get("/nav/{page_num}")]
-pub async fn get_page_nav_range(db: MooseWebData, page_id: web::Path<usize>) -> HttpResponse {
+async fn get_page_nav_range(db: MooseWebData, page_id: web::Path<usize>) -> HttpResponse {
     let db = &db.db;
     let page_num = page_id.into_inner();
     let meese = templates::page_range(page_num, db.get_page_count().await.unwrap_or(page_num));
@@ -265,7 +261,7 @@ pub async fn get_page_nav_range(db: MooseWebData, page_id: web::Path<usize>) -> 
 }
 
 #[get("/search")]
-pub async fn get_search_page(db: MooseWebData, query: web::Query<SearchQuery>) -> ApiResp {
+async fn get_search_page(db: MooseWebData, query: web::Query<SearchQuery>) -> ApiResp {
     let db = &db.db;
     let SearchQuery { page, query, .. } = query.into_inner();
     let meese = db.search_moose(&query, page).await.unwrap_or_else(|err| {
@@ -310,7 +306,7 @@ fn check_ratelimit() -> Result<(), HttpResponse> {
 }
 
 #[post("/new")]
-pub async fn put_new_moose(
+async fn put_new_moose(
     webdata: MooseWebData,
     session: Session,
     mut payload: Payload,
@@ -397,7 +393,7 @@ location = /dump {
 
 #[cfg(not(feature = "serve_static"))]
 #[get("/dump")]
-pub async fn get_dump() -> impl Responder {
+async fn get_dump() -> impl Responder {
     HttpResponse::Ok()
         .insert_header(("Content-Type", "text/plain; charset=utf8"))
         .body(DUMP_PROD_MSG)
@@ -408,4 +404,18 @@ pub async fn get_dump() -> impl Responder {
 pub async fn get_dump(data: MooseWebData) -> impl Responder {
     let dump = data.moose_dump.clone();
     actix_files::NamedFile::open_async(dump).await
+}
+
+pub fn register(conf: &mut web::ServiceConfig) {
+    conf.service(resolve_moose)
+        .service(get_moose)
+        .service(get_moose_img)
+        .service(get_moose_irc)
+        .service(get_moose_term)
+        .service(get_page_count)
+        .service(get_page)
+        .service(get_page_nav_range)
+        .service(get_search_page)
+        .service(put_new_moose)
+        .service(get_dump);
 }

@@ -14,7 +14,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use super::if_none_match;
+use super::{api::ApiError, if_none_match};
 use crate::{
     model::mime::get_mime,
     shared_data::{COLORS_JS, ERR_JS, SIZ_JS},
@@ -34,22 +34,20 @@ use include_dir::{Dir, include_dir};
 const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client");
 
 pub enum Static {
-    Body(&'static [u8], &'static str),
+    Content(&'static [u8], &'static str),
     NotFound,
 }
 
-pub struct StaticResp(pub Static);
-
-impl Responder for StaticResp {
+impl Responder for Static {
     type Body = BoxBody;
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
-        let (body, ctype) = if let Static::Body(body, ctype) = self.0 {
+        let (body, ctype) = if let Static::Content(body, ctype) = self {
             (body, ctype)
         } else {
             return HttpResponse::Ok()
                 .status(StatusCode::NOT_FOUND)
-                .body("No such file or directory.");
+                .json(ApiError::new("No such file.".to_string()));
         };
 
         let (etag_match, crc32) = if_none_match(body, req);
@@ -78,60 +76,51 @@ impl Responder for StaticResp {
     }
 }
 
-fn get_static_file_from(d: &'static Dir, file: &str, ext: &str) -> Static {
-    d.get_file(format!("{file}.{ext}"))
-        .map(|file| Static::Body(file.contents(), get_mime(ext)))
+fn get_static_file_from(d: &'static Dir, path: &str, ext: &str) -> Static {
+    d.get_file(path)
+        .map(|file| Static::Content(file.contents(), get_mime(ext)))
         .unwrap_or(Static::NotFound)
 }
 
 #[get("/")]
-pub async fn index_page() -> StaticResp {
-    StaticResp(get_static_file_from(&CLIENT_DIR, "root/index", "html"))
+async fn index_page() -> Static {
+    get_static_file_from(&CLIENT_DIR, "root/index.html", "html")
 }
 
 #[get("/favicon.ico")]
-pub async fn favicon() -> StaticResp {
-    StaticResp(get_static_file_from(&CLIENT_DIR, "root/favicon", "ico"))
-}
-
-#[get("/public/root/{file}.{ext}")]
-pub async fn static_root_file(file: web::Path<(String, String)>) -> StaticResp {
-    let root_fname = format!("root/{}", file.0.as_str());
-    let root_body = get_static_file_from(&CLIENT_DIR, root_fname.as_str(), file.1.as_str());
-    StaticResp(root_body)
-}
-
-#[get("/public/gallery/{file}.{ext}")]
-pub async fn static_gallery_file(file: web::Path<(String, String)>) -> StaticResp {
-    let gallery_fname = format!("gallery/{}", file.0.as_str());
-    let gallery_body = get_static_file_from(&CLIENT_DIR, gallery_fname.as_str(), file.1.as_str());
-    StaticResp(gallery_body)
+async fn favicon() -> Static {
+    get_static_file_from(&CLIENT_DIR, "root/favicon.ico", "ico")
 }
 
 #[get("/public/const/{const}.js")]
-pub async fn const_js_modules(c: web::Path<String>) -> StaticResp {
+async fn const_js_modules(c: web::Path<String>) -> Static {
     let body = match c.into_inner().as_str() {
         "colors" => COLORS_JS.as_ref(),
         "sizes" => SIZ_JS,
-        _ => return StaticResp(Static::NotFound),
+        _ => return Static::NotFound,
     };
-    StaticResp(Static::Body(body, "application/javascript"))
-}
-
-#[get("/public/gridpaint/index.js")]
-pub async fn gridpaint_modules() -> StaticResp {
-    let gridpaint = get_static_file_from(&CLIENT_DIR, "gridpaint/index", "js");
-    StaticResp(gridpaint)
-}
-
-#[get("/public/gridpaint/lib/{module}.js")]
-pub async fn gridpaint_lib_modules(gp: web::Path<String>) -> StaticResp {
-    let gridpaint_fname = format!("gridpaint/lib/{}", gp.into_inner().as_str());
-    let gridpaint = get_static_file_from(&CLIENT_DIR, gridpaint_fname.as_str(), "js");
-    StaticResp(gridpaint)
+    Static::Content(body, "application/javascript")
 }
 
 #[get("/public/global-modules/err.js")]
-pub async fn err_js_script() -> StaticResp {
-    StaticResp(Static::Body(ERR_JS, "application/javascript"))
+async fn err_js_script() -> Static {
+    Static::Content(ERR_JS, "application/javascript")
+}
+
+#[get("/public/{static_path:.*}")]
+pub async fn static_path(path: web::Path<std::path::PathBuf>) -> Static {
+    let path = path.into_inner();
+    let (fname, ext) = match (path.to_str(), path.extension().unwrap_or_default().to_str()) {
+        (Some(p), Some(e)) => (p, e),
+        _ => return Static::NotFound,
+    };
+    get_static_file_from(&CLIENT_DIR, fname, ext)
+}
+
+pub fn register(conf: &mut web::ServiceConfig) {
+    conf.service(index_page)
+        .service(favicon)
+        .service(err_js_script)
+        .service(const_js_modules)
+        .service(static_path);
 }

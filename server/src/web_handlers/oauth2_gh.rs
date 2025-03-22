@@ -69,15 +69,12 @@ pub struct LogInOutRedir {
 }
 
 #[get("/login")]
-pub async fn login(
-    auth_client: MooseWebData,
-    session: Session,
-) -> Result<HttpResponse, AuthApiError> {
+async fn login(auth_client: MooseWebData, session: Session) -> Result<HttpResponse, AuthApiError> {
     login_real(auth_client, session, LogInOutRedir::default()).await
 }
 
 #[post("/login")]
-pub async fn login_post(
+async fn login_post(
     auth_client: MooseWebData,
     session: Session,
     params: web::Form<LogInOutRedir>,
@@ -85,7 +82,7 @@ pub async fn login_post(
     login_real(auth_client, session, params.into_inner()).await
 }
 
-pub async fn login_real(
+async fn login_real(
     auth_client: MooseWebData,
     session: Session,
     query: LogInOutRedir,
@@ -118,7 +115,7 @@ pub async fn login_real(
 }
 
 #[get("/auth")]
-pub async fn auth(
+async fn auth(
     auth_client: MooseWebData,
     params: web::Query<AuthRequest>,
     session: Session,
@@ -190,7 +187,7 @@ pub async fn auth(
 }
 
 #[post("/login/username")]
-pub async fn logged_in(session: Session) -> HttpResponse {
+async fn logged_in(session: Session) -> HttpResponse {
     match session
         .get::<Author>("login")
         .unwrap_or_default()
@@ -202,7 +199,7 @@ pub async fn logged_in(session: Session) -> HttpResponse {
 }
 
 #[post("/logout")]
-pub async fn logout(session: Session, params: web::Form<LogInOutRedir>) -> HttpResponse {
+async fn logout(session: Session, params: web::Form<LogInOutRedir>) -> HttpResponse {
     let redir = params
         .into_inner()
         .redirect
@@ -211,4 +208,12 @@ pub async fn logout(session: Session, params: web::Form<LogInOutRedir>) -> HttpR
     HttpResponse::SeeOther()
         .insert_header((header::LOCATION, redir))
         .finish()
+}
+
+pub fn register(conf: &mut web::ServiceConfig) {
+    conf.service(login)
+        .service(login_post)
+        .service(auth)
+        .service(logged_in)
+        .service(logout);
 }

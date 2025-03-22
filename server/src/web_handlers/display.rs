@@ -33,7 +33,7 @@ use actix_web::{
 use rand::Rng;
 
 #[get("/gallery")]
-pub async fn gallery_redir() -> HttpResponse {
+async fn gallery_redir() -> HttpResponse {
     HttpResponse::Ok()
         .insert_header((LOCATION, "/gallery/0"))
         .status(StatusCode::SEE_OTHER)
@@ -41,7 +41,7 @@ pub async fn gallery_redir() -> HttpResponse {
 }
 
 #[get("/gallery/random")]
-pub async fn gallery_random_redir(db: MooseWebData) -> HttpResponse {
+async fn gallery_random_redir(db: MooseWebData) -> HttpResponse {
     let db = &db.db;
     match db.get_page_count().await {
         Ok(page_count) => {
@@ -68,7 +68,7 @@ pub async fn gallery_random_redir(db: MooseWebData) -> HttpResponse {
 }
 
 #[get("/gallery/latest")]
-pub async fn gallery_latest_redir(db: MooseWebData) -> HttpResponse {
+async fn gallery_latest_redir(db: MooseWebData) -> HttpResponse {
     let db = &db.db;
     match db.get_page_count().await {
         Ok(page_count) => HttpResponse::Ok()
@@ -178,4 +178,11 @@ async fn gallery_page(
     } else {
         normal_gallery_page(db, page_num, nojs, username).await
     }
+}
+
+pub fn register(conf: &mut web::ServiceConfig) {
+    conf.service(gallery_redir)
+        .service(gallery_random_redir)
+        .service(gallery_latest_redir)
+        .service(gallery_page);
 }
