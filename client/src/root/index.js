@@ -56,15 +56,16 @@ const DARK_THEME = window.matchMedia('(prefers-color-scheme: dark)');
 
 function defaultLightness() {
   if (DARK_THEME.matches) {
-    return 'light'
-  } else {
-    return 'dark'
+    return 'light';
+  }
+  else {
+    return 'dark';
   }
 }
 
 /** serialize the paining to base64 for moose api */
 function serialize_painting_to_b64(painter = PAINTER) {
-  let ret = "";
+  let ret = '';
   for (let i = 0; i < painter.painting.length; ++i) {
     for (let j = 0; j < painter.painting[i].length; ++j) {
       ret += String.fromCharCode(painter.painting[i][j]);
@@ -74,12 +75,12 @@ function serialize_painting_to_b64(painter = PAINTER) {
 }
 
 function saveMoose() {
-  return fetch("/new", {
-    method: "POST",
+  return fetch('/new', {
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
-    credentials: "same-origin",
+    credentials: 'same-origin',
     body: JSON.stringify({
       name: NAME_INPUT.value,
       image: serialize_painting_to_b64(),
@@ -131,7 +132,8 @@ function openModal(title, content) {
 function toggleHD() {
   if (HD.classList.toggle('selected')) {
     MOOSE_SIZE = MOOSE_SIZE_HD_KEY;
-  } else {
+  }
+  else {
     MOOSE_SIZE = MOOSE_SIZE_DEFAULT_KEY;
   }
 }
@@ -141,7 +143,8 @@ function createPaletteBtn(color, sub = false) {
   const b = document.createElement('button');
   if (color !== DEFAULT_COLOR) {
     b.style.backgroundColor = EXTENDED_COLORS[color];
-  } else {
+  }
+  else {
     b.classList.add('transparent');
   }
   b.classList.add('palette-btn');
@@ -155,20 +158,21 @@ function createPaletteBtn(color, sub = false) {
     document.querySelector(selector)?.classList.remove('selected');
     addSelect(b, color);
     if (color == DEFAULT_COLOR && !sub) {
-        PALETTE_SUB.innerHTML = '';
-        for (let i = BW_PAL; i < BW_END; ++i) {
-          PALETTE_SUB.appendChild(createPaletteBtn(i, true));
-        }
-    } else if (!sub) {
-        PALETTE_SUB.innerHTML = '';
-        const row_off = (color - EXTENDED_COLOR_START) % COLOR_ROW_LEN;
-        for (let i = 0; i < 6; ++i) {
-          const subcol = (row_off + EXTENDED_COLOR_START) + (COLOR_ROW_LEN * i);
-          PALETTE_SUB.appendChild(createPaletteBtn(subcol, true));
-        }
+      PALETTE_SUB.innerHTML = '';
+      for (let i = BW_PAL; i < BW_END; ++i) {
+        PALETTE_SUB.appendChild(createPaletteBtn(i, true));
+      }
+    }
+    else if (!sub) {
+      PALETTE_SUB.innerHTML = '';
+      const row_off = (color - EXTENDED_COLOR_START) % COLOR_ROW_LEN;
+      for (let i = 0; i < 6; ++i) {
+        const subcol = (row_off + EXTENDED_COLOR_START) + (COLOR_ROW_LEN * i);
+        PALETTE_SUB.appendChild(createPaletteBtn(subcol, true));
+      }
     }
     if (!PAINTER.drawing) PAINTER.draw();
-  })
+  });
   return b;
 }
 
@@ -195,7 +199,7 @@ function init() {
       PAINTER.setTool(el.id);
       TOOLS.forEach(el => {
         el.classList.remove('selected');
-      })
+      });
       el.classList.add('selected');
       if (!PAINTER.drawing) PAINTER.draw();
     });
@@ -223,7 +227,8 @@ function init() {
   GRID.addEventListener('click', () => {
     if (GRID.classList.toggle('selected')) {
       PAINTER.grid = true;
-    } else {
+    }
+    else {
       PAINTER.grid = false;
     }
     if (!PAINTER.drawing) PAINTER.draw();
@@ -256,16 +261,17 @@ function init() {
     let isOk = false;
     saveMoose().then(res => {
       isOk = res.ok;
-      return res.json()
+      return res.json();
     }).then(body => {
       if (isOk) {
         openModal('Success', 'Moose Saved');
-      } else {
+      }
+      else {
         openModal('Error', body.msg);
       }
     }).catch(e => {
       openModal('Error', e.toString());
-    }); 
+    });
   });
 
   PAINTER.attachHandlers();
@@ -274,13 +280,15 @@ function init() {
   document.addEventListener('keyup', e => {
     if (e.ctrlKey && e.key === 'z') {
       UNDO.click();
-    } else if (e.ctrlKey && e.key === 'y') {
+    }
+    else if (e.ctrlKey && e.key === 'y') {
       REDO.click();
-    } else if (e.key == 'Escape') {
+    }
+    else if (e.key == 'Escape') {
       closeModal();
     }
   });
 }
 // end helpers
 
-init()
+init();

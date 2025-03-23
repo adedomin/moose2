@@ -7,7 +7,7 @@ const previous_point = { x: -1, y: -1 };
  * -1 being a sigil value indicating unset.
  */
 function isPrevUnset() {
-    return previous_point.x === -1 || previous_point.y === -1;
+  return previous_point.x === -1 || previous_point.y === -1;
 }
 /**
  * Function to set the global line start state of this module.
@@ -17,8 +17,8 @@ function isPrevUnset() {
  * @param y the y value of the start of the line
  */
 function setPrev(x = -1, y = -1) {
-    previous_point.x = x;
-    previous_point.y = y;
+  previous_point.x = x;
+  previous_point.y = y;
 }
 /**
  * Returns a series of points that make up and approximate
@@ -29,34 +29,34 @@ function setPrev(x = -1, y = -1) {
  * @param y ending y point.
  */
 function* line_approx(x, y) {
-    if (isPrevUnset()) {
-        yield { x, y };
+  if (isPrevUnset()) {
+    yield { x, y };
+  }
+  else {
+    let x1 = previous_point.x;
+    let y1 = previous_point.y;
+    const x2 = x;
+    const y2 = y;
+    const dx = Math.abs(x2 - x1);
+    const dy = Math.abs(y2 - y1);
+    const sx = (x1 < x2) ? 1 : -1;
+    const sy = (y1 < y2) ? 1 : -1;
+    let err = dx - dy;
+    while (!(x1 === x2 && y1 === y2)) {
+      yield { x: x1, y: y1 };
+      const err2 = err << 1;
+      if (err2 > -dy) {
+        err -= dy;
+        x1 += sx;
+      }
+      if (err2 < dx) {
+        err += dx;
+        y1 += sy;
+      }
     }
-    else {
-        let x1 = previous_point.x;
-        let y1 = previous_point.y;
-        const x2 = x;
-        const y2 = y;
-        const dx = Math.abs(x2 - x1);
-        const dy = Math.abs(y2 - y1);
-        const sx = (x1 < x2) ? 1 : -1;
-        const sy = (y1 < y2) ? 1 : -1;
-        let err = dx - dy;
-        while (!(x1 === x2 && y1 === y2)) {
-            yield { x: x1, y: y1 };
-            const err2 = err << 1;
-            if (err2 > -dy) {
-                err -= dy;
-                x1 += sx;
-            }
-            if (err2 < dx) {
-                err += dx;
-                y1 += sy;
-            }
-        }
-        yield { x: x1, y: y1 };
-    }
-    return;
+    yield { x: x1, y: y1 };
+  }
+  return;
 }
 /**
  * Draws a Line from start to finish.
@@ -79,17 +79,17 @@ function* line_approx(x, y) {
  *               it will cancel the starting line coordinates.
  */
 function line(cancel) {
-    if (cancel)
-        return setPrev();
-    if (isPrevUnset()) {
-        setPrev(this.cursor.x, this.cursor.y);
-        return;
+  if (cancel)
+    return setPrev();
+  if (isPrevUnset()) {
+    setPrev(this.cursor.x, this.cursor.y);
+    return;
+  }
+  else {
+    for (const { x, y } of line_approx(this.cursor.x, this.cursor.y)) {
+      this.painting[y][x] = this.colour;
     }
-    else {
-        for (const { x, y } of line_approx(this.cursor.x, this.cursor.y)) {
-            this.painting[y][x] = this.colour;
-        }
-        setPrev();
-    }
+    setPrev();
+  }
 }
 export { line_approx, line };

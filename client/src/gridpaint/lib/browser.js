@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 let isBrowser = false;
 if (typeof process === 'undefined') {
-    isBrowser = true;
+  isBrowser = true;
 }
 else if (process?.title === 'browser') {
-    isBrowser = true;
+  isBrowser = true;
 }
 export { isBrowser };

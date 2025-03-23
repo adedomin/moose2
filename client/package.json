@@ -1,0 +1,14 @@
+{
+  "name": "moose2-client",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "moose2 frontend code",
+  "scripts": {
+    "lint": "npx eslint src",
+    "lint-fix": "npx eslint --fix src"
+  },
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "eslint": "8"
+  }
+}

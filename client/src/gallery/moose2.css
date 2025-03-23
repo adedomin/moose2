@@ -3,14 +3,14 @@
  */
 
 :root {
-    --bg: white;
-    --fg: black;
-    --bg-body: whitesmoke;
-    --paddle-bg: #ddd;
-    --paddle-fg: black;
-    --select-col: #4e92ff;
-    --select-hover: #7bc0ff;
-    --destructive-col: #ff2b56;
+   --bg: white;
+   --fg: black;
+   --bg-body: whitesmoke;
+   --paddle-bg: #ddd;
+   --paddle-fg: black;
+   --select-col: #4e92ff;
+   --select-hover: #7bc0ff;
+   --destructive-col: #ff2b56;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -84,6 +84,7 @@ body {
     display: flex;
     justify-content: center;
     margin: 1em 1em;
+    user-select: none;
 }
 
 .nav-actual {

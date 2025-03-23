@@ -94,16 +94,16 @@ pub fn create_parent_dirs<T: AsRef<Path>>(path: T) -> io::Result<()> {
 
 /// It's assumed the package name, moose2 is the "Above Path" in the XDG and fallback case.
 fn find_systemd_or_xdg_path(systemd: &str, xdg: &str, fallback: &str, dest: &str) -> PathBuf {
-    let mut base = std::env::var(systemd)
+    let mut base = std::env::var_os(systemd)
         .map(PathBuf::from)
-        .or_else(|_| {
-            std::env::var(xdg).map(|p| {
+        .or_else(|| {
+            std::env::var_os(xdg).map(|p| {
                 let mut p = PathBuf::from(p);
                 p.push(env!("CARGO_PKG_NAME"));
                 p
             })
         })
-        .unwrap_or_else(|_| {
+        .unwrap_or_else(|| {
             let mut p = PathBuf::from(fallback);
             p.push(env!("CARGO_PKG_NAME"));
             p

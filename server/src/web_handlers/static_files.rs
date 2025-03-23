@@ -14,6 +14,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::path::PathBuf;
+
 use super::{api::ApiError, if_none_match};
 use crate::{
     model::mime::get_mime,
@@ -31,7 +33,7 @@ use actix_web::{
 };
 use include_dir::{Dir, include_dir};
 
-const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client");
+const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/src");
 
 pub enum Static {
     Content(&'static [u8], &'static str),
@@ -107,14 +109,14 @@ async fn err_js_script() -> Static {
     Static::Content(ERR_JS, "application/javascript")
 }
 
-#[get("/public/{static_path:.*}")]
-pub async fn static_path(path: web::Path<std::path::PathBuf>) -> Static {
-    let path = path.into_inner();
-    let (fname, ext) = match (path.to_str(), path.extension().unwrap_or_default().to_str()) {
-        (Some(p), Some(e)) => (p, e),
-        _ => return Static::NotFound,
+async fn static_content(req: HttpRequest) -> Static {
+    let loc = req.path();
+    let Some(loc) = loc.strip_prefix("/public/") else {
+        return Static::NotFound;
     };
-    get_static_file_from(&CLIENT_DIR, fname, ext)
+    let locp = PathBuf::from(loc);
+    let ext = locp.extension().unwrap_or_default().to_string_lossy();
+    get_static_file_from(&CLIENT_DIR, loc, ext.as_ref())
 }
 
 pub fn register(conf: &mut web::ServiceConfig) {
@@ -122,5 +124,5 @@ pub fn register(conf: &mut web::ServiceConfig) {
         .service(favicon)
         .service(err_js_script)
         .service(const_js_modules)
-        .service(static_path);
+        .default_service(actix_web::web::to(static_content));
 }

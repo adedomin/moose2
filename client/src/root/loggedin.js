@@ -34,4 +34,4 @@ fetch('/login/username', {
   }
 }).catch(err => {
   console.error(err);
-})
+});

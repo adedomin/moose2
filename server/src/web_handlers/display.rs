@@ -28,11 +28,13 @@ use actix_session::Session;
 use actix_web::{
     HttpResponse, get,
     http::{StatusCode, header::LOCATION},
-    web,
+    routes, web,
 };
 use rand::Rng;
 
+#[routes]
 #[get("/gallery")]
+#[get("/gallery/")]
 async fn gallery_redir() -> HttpResponse {
     HttpResponse::Ok()
         .insert_header((LOCATION, "/gallery/0"))
