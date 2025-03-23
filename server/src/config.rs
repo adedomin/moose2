@@ -14,12 +14,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::shared_data::EXAMPLE_CONFIG;
+use crate::{db::BulkModeDupe, shared_data::EXAMPLE_CONFIG};
 use bcrypt_pbkdf::bcrypt_pbkdf;
-use directories::ProjectDirs;
 use serde::Deserialize;
 use std::{
-    fs,
+    env, fs,
     io::{self, BufReader, Write},
     path::{Path, PathBuf},
     process::exit,
@@ -60,10 +59,7 @@ impl RunConfig {
         if let Some(path) = &self.moose_path {
             path.clone()
         } else {
-            let pd= ProjectDirs::from("space", "ghetty", "moose2").expect("Could not find default path to put data in. please explicitly define a moose_path in the config.");
-            let mut path = PathBuf::from(pd.data_dir());
-            path.push("moose2.db");
-            path
+            find_systemd_or_xdg_path("STATE_DIRECTORY", "XDG_DATA_HOME", "/var/lib", "moose2.db")
         }
     }
 
@@ -71,10 +67,12 @@ impl RunConfig {
         if let Some(path) = &self.moose_dump {
             path.clone()
         } else {
-            let pd= ProjectDirs::from("space", "ghetty", "moose2").expect("Could not find default path to put data in. please explicitly define a moose_path in the config.");
-            let mut path = PathBuf::from(pd.data_dir());
-            path.push("moose2.json");
-            path
+            find_systemd_or_xdg_path(
+                "STATE_DIRECTORY",
+                "XDG_DATA_HOME",
+                "/var/lib",
+                "moose2.json",
+            )
         }
     }
 
@@ -94,68 +92,24 @@ pub fn create_parent_dirs<T: AsRef<Path>>(path: T) -> io::Result<()> {
     }
 }
 
-#[derive(clap::Parser, Debug)]
-#[command(
-    name = "moose2",
-    version,
-    about = "Nextgen Moose serving and authoring web application."
-)]
-pub struct Args {
-    #[arg(
-        short,
-        long,
-        help = "Explicit configuration file, otherwise relies on paths such as XDG_CONFIG_HOME to find this"
-    )]
-    pub config: Option<PathBuf>,
-    #[arg(
-        short,
-        long,
-        help = "IPv4/6 address or unix:/your/path/here for a unix domain socket"
-    )]
-    pub listen: Option<String>,
-    #[command(subcommand)]
-    pub subcommand: Option<SubCommand>,
-}
-
-#[derive(clap::Subcommand, Debug)]
-pub enum SubCommand {
-    #[command(about = "Import a moose dump")]
-    Import {
-        #[arg(
-            short,
-            long,
-            help = "Ignore existing moose when importing.",
-            default_value_t = false
-        )]
-        ignore: bool,
-        #[arg(
-            short,
-            long,
-            help = "Update existing moose when importing.",
-            default_value_t = false
-        )]
-        update: bool,
-        input: Option<PathBuf>,
-    },
-    #[command(about = "Convert a moose (js) dump to moose2 dump")]
-    Convert {
-        input: Option<PathBuf>,
-        output: Option<PathBuf>,
-    },
-}
-
-pub fn find_config() -> PathBuf {
-    if let Some(pd) = ProjectDirs::from("space", "ghetty", "moose2") {
-        let config_dir = pd.config_dir();
-        let mut config = PathBuf::from(config_dir);
-        config.push("config.json");
-        config
-    } else {
-        println!(
-            "Something is wrong with your environment variables: attempting to use ./config.json"
-        );
-        PathBuf::from("./config.json")
-    }
+/// It's assumed the package name, moose2 is the "Above Path" in the XDG and fallback case.
+fn find_systemd_or_xdg_path(systemd: &str, xdg: &str, fallback: &str, dest: &str) -> PathBuf {
+    let mut base = std::env::var(systemd)
+        .map(PathBuf::from)
+        .or_else(|_| {
+            std::env::var(xdg).map(|p| {
+                let mut p = PathBuf::from(p);
+                p.push(env!("CARGO_PKG_NAME"));
+                p
+            })
+        })
+        .unwrap_or_else(|_| {
+            let mut p = PathBuf::from(fallback);
+            p.push(env!("CARGO_PKG_NAME"));
+            p
+        });
+    base.push(dest);
+    base
 }
 
 pub fn open_or_write_default<T>(config_path: T) -> Option<RunConfig>
@@ -166,22 +120,149 @@ where
         let file = BufReader::new(file);
         Some(serde_json::from_reader(file).unwrap())
     } else {
-        println!(
-            "Configuration file not found or could not be opened at: {:?}",
-            &config_path
+        eprintln!(
+            "ERROR: [config] Configuration file not found or could not be opened at: {config_path:?}",
         );
-        print!("Creating... ");
+        eprint!("INFO:  [config] Creating configuration file... ");
         create_parent_dirs(&config_path).unwrap();
         let mut file = std::fs::File::create(&config_path).unwrap();
         file.write_all(EXAMPLE_CONFIG).unwrap();
-        println!("\nEdit the file and restart the application");
+        eprintln!("\nINFO:  [config] Edit the file {config_path:?} and restart the application.");
         None
     }
 }
 
-pub fn parse_args() -> (Option<SubCommand>, RunConfig) {
-    let args = <Args as clap::Parser>::parse();
-    let config_file_path = args.config.unwrap_or_else(find_config);
+struct Comm {
+    config: Option<PathBuf>,
+    listen: Option<String>,
+    dupe: BulkModeDupe,
+    subcmd: SubComm,
+}
+pub enum SubComm {
+    Run,
+    Import(BulkModeDupe, Option<PathBuf>),
+    Convert(Option<(PathBuf, Option<PathBuf>)>),
+}
+
+impl Default for Comm {
+    fn default() -> Self {
+        Self {
+            config: None,
+            listen: None,
+            dupe: BulkModeDupe::Fail,
+            subcmd: SubComm::Run,
+        }
+    }
+}
+
+const USAGE: &str = r###"usage: moose2 [OPTIONS] [SUBCOMMAND]
+
+Options:
+    -c | --config=c  Configuration file to read from; default: $CONFIGURATION_DIRECTORY/config.json
+                                                              $XDG_CONFIG_HOME/moose2/config.json
+    -l | --listen=l  server listen address argument; overrides configuration file.
+    -i | --ignore    for import subcommand: ignore existing duplicate moose (by name).
+    -u | --update    for import subcommand: update existing duplicate moose (by name).
+
+Subcommand:
+    import  [input]      Import moose from [input] json file.
+    convert [from] [to]  Convert moose json dump to modern moose2 format.
+"###;
+
+fn usage(err: &str) -> ! {
+    if !err.is_empty() {
+        eprintln!("ERROR: {err}\n");
+    }
+    eprintln!("{USAGE}");
+    exit(1)
+}
+
+fn parse_argv() -> Comm {
+    enum F {
+        Config,
+        Listen,
+    }
+    let (comm, flag) = std::env::args()
+        .skip(1)
+        .fold(vec![], |mut args, arg| {
+            if arg.starts_with("-c")
+                || arg.starts_with("--config")
+                || arg.starts_with("-l")
+                || arg.starts_with("--listen")
+            {
+                if let Some((f, v)) = arg.split_once('=') {
+                    args.push(f.to_owned());
+                    args.push(v.to_owned());
+                    return args;
+                }
+            }
+            args.push(arg);
+            args
+        })
+        .into_iter()
+        .fold((Comm::default(), None), |(mut comm, flag_slot), arg| {
+            if let Some(flag) = flag_slot {
+                match flag {
+                    F::Config => comm.config = Some(arg.into()),
+                    F::Listen => comm.listen = Some(arg.to_owned()),
+                }
+                return (comm, None);
+            };
+            let mut flag_slot = None;
+            match arg.as_str() {
+                "-c" | "--config" => flag_slot = Some(F::Config),
+                "-l" | "--listen" => flag_slot = Some(F::Listen),
+                "-i" | "--ignore" => comm.dupe = BulkModeDupe::Ignore,
+                "-u" | "--update" => comm.dupe = BulkModeDupe::Update,
+                "-h" | "--help" => usage(""),
+                arg if arg.starts_with('-') => usage(format!("Unknown Flag {arg}.").as_str()),
+                arg => match (comm.subcmd, arg) {
+                    (SubComm::Run, "import") => {
+                        comm.subcmd = SubComm::Import(BulkModeDupe::Fail, None)
+                    }
+                    (SubComm::Run, "convert") => comm.subcmd = SubComm::Convert(None),
+                    (SubComm::Run, anything) => {
+                        usage(format!("Invalid subcommand {anything}.").as_str())
+                    }
+                    (SubComm::Import(d, None), file) => {
+                        comm.subcmd = SubComm::Import(d, Some(file.into()));
+                    }
+                    (SubComm::Import(_, Some(_)), _) => usage("Too many arguments to import."),
+                    (SubComm::Convert(None), file) => {
+                        comm.subcmd = SubComm::Convert(Some((file.into(), None)));
+                    }
+                    (SubComm::Convert(Some((input, None))), output) => {
+                        comm.subcmd = SubComm::Convert(Some((input, Some(output.into()))));
+                    }
+                    (SubComm::Convert(Some((_, Some(_)))), _) => {
+                        usage("Too many files given to convert.")
+                    }
+                },
+            }
+            (comm, flag_slot)
+        });
+    if flag.is_some() {
+        usage("No value given for flag.");
+    }
+    comm
+}
+
+pub fn parse_args() -> (SubComm, RunConfig) {
+    let args = parse_argv();
+    let sub = match args.subcmd {
+        SubComm::Import(_, input) => SubComm::Import(args.dupe, input),
+        sc => sc,
+    };
+
+    let config_file_path = match args.config {
+        Some(c) => c,
+        None => find_systemd_or_xdg_path(
+            "CONFIGURATION_DIRECTORY",
+            "XDG_CONFIG_HOME",
+            "/etc",
+            "config.json",
+        ),
+    };
     if let Some(mut conf) = open_or_write_default(config_file_path) {
         if let Some(listen) = args.listen {
             // command line listen does not override configuration.
@@ -205,7 +286,7 @@ pub fn parse_args() -> (Option<SubCommand>, RunConfig) {
                 .unwrap();
             }
         }
-        (args.subcommand, conf)
+        (sub, conf)
     } else {
         exit(1)
     }

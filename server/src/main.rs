@@ -16,12 +16,12 @@
 
 // use moosedb::MooseDb;
 use crate::{
-    config::SubCommand,
+    config::SubComm,
     model::moose::moose_bulk_transform,
     task::{dump_moose_task, shutdown_task, web_task},
 };
 
-use db::{BulkModeDupe, MooseDB};
+use db::MooseDB;
 use tokio::sync::broadcast;
 
 pub mod config;
@@ -34,34 +34,16 @@ pub mod templates;
 pub mod web_handlers;
 
 fn main() {
-    let mut is_import = None;
     let (subcmd, rc) = config::parse_args();
-    if let Some(sub) = subcmd {
-        match sub {
-            SubCommand::Import {
-                ignore,
-                update,
-                input,
-            } => {
-                // We need an async runtime + db open for this.
-                is_import = Some((
-                    if update {
-                        BulkModeDupe::Update
-                    } else if ignore {
-                        BulkModeDupe::Ignore
-                    } else {
-                        BulkModeDupe::Fail
-                    },
-                    input,
-                ));
-            }
-            SubCommand::Convert { input, output } => {
-                // We do not need the runtime or database for this
-                eprintln!("INFO: [MAIN] Converting moose-legacy format to moose2 format.");
-                moose_bulk_transform(input, output);
-                return;
-            }
-        }
+    if let SubComm::Convert(io) = subcmd {
+        // We do not need the runtime or database for this
+        eprintln!("INFO: [MAIN] Converting moose-legacy format to moose2 format.");
+        let (moose_in, moose_out) = match io {
+            Some((i, o)) => (Some(i), o),
+            None => (None, None),
+        };
+        moose_bulk_transform(moose_in, moose_out);
+        return;
     }
 
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -76,7 +58,7 @@ fn main() {
         );
         let db = db::utils::open_db(&rc).await;
 
-        if let Some((dup_behavior, moose_in)) = is_import {
+        if let SubComm::Import(dup_behavior, moose_in) = subcmd {
             println!("INFO: [MAIN] Importing moose. Shutting down after importing.");
             db.bulk_import(moose_in, dup_behavior).await.unwrap();
             return;
