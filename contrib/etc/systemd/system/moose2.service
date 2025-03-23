@@ -4,14 +4,20 @@ Description=Next Generation Moose Service
 [Service]
 # DynamicUser=yes
 User=moose2
-Group=nginx # this application is built around running behind nginx
+# change this with your reverse proxy's group
+Group=nginx
 UMask=007
+# where config.json should be.
+# contains potential secret like cookie key and github oauth2 client
 ConfigurationDirectory=moose2
 ConfigurationDirectoryMode=0700
+# default database (and dump) directory.
+# can comment out if you don't want it.
 StateDirectory=moose2
-StateDirectoryMode=0750 # nginx accelerator support so we can drop actix-files.
+StateDirectoryMode=0750
+# For unix socket listener, comment out if you don't want that.
 RuntimeDirectory=moose2
-RuntimeDirectoryMode=0750 # moose2 and nginx
+RuntimeDirectoryMode=0750
 ExecStart=/usr/local/bin/moose2
 ## explicit configuration file
 #ExecStart=/usr/local/bin/moose2 --config /etc/moose2/config.json
