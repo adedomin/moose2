@@ -194,15 +194,20 @@ function fetch_moose_arr(type, path) {
     else throw Error(`Got non-OK status code: ${resp.status}`);
   }).then(meese => {
     switch (type) {
-    case PAGE: build_cards(meese); return false;
-    case SEARCH: build_cards(meese.result); return true;
+    case PAGE: return build_cards(meese);
+    case SEARCH: return build_cards(meese.result);
     }
-  }).then(is => loading(is))
-    .catch(e => {
+  }).then(() => {
+    switch (type) {
+    case PAGE: loading(false); break;
+    // block pagination for search results.
+    case SEARCH: loading(true); break;
+    }
+  })
+  .catch(e => {
       del_or_replace_cards();
       error_banner.classList.remove('hidden');
       error_banner.textContent = e.toString();
-      // console.error(e);
     });
 }
 
@@ -240,7 +245,6 @@ function search() {
   }
   else {
     history.replaceState(null, '', window.location.pathname);
-    loading(false);
     fetch_moose_arr(PAGE, `/page/${current_page()}`);
   }
 }
