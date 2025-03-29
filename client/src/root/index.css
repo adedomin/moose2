@@ -3,10 +3,10 @@
  */
 
 :root {
-  --bg: white;
+  --bg: #eae8e3;
   --fg: black;
-  --bg-body: whitesmoke;
-  --bg-btn: #ddd;
+  --bg-body: #cecbc2;
+  --bg-btn: #dfded9;
   --select-col: #4e92ff;
   --select-hover: #7bc0ff;
   --destructive-col: #ff2b56;
@@ -156,6 +156,8 @@ input {
 
 .btn-grp > input[type=text] {
   flex: 1;
+  padding: 0.25em 0.5em 0.25em 0.5em;
+  font-size: 1.5em;
 }
 
 #painter-frame {

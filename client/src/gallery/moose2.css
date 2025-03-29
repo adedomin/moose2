@@ -3,10 +3,10 @@
  */
 
 :root {
-   --bg: white;
+   --bg: #eae8e3;
    --fg: black;
-   --bg-body: whitesmoke;
-   --paddle-bg: #ddd;
+   --paddle-bg: #dfded9;
+   --bg-body: #cecbc2;
    --paddle-fg: black;
    --select-col: #4e92ff;
    --select-hover: #7bc0ff;
@@ -53,31 +53,36 @@ body {
     font-family: sans-serif;
 }
 
+:root { --col-size: 3; }
+
+@media only screen and (max-width: 600px) {
+    :root { --col-size: 1; }
+}
+@media only screen and (min-width: 601px) and (max-width: 1310px) {
+    :root { --col-size: 2; }
+}
+
 .cards {
-    clear: both;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-content: center;
+    grid-template-columns: repeat(var(--col-size), auto);
 }
 
 .card {
     margin: 0.5em;
-    padding-top: 0.3em;
-    padding-left: 0.3em;
-    padding-right: 0.3em;
+    padding-top: 0.5em;
+    padding-left: 0.5em;
+    padding-right: 0.5em;
     padding-bottom: 0.5em;
     background-color: var(--bg);
-    border: 1px solid var(--fg);
     border-radius: 2%;
     text-align: center;
-    justify-content: center;
+    display: grid;
+    place-content: center;
 }
 
 .img {
     background: repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 50% / 20px 20px;
-    /* max-width: 416px; */
-    /* max-height: 381.333px; */
 }
 
 .nav-block {
@@ -134,9 +139,9 @@ input {
     border: none;
 }
 
-/* input[type="submit"]:hover {
-    background: var(--select-hover);
-} */
+input[type="submit"] {
+    background: var(--paddle-bg);
+}
 
 .full-width > input[type="text"] {
     flex: 1;
