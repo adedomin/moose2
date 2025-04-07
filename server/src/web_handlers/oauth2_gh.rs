@@ -14,15 +14,21 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use super::MooseWebData;
+use super::{CSRF_COOKIE, LOGIN_COOKIE, MooseWebData, REDIR_COOKIE, get_login};
 use crate::{model::author::Author, web_handlers::JSON_TYPE};
-use actix_session::Session;
-use actix_web::{HttpResponse, get, http::header, post, web};
+use axum::{
+    Form, Router,
+    extract::{Query, State},
+    response::{IntoResponse, Redirect, Response},
+    routing::{get, post},
+};
+use http::{StatusCode, header::LOCATION};
 use oauth2::{
     AuthorizationCode, CsrfToken, HttpClientError, RequestTokenError, StandardErrorResponse,
     TokenResponse, basic::BasicErrorResponseType,
 };
 use serde::{Deserialize, Serialize};
+use tower_cookies::{Cookie, Cookies, Key};
 
 #[derive(Deserialize)]
 struct GithubUserApi {
@@ -49,13 +55,20 @@ pub enum AuthApiError {
     ),
 
     #[error("Could not get CSRF or Login.")]
-    SessionGet(#[from] actix_session::SessionGetError),
+    SessionGet,
 
     #[error("Could not set CSRF or Login.")]
-    SessionSet(#[from] actix_session::SessionInsertError),
+    SessionSet,
 }
 
-impl actix_web::ResponseError for AuthApiError {}
+impl IntoResponse for AuthApiError {
+    fn into_response(self) -> Response {
+        Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(self.to_string().into())
+            .unwrap()
+    }
+}
 
 #[derive(Deserialize)]
 pub struct AuthRequest {
@@ -68,66 +81,63 @@ pub struct LogInOutRedir {
     redirect: Option<String>,
 }
 
-#[get("/login")]
-async fn login(auth_client: MooseWebData, session: Session) -> Result<HttpResponse, AuthApiError> {
-    login_real(auth_client, session, LogInOutRedir::default()).await
-}
-
-#[post("/login")]
-async fn login_post(
-    auth_client: MooseWebData,
-    session: Session,
-    params: web::Form<LogInOutRedir>,
-) -> Result<HttpResponse, AuthApiError> {
-    login_real(auth_client, session, params.into_inner()).await
-}
-
-async fn login_real(
-    auth_client: MooseWebData,
-    session: Session,
-    query: LogInOutRedir,
-) -> Result<HttpResponse, AuthApiError> {
+async fn login(
+    State(auth_client): State<MooseWebData>,
+    session: Cookies,
+    Form(query): Form<LogInOutRedir>,
+) -> Response {
     if let Some(oauth2_client) = &auth_client.oauth2_client {
-        match session.get::<Author>("login") {
-            Ok(login_info) => {
-                if let Some(author) = login_info {
-                    return Ok(HttpResponse::Ok().body(format!("Already logged in as: {author:?}")));
-                }
-            }
-            Err(e) => {
-                eprintln!("{e}");
-            }
+        if let Some(author) = get_login(&session, &auth_client.cookie_key) {
+            return Response::builder()
+                .body(format!("Already logged in as: {author:?}").into())
+                .unwrap();
         }
 
         let (authorize_url, csrf_state) =
             oauth2_client.oa.authorize_url(CsrfToken::new_random).url();
 
-        session.insert("csrf", csrf_state.secret()).unwrap();
-        session.insert("redirect", query).unwrap();
+        session.add(Cookie::new(CSRF_COOKIE, csrf_state.into_secret()));
+        session.add(Cookie::new(
+            REDIR_COOKIE,
+            serde_json::to_string(&query).unwrap(),
+        ));
 
-        Ok(HttpResponse::Found()
-            .insert_header((header::LOCATION, authorize_url.to_string()))
-            .body(()))
+        Response::builder()
+            .status(StatusCode::FOUND)
+            .header(LOCATION, authorize_url.to_string())
+            .body(().into())
+            .unwrap()
     } else {
-        Ok(HttpResponse::NotImplemented()
-            .body("Authentication is disabled; the admin has to add an OAuth2 provider."))
+        Response::builder()
+            .status(StatusCode::NOT_IMPLEMENTED)
+            .body("Authentication is disabled; the admin has to add an OAuth2 provider.".into())
+            .unwrap()
     }
 }
 
-#[get("/auth")]
-async fn auth(
-    auth_client: MooseWebData,
-    params: web::Query<AuthRequest>,
-    session: Session,
-) -> Result<HttpResponse, AuthApiError> {
-    if let Some(oauth2_client) = &auth_client.oauth2_client {
-        let code = AuthorizationCode::new(params.code.clone());
-        let csrf_val = CsrfToken::new(params.state.clone());
+fn get_csrf(c: &Cookies, k: &Key) -> Result<String, AuthApiError> {
+    match c.private(k).get(CSRF_COOKIE) {
+        Some(c) => Ok(c.value().to_string()),
+        None => Err(AuthApiError::SessionGet),
+    }
+}
 
-        let csrf_tok = CsrfToken::new(session.get("csrf")?.unwrap_or_default());
+async fn auth(
+    State(auth_client): State<MooseWebData>,
+    session: Cookies,
+    Query(AuthRequest { code, state }): Query<AuthRequest>,
+) -> Result<Response, AuthApiError> {
+    if let Some(oauth2_client) = &auth_client.oauth2_client {
+        let code = AuthorizationCode::new(code.clone());
+        let csrf_val = CsrfToken::new(state.clone());
+
+        let csrf_tok = CsrfToken::new(get_csrf(&session, &auth_client.cookie_key)?);
 
         if csrf_tok.secret() != csrf_val.secret() {
-            return Ok(HttpResponse::BadRequest().body("No CSRF"));
+            return Ok(Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body("No CSRF".to_owned().into())
+                .unwrap());
         }
 
         let token = oauth2_client
@@ -151,7 +161,8 @@ async fn auth(
 
         let login_name = res.login;
         let redirect = session
-            .get::<LogInOutRedir>("redirect")?
+            .get(REDIR_COOKIE)
+            .and_then(|c| serde_json::from_str::<LogInOutRedir>(c.value()).ok())
             .unwrap_or(LogInOutRedir { redirect: None })
             .redirect
             .unwrap_or_else(|| "/".to_owned());
@@ -170,50 +181,65 @@ async fn auth(
                 </body>
             </html>"#
             );
-            session.insert("login", Author::Oauth2(login_name))?;
-            Ok(HttpResponse::Ok().body(html))
+            session.add(Cookie::new(
+                LOGIN_COOKIE,
+                serde_json::to_string(&Author::Oauth2(login_name)).unwrap(),
+            ));
+            Ok(Response::builder().body(html.into()).unwrap())
         }
         #[cfg(not(debug_assertions))]
         {
-            session.insert("login", Author::Oauth2(login_name))?;
-            Ok(HttpResponse::Found()
-                .insert_header((header::LOCATION, redirect))
-                .finish())
+            session.add(Cookie::new(
+                LOGIN_COOKIE,
+                serde_json::to_string(&Author::Oauth2(login_name)).unwrap(),
+            ));
+            Ok(Response::builder()
+                .status(StatusCode::SEE_OTHER)
+                .header(LOCATION, redirect)
+                .body(().into())
+                .unwrap())
         }
     } else {
-        Ok(HttpResponse::NotImplemented()
-            .body("Authentication is disabled; the admin has to add an OAuth2 provider."))
+        Ok(Response::builder()
+            .status(StatusCode::NOT_IMPLEMENTED)
+            .body(
+                "Authentication is disabled; the admin has to add an OAuth2 provider."
+                    .to_owned()
+                    .into(),
+            )
+            .unwrap())
     }
 }
 
-#[post("/login/username")]
-async fn logged_in(session: Session) -> HttpResponse {
-    match session
-        .get::<Author>("login")
-        .unwrap_or_default()
-        .and_then(|author| std::convert::TryInto::<String>::try_into(author).ok())
-    {
-        Some(username) => HttpResponse::Ok().insert_header(JSON_TYPE).json(username),
-        None => HttpResponse::Ok().insert_header(JSON_TYPE).body("null"),
-    }
+async fn logged_in(State(webdata): State<MooseWebData>, session: Cookies) -> Response {
+    let body = match get_login(&session, &webdata.cookie_key) {
+        Some(Author::Oauth2(username)) => serde_json::to_vec(&username).unwrap(),
+        Some(Author::Anonymous) => {
+            // how?
+            session.remove(Cookie::new(LOGIN_COOKIE, ""));
+            b"null".to_vec()
+        }
+        _ => b"null".to_vec(),
+    };
+    Response::builder()
+        .header(JSON_TYPE.0, JSON_TYPE.1)
+        .body(body.into())
+        .unwrap()
 }
 
-#[post("/logout")]
-async fn logout(session: Session, params: web::Form<LogInOutRedir>) -> HttpResponse {
-    let redir = params
-        .into_inner()
-        .redirect
-        .unwrap_or_else(|| "/".to_owned());
-    session.purge();
-    HttpResponse::SeeOther()
-        .insert_header((header::LOCATION, redir))
-        .finish()
+async fn logout(
+    session: Cookies,
+    Form(LogInOutRedir { redirect }): Form<LogInOutRedir>,
+) -> impl IntoResponse {
+    let redir = redirect.unwrap_or_else(|| "/".to_owned());
+    session.remove(Cookie::new(LOGIN_COOKIE, ""));
+    Redirect::to(&redir)
 }
 
-pub fn register(conf: &mut web::ServiceConfig) {
-    conf.service(login)
-        .service(login_post)
-        .service(auth)
-        .service(logged_in)
-        .service(logout);
+pub fn routes() -> Router<MooseWebData> {
+    Router::new()
+        .route("/login", get(login).post(login))
+        .route("/auth", get(auth))
+        .route("/login/username", post(logged_in))
+        .route("/logout", post(logout))
 }

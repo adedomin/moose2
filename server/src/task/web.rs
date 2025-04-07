@@ -14,16 +14,24 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use actix_session::{SessionMiddleware, storage::CookieSessionStore};
-use actix_web::{App, HttpServer, cookie};
+use std::sync::Arc;
+
+use axum::{Router, middleware};
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl, basic::BasicClient};
-use tokio::{sync::broadcast::Receiver, task::JoinHandle};
+use tokio::{
+    net::{TcpListener, UnixListener},
+    sync::broadcast::Receiver,
+    task::JoinHandle,
+};
+use tower::ServiceBuilder;
+use tower_cookies::{CookieManagerLayer, Key};
 
 use crate::{
     config::{GitHubOauth2, RunConfig},
     db::sqlite3_impl::Pool,
+    middleware::etag::etag_match,
     model::app_data::{AppData, Oa},
-    web_handlers,
+    web_handlers::{api, display, oauth2_gh, static_files},
 };
 
 pub fn web_task(
@@ -76,41 +84,39 @@ pub fn web_task(
         None => None,
     };
     let moose_dump = rc.get_moose_dump();
-    let app_data = actix_web::web::Data::new(AppData {
+    let app_data = Arc::new(AppData {
         db,
+        cookie_key: Key::from(&rc.cookie_key.0),
         moose_dump,
         oauth2_client,
     });
-    let builder = HttpServer::new(move || {
-        let cookie_session = SessionMiddleware::builder(
-            CookieSessionStore::default(),
-            cookie::Key::from(&rc.cookie_key.0),
-        )
-        .cookie_secure(false)
-        .build();
-        App::new()
-            .wrap(cookie_session)
-            .app_data(app_data.clone())
-            .configure(web_handlers::oauth2_gh::register)
-            .configure(web_handlers::api::register)
-            .configure(web_handlers::display::register)
-            .configure(web_handlers::static_files::register)
-    });
 
-    let web_svr = if !listen_addr.starts_with("unix:") {
-        builder.bind(listen_addr).unwrap()
-    } else {
-        builder.bind_uds(&listen_addr[5..]).unwrap()
-    };
-    let web_svr = web_svr.disable_signals().shutdown_timeout(10).run();
-    let web_handle = web_svr.handle();
+    let app = Router::new()
+        .merge(api::routes())
+        .merge(oauth2_gh::routes())
+        .merge(display::routes())
+        .merge(static_files::routes())
+        .layer(
+            ServiceBuilder::new()
+                .layer(CookieManagerLayer::new())
+                .layer(middleware::from_fn(etag_match)),
+        )
+        .with_state(app_data);
+
     tokio::spawn(async move {
-        shutdown_signal.recv().await.unwrap();
-        web_handle.stop(true).await;
-    });
-    tokio::spawn(async move {
-        let e = web_svr.await;
-        println!("WARN: [WEB] Task has shut down: {:?}", e);
-        e
+        let shutdown_h = async move {
+            shutdown_signal.recv().await.unwrap();
+        };
+        if let Some(path) = listen_addr.strip_prefix("unix:") {
+            let uds = UnixListener::bind(path).unwrap();
+            axum::serve(uds, app)
+                .with_graceful_shutdown(shutdown_h)
+                .await
+        } else {
+            let inet = TcpListener::bind(listen_addr).await.unwrap();
+            axum::serve(inet, app)
+                .with_graceful_shutdown(shutdown_h)
+                .await
+        }
     })
 }

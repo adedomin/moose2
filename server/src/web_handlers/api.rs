@@ -14,14 +14,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use super::MooseWebData;
+use super::{HOUR_CACHE, MooseWebData, get_login};
 use crate::{
     db::{
         MooseDB,
         sqlite3_impl::{Pool, Sqlite3Error},
     },
     model::{
-        PAGE_SIZE, author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage,
+        PAGE_SIZE, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage,
         queries::SearchQuery,
     },
     render::{moose_irc, moose_png, moose_term},
@@ -30,23 +30,21 @@ use crate::{
     web_handlers::JSON_TYPE,
 };
 use ::time::OffsetDateTime;
-use actix_session::Session;
-use actix_web::{
-    HttpResponse, HttpResponseBuilder, Responder,
-    body::BoxBody,
-    get,
-    http::{
-        StatusCode,
-        header::{CacheControl, CacheDirective, LOCATION},
-    },
-    post,
-    web::{self, Payload},
+use axum::{
+    Json, Router,
+    extract::{Path, Query, State, rejection::JsonRejection},
+    response::{IntoResponse, Response},
+    routing::{get, put},
 };
 use core::time;
-use futures::stream::StreamExt;
+use http::{
+    StatusCode, Uri,
+    header::{CACHE_CONTROL, CONTENT_TYPE, LOCATION},
+};
 use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
 use serde::Serialize;
 use std::{fmt::Display, time::Duration};
+use tower_cookies::Cookies;
 
 #[cfg(feature = "bad_rate_limiter")]
 use std::{
@@ -89,38 +87,45 @@ impl ApiError {
     pub fn new_ok(msg: String) -> Self {
         ApiError { status: "ok", msg }
     }
+
+    pub fn to_json(&self) -> Vec<u8> {
+        serde_json::to_vec(&self).unwrap()
+    }
 }
 
-impl Responder for ApiResp {
-    type Body = BoxBody;
-
-    fn respond_to(
-        self,
-        _req: &actix_web::HttpRequest,
-    ) -> HttpResponse<<ApiResp as Responder>::Body> {
+impl IntoResponse for ApiResp {
+    fn into_response(self) -> axum::response::Response {
         match self {
-            ApiResp::Body(body, ctype) => HttpResponse::Ok()
-                .insert_header(CacheControl(vec![
-                    CacheDirective::MaxAge(3600),
-                    CacheDirective::Extension("stale-if-error".to_owned(), Some("3600".to_owned())),
-                ]))
-                .insert_header(("Content-Type", ctype))
-                .body(body),
-            ApiResp::BodyCacheTime(body, ctype, duration) => HttpResponse::Ok()
-                .insert_header(CacheControl(vec![
-                    CacheDirective::MaxAge(duration.as_secs() as u32),
-                    CacheDirective::Extension("stale-if-error".to_owned(), Some("3600".to_owned())),
-                ]))
-                .insert_header(("Content-Type", ctype))
-                .body(body),
-            ApiResp::Redirect(path) => HttpResponse::Ok()
+            ApiResp::Body(body, ctype) => Response::builder()
+                .header(CACHE_CONTROL, HOUR_CACHE)
+                .header(CONTENT_TYPE, ctype)
+                .body(body.into())
+                .unwrap(),
+            ApiResp::BodyCacheTime(body, ctype, duration) => Response::builder()
+                .header(
+                    CACHE_CONTROL,
+                    format!("max-age={}, stale-if-error=3600", duration.as_secs()),
+                )
+                .header(CONTENT_TYPE, ctype)
+                .body(body.into())
+                .unwrap(),
+            ApiResp::Redirect(path) => Response::builder()
                 .status(StatusCode::SEE_OTHER)
-                .insert_header((LOCATION, path))
-                .body(()),
-            ApiResp::NotFound(moose_name) => HttpResponse::Ok()
+                .header(LOCATION, path)
+                .body(().into())
+                .unwrap(),
+            ApiResp::NotFound(moose_name) => Response::builder()
                 .status(StatusCode::NOT_FOUND)
-                .json(ApiError::new(format!("no such moose: {}", moose_name))),
-            ApiResp::CustomError(code, err) => HttpResponse::Ok().status(code).json(err),
+                .body(
+                    ApiError::new(format!("no such moose: {}", moose_name))
+                        .to_json()
+                        .into(),
+                )
+                .unwrap(),
+            ApiResp::CustomError(code, err) => Response::builder()
+                .status(code)
+                .body(err.to_json().into())
+                .unwrap(),
         }
     }
 }
@@ -156,18 +161,8 @@ async fn simple_get(db: &Pool, name: &str) -> Result<Option<Moose>, String> {
     }
 }
 
-async fn get_all_moose_types(db: &Pool, moose_name: &str, func: fn(Moose) -> ApiResp) -> ApiResp {
-    match simple_get(db, moose_name).await {
-        Ok(Some(moose)) => func(moose),
-        Ok(None) => ApiResp::NotFound(moose_name.to_string()),
-        Err(redir) => ApiResp::Redirect(redir),
-    }
-}
-
-#[get("/api-helper/resolve/{moose_name}")]
-async fn resolve_moose(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+async fn resolve_moose(State(db): State<MooseWebData>, Path(moose_name): Path<String>) -> ApiResp {
     let db = &db.db;
-    let moose_name = moose_name.into_inner();
     match simple_get(db, &moose_name).await {
         Ok(Some(moose)) => ApiResp::CustomError(
             StatusCode::OK,
@@ -178,63 +173,66 @@ async fn resolve_moose(db: MooseWebData, moose_name: web::Path<String>) -> ApiRe
     }
 }
 
-#[get("/moose/{moose_name}")]
-async fn get_moose(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
+async fn get_moose(
+    State(db): State<MooseWebData>,
+    Path(moose_name): Path<String>,
+    uri: Uri,
+) -> ApiResp {
     let db = &db.db;
-    let moose_name = moose_name.into_inner();
-    get_all_moose_types(db, &moose_name, |moose| {
-        ApiResp::Body(moose.into(), "application/json")
-    })
-    .await
+    let Some(path) = uri.path().split('/').skip(1).next() else {
+        eprintln!(
+            "ERR: [WEB/API/GET_MOOSE] Path seems wrong for some call: {:?}",
+            uri.path()
+        );
+        return ApiResp::CustomError(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::new("Path seems to be missing components; how did you get here?".to_owned()),
+        );
+    };
+    match simple_get(db, &moose_name).await {
+        Ok(Some(moose)) => {
+            let (body, ctype) = match path {
+                "moose" => (moose.into(), "application/json"),
+                "img" => (moose_png(&moose).unwrap(), "image/png"),
+                "irc" => (moose_irc(&moose), "text/irc-art"),
+                "term" => (moose_term(&moose), "text/ansi-truecolor"),
+                _ => {
+                    eprintln!(
+                        "ERR: [WEB/API/GET_MOOSE] Router is passing paths that don't make sense: {path:?}",
+                    );
+                    return ApiResp::CustomError(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        ApiError::new("Cannot fetch moose type: {path:?}".to_owned()),
+                    );
+                }
+            };
+            ApiResp::Body(body, ctype)
+        }
+        Ok(None) => ApiResp::NotFound(moose_name.to_string()),
+        Err(redir) => ApiResp::Redirect(redir),
+    }
 }
 
-#[get("/img/{moose_name}")]
-async fn get_moose_img(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
-    let db = &db.db;
-    let moose_name = moose_name.into_inner();
-    get_all_moose_types(db, &moose_name, |moose| {
-        ApiResp::Body(moose_png(&moose).unwrap(), "image/png")
-    })
-    .await
-}
-
-#[get("/irc/{moose_name}")]
-async fn get_moose_irc(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
-    let db = &db.db;
-    let moose_name = moose_name.into_inner();
-    get_all_moose_types(db, &moose_name, |moose| {
-        ApiResp::Body(moose_irc(&moose), "text/irc-art")
-    })
-    .await
-}
-
-#[get("/term/{moose_name}")]
-async fn get_moose_term(db: MooseWebData, moose_name: web::Path<String>) -> ApiResp {
-    let db = &db.db;
-    let moose_name = moose_name.into_inner();
-    get_all_moose_types(db, &moose_name, |moose| {
-        ApiResp::Body(moose_term(&moose), "text/ansi-truecolor")
-    })
-    .await
-}
-
-#[get("/page")]
-async fn get_page_count(db: MooseWebData) -> HttpResponse {
+async fn get_page_count(State(db): State<MooseWebData>) -> Response {
     let db = &db.db;
     let count = db.get_page_count().await.unwrap_or_else(|err| {
         eprintln!("WARN: [WEB/PAGE/COUNT] {err}");
         0
     });
+    let count = serde_json::to_vec(&count).unwrap();
     // response too small to make caching worth it.
-    HttpResponse::Ok().insert_header(JSON_TYPE).json(count)
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(JSON_TYPE.0, JSON_TYPE.1)
+        .body(count.into())
+        .unwrap()
 }
 
-#[get("/page/{page_num}")]
-async fn get_page(db: MooseWebData, page_id: web::Path<usize>) -> ApiResp {
+// #[get("/page/{page_num}")]
+async fn get_page(State(db): State<MooseWebData>, Path(page_num): Path<usize>) -> ApiResp {
     let db = &db.db;
-    let pagenum = page_id.into_inner();
-    let meese = db.get_moose_page(pagenum).await.unwrap_or_else(|err| {
-        eprintln!("WARN: [WEB/PAGE/{pagenum}] {err}");
+    let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
+        eprintln!("WARN: [WEB/PAGE/{page_num}] {err}");
         vec![]
     });
     // if the page is full, it probably won't change in hours, if ever.
@@ -249,21 +247,27 @@ async fn get_page(db: MooseWebData, page_id: web::Path<usize>) -> ApiResp {
     ApiResp::BodyCacheTime(meese, "application/json", cache_duration)
 }
 
-#[get("/nav/{page_num}")]
-async fn get_page_nav_range(db: MooseWebData, page_id: web::Path<usize>) -> HttpResponse {
+async fn get_page_nav_range(
+    State(db): State<MooseWebData>,
+    Path(page_num): Path<usize>,
+) -> Response {
     let db = &db.db;
-    let page_num = page_id.into_inner();
     let meese = templates::page_range(page_num, db.get_page_count().await.unwrap_or(page_num));
+    let meese = serde_json::to_vec(&meese.collect::<Vec<usize>>()).unwrap();
     // response too small to make caching worth it.
-    HttpResponse::Ok()
-        .insert_header(JSON_TYPE)
-        .json(meese.collect::<Vec<usize>>())
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(JSON_TYPE.0, JSON_TYPE.1)
+        .body(meese.into())
+        .unwrap()
 }
 
-#[get("/search")]
-async fn get_search_page(db: MooseWebData, query: web::Query<SearchQuery>) -> ApiResp {
+// #[get("/search")]
+async fn get_search_page(
+    State(db): State<MooseWebData>,
+    Query(SearchQuery { query, page, .. }): Query<SearchQuery>,
+) -> ApiResp {
     let db = &db.db;
-    let SearchQuery { page, query, .. } = query.into_inner();
     let meese = db.search_moose(&query, page).await.unwrap_or_else(|err| {
         eprintln!("WARN: [WEB/SEARCH] {err}");
         MooseSearchPage::default()
@@ -274,11 +278,20 @@ async fn get_search_page(db: MooseWebData, query: web::Query<SearchQuery>) -> Ap
 
 pub const MAX_BODY_SIZE: usize = 2usize.pow(14);
 
-fn moose_validation_err<T: Display>(mut base: HttpResponseBuilder, msg: T) -> HttpResponse {
-    base.insert_header(JSON_TYPE).json(ApiError {
-        status: "error",
-        msg: msg.to_string(),
-    })
+// fn moose_validation_err<T: Display>(mut base: HttpResponseBuilder, msg: T) -> HttpResponse {
+//     base.insert_header(JSON_TYPE).json(ApiError {
+//         status: "error",
+//         msg: msg.to_string(),
+//     })
+// }
+
+fn moose_validation_err<T: Display>(code: StatusCode, msg: T) -> Response {
+    let body = ApiError::new(msg.to_string()).to_json();
+    Response::builder()
+        .status(code)
+        .header(JSON_TYPE.0, JSON_TYPE.1)
+        .body(body.into())
+        .unwrap()
 }
 
 /// Global Moose rate-limiter, prevents a new moose every minute.
@@ -305,50 +318,39 @@ fn check_ratelimit() -> Result<(), HttpResponse> {
     }
 }
 
-#[post("/new")]
 async fn put_new_moose(
-    webdata: MooseWebData,
-    session: Session,
-    mut payload: Payload,
-) -> HttpResponse {
+    State(webdata): State<MooseWebData>,
+    session: Cookies,
+    payload: Result<Json<Moose>, JsonRejection>,
+) -> Response {
     #[cfg(feature = "bad_rate_limiter")]
     if let Err(e) = check_ratelimit() {
         return e;
     }
 
-    let mut body = web::BytesMut::new();
-    while let Some(chunk) = payload.next().await {
-        let chunk = match chunk {
-            Ok(chunk) => chunk,
-            Err(e) => {
-                return moose_validation_err(HttpResponse::InternalServerError(), e);
-            }
-        };
-        if body.len().saturating_add(chunk.len()) > MAX_BODY_SIZE {
-            return moose_validation_err(HttpResponse::PayloadTooLarge(), "Payload too large.");
-        }
-        body.extend_from_slice(&chunk);
-    }
-
-    let mut moose = match serde_json::from_slice::<Moose>(&body) {
+    let Json(mut moose) = match payload {
         Ok(moose) => moose,
-        Err(msg) => {
-            return moose_validation_err(HttpResponse::BadRequest(), msg);
+        Err(e) => {
+            return moose_validation_err(StatusCode::BAD_REQUEST, e);
         }
     };
 
-    if let Ok(Some(author)) = session.get::<Author>("login") {
-        moose.author = author;
-    } else {
-        moose.author = Author::Anonymous;
-    }
+    // TODO: fix sessions later.
+    // if let Ok(Some(author)) = session.get::<Author>("login") {
+    //     moose.author = author;
+    // } else {
+    //     moose.author = Author::Anonymous;
+    // }
+    let session_author = get_login(&session, &webdata.cookie_key).unwrap_or_default();
+    moose.author = session_author;
+
     // Ignore these user fields by replacing them with defaults.
     moose.created = OffsetDateTime::now_utc();
     moose.upvotes = 0;
 
     if let Dimensions::Custom(_, _) = moose.dimensions {
         return moose_validation_err(
-            HttpResponse::BadRequest(),
+            StatusCode::BAD_REQUEST,
             "Custom dimensions are not allowed through the public API.",
         );
     }
@@ -359,22 +361,28 @@ async fn put_new_moose(
         if let Sqlite3Error::Sqlite3(rusqlite::Error::SqliteFailure(e, _)) = e {
             if matches!(e.code, rusqlite::ErrorCode::ConstraintViolation) {
                 return moose_validation_err(
-                    HttpResponse::UnprocessableEntity(),
+                    StatusCode::UNPROCESSABLE_ENTITY,
                     format!("{moose_name} already exists."),
                 );
             }
         }
-        moose_validation_err(HttpResponse::UnprocessableEntity(), e)
+        moose_validation_err(StatusCode::UNPROCESSABLE_ENTITY, e)
     } else {
         notify_new();
-        HttpResponse::Ok().insert_header(JSON_TYPE).json(ApiError {
-            status: "ok",
-            msg: format!("Saved {moose_name}."),
-        })
+        Response::builder()
+            .header(JSON_TYPE.0, JSON_TYPE.1)
+            .body(
+                ApiError {
+                    status: "ok",
+                    msg: format!("Saved {moose_name}."),
+                }
+                .to_json()
+                .into(),
+            )
+            .unwrap()
     }
 }
 
-#[cfg(not(feature = "serve_static"))]
 const DUMP_PROD_MSG: &str = r###"
 Release moose does not implement read and serving file-system content.
 You are expected to use a Reverse Proxy to host moose2 over the internet.
@@ -391,31 +399,25 @@ location = /dump {
 ```
 "###;
 
-#[cfg(not(feature = "serve_static"))]
-#[get("/dump")]
-async fn get_dump() -> impl Responder {
-    HttpResponse::Ok()
-        .insert_header(("Content-Type", "text/plain; charset=utf8"))
-        .body(DUMP_PROD_MSG)
+async fn get_dump() -> Response {
+    Response::builder()
+        .status(http::StatusCode::OK)
+        .header(CONTENT_TYPE, "text/plain; charset=utf8")
+        .body(DUMP_PROD_MSG.into())
+        .unwrap()
 }
 
-#[cfg(feature = "serve_static")]
-#[get("/dump")]
-pub async fn get_dump(data: MooseWebData) -> impl Responder {
-    let dump = data.moose_dump.clone();
-    actix_files::NamedFile::open_async(dump).await
-}
-
-pub fn register(conf: &mut web::ServiceConfig) {
-    conf.service(resolve_moose)
-        .service(get_moose)
-        .service(get_moose_img)
-        .service(get_moose_irc)
-        .service(get_moose_term)
-        .service(get_page_count)
-        .service(get_page)
-        .service(get_page_nav_range)
-        .service(get_search_page)
-        .service(put_new_moose)
-        .service(get_dump);
+pub fn routes() -> Router<MooseWebData> {
+    Router::new()
+        .route("/api-helper/resolve/{moose_name}", get(resolve_moose))
+        .route("/moose/{moose_name}", get(get_moose))
+        .route("/img/{moose_name}", get(get_moose))
+        .route("/irc/{moose_name}", get(get_moose))
+        .route("/term/{moose_name}", get(get_moose))
+        .route("/page", get(get_page_count))
+        .route("/page/{page_num}", get(get_page))
+        .route("/nav/{page_num}", get(get_page_nav_range))
+        .route("/search", get(get_search_page))
+        .route("/dump", get(get_dump))
+        .route("/new", put(put_new_moose))
 }

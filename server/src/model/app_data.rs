@@ -33,10 +33,13 @@ type OAClient = oauth2::Client<
     oauth2::EndpointSet,
 >;
 
+use tower_cookies::Key;
+
 use crate::db::sqlite3_impl::Pool;
 
 pub struct AppData {
     pub db: Pool,
+    pub cookie_key: Key,
     pub moose_dump: PathBuf,
     pub oauth2_client: Option<Oa>,
 }

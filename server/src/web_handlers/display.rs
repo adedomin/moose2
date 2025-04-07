@@ -14,9 +14,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use super::MooseWebData;
+use super::{HTML_TYPE, MooseWebData, get_login};
 use crate::{
     db::MooseDB,
+    middleware::etag::md5_etag,
     model::{
         author::Author,
         pages::{MooseSearch, MooseSearchPage},
@@ -24,67 +25,49 @@ use crate::{
     },
     templates::gallery,
 };
-use actix_session::Session;
-use actix_web::{
-    HttpResponse, get,
-    http::{StatusCode, header::LOCATION},
-    routes, web,
+use axum::{
+    Router,
+    extract::{Path, Query, State},
+    response::{IntoResponse, Redirect, Response},
+    routing::get,
 };
+use http::{StatusCode, header::ETAG};
 use rand::Rng;
+use tower_cookies::Cookies;
 
-#[routes]
-#[get("/gallery")]
-#[get("/gallery/")]
-async fn gallery_redir() -> HttpResponse {
-    HttpResponse::Ok()
-        .insert_header((LOCATION, "/gallery/0"))
-        .status(StatusCode::SEE_OTHER)
-        .body(())
-}
-
-#[get("/gallery/random")]
-async fn gallery_random_redir(db: MooseWebData) -> HttpResponse {
+async fn gallery_random_redir(State(db): State<MooseWebData>) -> Response {
     let db = &db.db;
     match db.get_page_count().await {
         Ok(page_count) => {
             if page_count == 0 {
-                HttpResponse::Ok()
-                    .insert_header((LOCATION, "/gallery/0"))
-                    .status(StatusCode::SEE_OTHER)
-                    .body(())
+                Redirect::to("/gallery/0").into_response()
             } else {
                 let rand_idx = rand::thread_rng().r#gen_range(0..page_count);
-                HttpResponse::Ok()
-                    .insert_header((LOCATION, format!("/gallery/{}", rand_idx)))
-                    .status(StatusCode::SEE_OTHER)
-                    .body(())
+                Redirect::to(&format!("/gallery/{rand_idx}")).into_response()
             }
         }
         Err(e) => {
             eprintln!("{}", e);
-            HttpResponse::Ok()
+            Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(e.to_string())
+                .body(e.to_string().into())
+                .unwrap()
         }
     }
 }
 
-#[get("/gallery/latest")]
-async fn gallery_latest_redir(db: MooseWebData) -> HttpResponse {
+async fn gallery_latest_redir(State(db): State<MooseWebData>) -> Response {
     let db = &db.db;
     match db.get_page_count().await {
-        Ok(page_count) => HttpResponse::Ok()
-            .insert_header((
-                LOCATION,
-                format!("/gallery/{}", page_count.saturating_sub(1)).as_str(),
-            ))
-            .status(StatusCode::SEE_OTHER)
-            .body(()),
+        Ok(page_count) => {
+            Redirect::to(&format!("/gallery/{}", page_count.saturating_sub(1))).into_response()
+        }
         Err(e) => {
             eprintln!("{}", e);
-            HttpResponse::Ok()
+            Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(e.to_string())
+                .body(e.to_string().into())
+                .unwrap()
         }
     }
 }
@@ -96,7 +79,7 @@ async fn nojs_gallery_search(
     search_page: usize,
     nojs: bool,
     username: Option<String>,
-) -> HttpResponse {
+) -> String {
     let db = &db.db;
     let meese = db
         .search_moose(query, search_page)
@@ -106,7 +89,7 @@ async fn nojs_gallery_search(
             MooseSearchPage::default()
         });
 
-    let html = gallery::gallery(
+    gallery::gallery(
         &format!("Search: {query}"),
         page_num,
         db.get_page_count().await.unwrap_or(page_num),
@@ -115,10 +98,7 @@ async fn nojs_gallery_search(
         nojs,
         username,
     )
-    .into_string();
-    HttpResponse::Ok()
-        .insert_header(("Content-Type", "text/html"))
-        .body(html)
+    .into_string()
 }
 
 async fn normal_gallery_page(
@@ -126,7 +106,7 @@ async fn normal_gallery_page(
     page_num: usize,
     nojs: bool,
     username: Option<String>,
-) -> HttpResponse {
+) -> String {
     let db = &db.db;
     let meese = if nojs {
         let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
@@ -145,7 +125,7 @@ async fn normal_gallery_page(
     } else {
         None
     };
-    let html = gallery::gallery(
+    gallery::gallery(
         &format!("Page {}", page_num),
         page_num,
         db.get_page_count().await.unwrap_or(page_num),
@@ -154,37 +134,41 @@ async fn normal_gallery_page(
         nojs,
         username,
     )
-    .into_string();
-    HttpResponse::Ok()
-        .insert_header(("Content-Type", "text/html"))
-        .body(html)
+    .into_string()
 }
 
-#[get("/gallery/{page_id}")]
 async fn gallery_page(
-    db: MooseWebData,
-    session: Session,
-    page_id: web::Path<usize>,
-    query: web::Query<SearchQuery>,
-) -> HttpResponse {
-    let page_num = page_id.into_inner();
-    let SearchQuery { query, page, nojs } = query.into_inner();
+    State(db): State<MooseWebData>,
+    Path(page_num): Path<usize>,
+    session: Cookies,
+    Query(query): Query<SearchQuery>,
+) -> Response {
+    let SearchQuery { query, page, nojs } = query;
 
-    let username = session
-        .get::<Author>("login")
-        .unwrap_or_default()
-        .and_then(|author| author.try_into().ok());
+    let username = get_login(&session, &db.cookie_key).and_then(|a| match a {
+        Author::Anonymous => None,
+        Author::Oauth2(s) => Some(s),
+    });
 
-    if !query.is_empty() && nojs {
+    let body = if !query.is_empty() && nojs {
         nojs_gallery_search(db, page_num, &query, page, nojs, username).await
     } else {
         normal_gallery_page(db, page_num, nojs, username).await
-    }
+    };
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(HTML_TYPE.0, HTML_TYPE.1)
+        .header(ETAG, md5_etag(&body))
+        .body(body.into())
+        .unwrap()
 }
 
-pub fn register(conf: &mut web::ServiceConfig) {
-    conf.service(gallery_redir)
-        .service(gallery_random_redir)
-        .service(gallery_latest_redir)
-        .service(gallery_page);
+pub fn routes() -> Router<MooseWebData> {
+    Router::new()
+        .route("/gallery", get(Redirect::permanent("/gallery/0")))
+        .route("/gallery/", get(Redirect::permanent("/gallery/0")))
+        .route("/gallery/latest", get(gallery_latest_redir))
+        .route("/gallery/random", get(gallery_random_redir))
+        .route("/gallery/{page_id}", get(gallery_page))
 }

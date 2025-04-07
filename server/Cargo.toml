@@ -6,7 +6,6 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-serve_static = ["dep:actix-files"]
 bad_rate_limiter = []
 
 [dependencies]
@@ -18,9 +17,7 @@ rand = { version = "0.8.5", features = ["std", "std_rng"], default-features = fa
 base64 = { version = "0.22" }
 png = "0.17.5"
 crc32fast = "1.3.2"
-maud = "0.23.0"
-actix-web = "4.9"
-actix-session = { version = "0.10", default-features = false, features = ["cookie-session"] }
+maud = "0.27.0"
 percent-encoding = "2.1.0"
 md5 = "0.7.0"
 deadpool-sync = "0.1.4"
@@ -34,7 +31,16 @@ include_dir = "0.7.3"
 const_format = "0.2.30"
 tokio = { version = "1", default-features = false, features = ["rt", "time", "macros", "signal"] }
 time = { version = "0.3.36", features = ["formatting", "parsing", "macros"] }
+http = "1"
+tower = "0.5"
+tower-cookies = { version = "0.11", features = ["private"] }
 
-[dependencies.actix-files]
-version = "0.6"
-optional = true
+[dependencies.axum]
+version = "0.8"
+default-features = false
+features = ["http1", "json", "form", "query", "tokio"]
+
+# [dependencies.axum-extra]
+# version = "0.10"
+# default-features = false
+# features = ["cookie-private"]

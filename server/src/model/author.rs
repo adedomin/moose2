@@ -17,8 +17,9 @@
 use rusqlite::{ToSql, types::FromSql};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub enum Author {
+    #[default]
     Anonymous,
     Oauth2(String),
 }

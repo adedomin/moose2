@@ -26,6 +26,7 @@ use tokio::sync::broadcast;
 
 pub mod config;
 pub mod db;
+pub mod middleware;
 pub mod model;
 pub mod render;
 pub mod shared_data;

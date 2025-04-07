@@ -16,20 +16,21 @@
 
 use std::path::PathBuf;
 
-use super::{api::ApiError, if_none_match};
+use super::{MooseWebData, api::ApiError};
 use crate::{
+    middleware::etag::crc32_etag,
     model::mime::get_mime,
     shared_data::{COLORS_JS, ERR_JS, SIZ_JS},
 };
-use actix_web::{
-    HttpRequest, HttpResponse, Responder,
-    body::BoxBody,
-    get,
-    http::{
-        StatusCode,
-        header::{CacheControl, CacheDirective, ETag, EntityTag},
-    },
-    web,
+use axum::{
+    Router,
+    extract::{Path, Request},
+    response::{IntoResponse, Response},
+    routing::get,
+};
+use http::{
+    StatusCode,
+    header::{CACHE_CONTROL, CONTENT_TYPE, ETAG},
 };
 use include_dir::{Dir, include_dir};
 
@@ -40,41 +41,29 @@ pub enum Static {
     NotFound,
 }
 
-impl Responder for Static {
-    type Body = BoxBody;
-
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
+impl IntoResponse for Static {
+    fn into_response(self) -> Response {
         let (body, ctype) = if let Static::Content(body, ctype) = self {
             (body, ctype)
         } else {
-            return HttpResponse::Ok()
+            return Response::builder()
                 .status(StatusCode::NOT_FOUND)
-                .json(ApiError::new("No such file.".to_string()));
+                .body(
+                    serde_json::to_string(&ApiError::new("No such file.".to_string()))
+                        .unwrap()
+                        .into(),
+                )
+                .unwrap();
         };
-
-        let (etag_match, crc32) = if_none_match(body, req);
-        let etag_head = ETag(EntityTag::new_strong(crc32.to_string()));
-        let ctype_head = ("Content-Type", ctype);
-
-        let mut res_build = HttpResponse::Ok();
-        let res_build = res_build
-            .insert_header(etag_head)
-            .insert_header(ctype_head)
-            .insert_header(CacheControl(vec![
-                CacheDirective::Public,
-                CacheDirective::Extension("immutable".to_owned(), None),
-                CacheDirective::MaxAge(3600),
-                CacheDirective::Extension(
-                    "stale-while-revalidate".to_owned(),
-                    Some("86400".to_owned()),
-                ),
-                CacheDirective::Extension("stale-if-error".to_owned(), Some("86400".to_owned())),
-            ]));
-        if etag_match {
-            res_build.status(StatusCode::NOT_MODIFIED).body(())
-        } else {
-            res_build.body(body)
-        }
+        Response::builder()
+            .header(
+                CACHE_CONTROL,
+                "public, immutable, max-age=3600, stale-while-revalidate=86400, stale-if-error=86400",
+            )
+            .header(ETAG, crc32_etag(body))
+            .header(CONTENT_TYPE, ctype)
+            .status(StatusCode::OK)
+            .body(body.into()).unwrap()
     }
 }
 
@@ -84,33 +73,29 @@ fn get_static_file_from(d: &'static Dir, path: &str, ext: &str) -> Static {
         .unwrap_or(Static::NotFound)
 }
 
-#[get("/")]
 async fn index_page() -> Static {
     get_static_file_from(&CLIENT_DIR, "root/index.html", "html")
 }
 
-#[get("/favicon.ico")]
 async fn favicon() -> Static {
     get_static_file_from(&CLIENT_DIR, "root/favicon.ico", "ico")
 }
 
-#[get("/public/const/{const}.js")]
-async fn const_js_modules(c: web::Path<String>) -> Static {
-    let body = match c.into_inner().as_str() {
-        "colors" => COLORS_JS.as_ref(),
-        "sizes" => SIZ_JS,
+async fn const_js_modules(Path(const_js): Path<String>) -> Static {
+    let body = match const_js.as_str() {
+        "colors.js" => COLORS_JS.as_ref(),
+        "sizes.js" => SIZ_JS,
         _ => return Static::NotFound,
     };
     Static::Content(body, "application/javascript")
 }
 
-#[get("/public/global-modules/err.js")]
 async fn err_js_script() -> Static {
     Static::Content(ERR_JS, "application/javascript")
 }
 
-async fn static_content(req: HttpRequest) -> Static {
-    let loc = req.path();
+async fn static_content(req: Request) -> Static {
+    let loc = req.uri().path();
     let Some(loc) = loc.strip_prefix("/public/") else {
         return Static::NotFound;
     };
@@ -119,10 +104,12 @@ async fn static_content(req: HttpRequest) -> Static {
     get_static_file_from(&CLIENT_DIR, loc, ext.as_ref())
 }
 
-pub fn register(conf: &mut web::ServiceConfig) {
-    conf.service(index_page)
-        .service(favicon)
-        .service(err_js_script)
-        .service(const_js_modules)
-        .default_service(actix_web::web::to(static_content));
+pub fn routes() -> Router<MooseWebData> {
+    Router::new()
+        .route("/favicon.ico", get(favicon))
+        .route("/", get(index_page))
+        .route("/index.html", get(index_page))
+        .route("/public/global-modules/err.js", get(err_js_script))
+        .route("/public/const/{const}", get(const_js_modules))
+        .fallback(static_content)
 }
