@@ -14,6 +14,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::borrow::Cow;
+
 use super::{CSRF_COOKIE, LOGIN_COOKIE, MooseWebData, REDIR_COOKIE, get_login};
 use crate::{model::author::Author, web_handlers::JSON_TYPE};
 use axum::{
@@ -28,7 +30,7 @@ use oauth2::{
     TokenResponse, basic::BasicErrorResponseType,
 };
 use serde::{Deserialize, Serialize};
-use tower_cookies::{Cookie, Cookies, Key};
+use tower_cookies::{Cookie, Cookies, Key, cookie::Expiration};
 
 #[derive(Deserialize)]
 struct GithubUserApi {
@@ -54,11 +56,8 @@ pub enum AuthApiError {
         >,
     ),
 
-    #[error("Could not get CSRF or Login.")]
+    #[error("Could not get CSRF from cookie.")]
     SessionGet,
-
-    #[error("Could not set CSRF or Login.")]
-    SessionSet,
 }
 
 impl IntoResponse for AuthApiError {
@@ -81,6 +80,19 @@ pub struct LogInOutRedir {
     redirect: Option<String>,
 }
 
+fn new_cookie<'a, K, V>(key: K, value: V) -> Cookie<'a>
+where
+    K: Into<Cow<'a, str>>,
+    V: Into<Cow<'a, str>>,
+{
+    Cookie::build((key, value))
+        .http_only(true)
+        .secure(true)
+        .path("/")
+        .expires(Expiration::Session)
+        .build()
+}
+
 async fn login(
     State(auth_client): State<MooseWebData>,
     session: Cookies,
@@ -96,8 +108,9 @@ async fn login(
         let (authorize_url, csrf_state) =
             oauth2_client.oa.authorize_url(CsrfToken::new_random).url();
 
-        session.add(Cookie::new(CSRF_COOKIE, csrf_state.into_secret()));
-        session.add(Cookie::new(
+        let session = session.private(&auth_client.cookie_key);
+        session.add(new_cookie(CSRF_COOKIE, csrf_state.into_secret()));
+        session.add(new_cookie(
             REDIR_COOKIE,
             serde_json::to_string(&query).unwrap(),
         ));
@@ -167,6 +180,9 @@ async fn auth(
             .redirect
             .unwrap_or_else(|| "/".to_owned());
 
+        let session = session.private(&auth_client.cookie_key);
+        session.remove(new_cookie(CSRF_COOKIE, ""));
+        session.remove(new_cookie(REDIR_COOKIE, ""));
         #[cfg(debug_assertions)]
         {
             let html = format!(
@@ -181,7 +197,7 @@ async fn auth(
                 </body>
             </html>"#
             );
-            session.add(Cookie::new(
+            session.add(new_cookie(
                 LOGIN_COOKIE,
                 serde_json::to_string(&Author::Oauth2(login_name)).unwrap(),
             ));
@@ -189,7 +205,7 @@ async fn auth(
         }
         #[cfg(not(debug_assertions))]
         {
-            session.add(Cookie::new(
+            session.add(new_cookie(
                 LOGIN_COOKIE,
                 serde_json::to_string(&Author::Oauth2(login_name)).unwrap(),
             ));
@@ -216,7 +232,7 @@ async fn logged_in(State(webdata): State<MooseWebData>, session: Cookies) -> Res
         Some(Author::Oauth2(username)) => serde_json::to_vec(&username).unwrap(),
         Some(Author::Anonymous) => {
             // how?
-            session.remove(Cookie::new(LOGIN_COOKIE, ""));
+            session.remove(new_cookie(LOGIN_COOKIE, ""));
             b"null".to_vec()
         }
         _ => b"null".to_vec(),
@@ -232,7 +248,7 @@ async fn logout(
     Form(LogInOutRedir { redirect }): Form<LogInOutRedir>,
 ) -> impl IntoResponse {
     let redir = redirect.unwrap_or_else(|| "/".to_owned());
-    session.remove(Cookie::new(LOGIN_COOKIE, ""));
+    session.remove(new_cookie(LOGIN_COOKIE, ""));
     Redirect::to(&redir)
 }
 
