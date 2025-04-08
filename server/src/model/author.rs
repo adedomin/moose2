@@ -14,8 +14,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use axum::extract::{FromRef, FromRequestParts};
+use http::{StatusCode, request::Parts};
 use rusqlite::{ToSql, types::FromSql};
 use serde::{Deserialize, Serialize};
+use tower_cookies::Cookies;
+
+use crate::web_handlers::{MooseWebData, get_login};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub enum Author {
@@ -54,5 +59,24 @@ impl TryInto<String> for Author {
             Author::Anonymous => Err(()),
             Author::Oauth2(user) => Ok(user),
         }
+    }
+}
+
+impl<S> FromRequestParts<S> for Author
+where
+    MooseWebData: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = (http::StatusCode, &'static str);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let Some(cookies) = parts.extensions.get::<Cookies>() else {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Can't extract cookies. Is tower-cookies applied!?",
+            ));
+        };
+        let state = MooseWebData::from_ref(state);
+        Ok(get_login(cookies, &state.cookie_key).unwrap_or_default())
     }
 }

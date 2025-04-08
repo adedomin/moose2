@@ -14,7 +14,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use super::{HTML_TYPE, MooseWebData, get_login};
+use super::{HTML_TYPE, MooseWebData};
 use crate::{
     db::MooseDB,
     middleware::etag::md5_etag,
@@ -24,6 +24,7 @@ use crate::{
         queries::SearchQuery,
     },
     templates::gallery,
+    web_handlers::ApiError,
 };
 use axum::{
     Router,
@@ -33,7 +34,6 @@ use axum::{
 };
 use http::{StatusCode, header::ETAG};
 use rand::Rng;
-use tower_cookies::Cookies;
 
 async fn gallery_random_redir(State(db): State<MooseWebData>) -> Response {
     let db = &db.db;
@@ -47,11 +47,8 @@ async fn gallery_random_redir(State(db): State<MooseWebData>) -> Response {
             }
         }
         Err(e) => {
-            eprintln!("{}", e);
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(e.to_string().into())
-                .unwrap()
+            eprintln!("ERR: [WEB/DISPLAY/RANDOM] DB: {e}");
+            ApiError::new(e.to_string()).into_response()
         }
     }
 }
@@ -63,11 +60,8 @@ async fn gallery_latest_redir(State(db): State<MooseWebData>) -> Response {
             Redirect::to(&format!("/gallery/{}", page_count.saturating_sub(1))).into_response()
         }
         Err(e) => {
-            eprintln!("{}", e);
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(e.to_string().into())
-                .unwrap()
+            eprintln!("ERR: [WEB/DISPLAY/LATEST] DB: {e}");
+            ApiError::new(e.to_string()).into_response()
         }
     }
 }
@@ -85,7 +79,7 @@ async fn nojs_gallery_search(
         .search_moose(query, search_page)
         .await
         .unwrap_or_else(|err| {
-            eprintln!("{}", err);
+            eprintln!("ERR: [WEB/DISPLAY/SEARCH/NOJS] DB: {err}");
             MooseSearchPage::default()
         });
 
@@ -110,7 +104,7 @@ async fn normal_gallery_page(
     let db = &db.db;
     let meese = if nojs {
         let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
-            eprintln!("{}", err);
+            eprintln!("ERR: [WEB/DISPLAY/GALLERY] DB: {err}");
             vec![]
         });
         Some(
@@ -140,15 +134,14 @@ async fn normal_gallery_page(
 async fn gallery_page(
     State(db): State<MooseWebData>,
     Path(page_num): Path<usize>,
-    session: Cookies,
+    username: Author,
     Query(query): Query<SearchQuery>,
 ) -> Response {
     let SearchQuery { query, page, nojs } = query;
-
-    let username = get_login(&session, &db.cookie_key).and_then(|a| match a {
+    let username = match username {
         Author::Anonymous => None,
         Author::Oauth2(s) => Some(s),
-    });
+    };
 
     let body = if !query.is_empty() && nojs {
         nojs_gallery_search(db, page_num, &query, page, nojs, username).await

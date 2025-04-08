@@ -14,14 +14,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use super::{HOUR_CACHE, MooseWebData, get_login};
+use super::{ApiError, HOUR_CACHE, MooseWebData};
 use crate::{
     db::{
         MooseDB,
         sqlite3_impl::{Pool, Sqlite3Error},
     },
     model::{
-        PAGE_SIZE, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage,
+        PAGE_SIZE, author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage,
         queries::SearchQuery,
     },
     render::{moose_irc, moose_png, moose_term},
@@ -42,19 +42,7 @@ use http::{
     header::{CACHE_CONTROL, CONTENT_TYPE, LOCATION},
 };
 use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
-use serde::Serialize;
-use std::{fmt::Display, time::Duration};
-use tower_cookies::Cookies;
-
-#[cfg(feature = "bad_rate_limiter")]
-use std::{
-    sync::atomic::{AtomicU64, Ordering::Relaxed},
-    time::{SystemTime, UNIX_EPOCH},
-};
-
-/// TODO: Use a proper rate limiter
-#[cfg(feature = "bad_rate_limiter")]
-static LIMITER: AtomicU64 = AtomicU64::new(0);
+use std::time::Duration;
 
 pub enum HeadType {
     Found,
@@ -67,30 +55,7 @@ pub enum ApiResp {
     BodyCacheTime(Vec<u8>, &'static str, time::Duration),
     Redirect(String),
     NotFound(String),
-    CustomError(StatusCode, ApiError),
-}
-
-#[derive(Serialize)]
-pub struct ApiError {
-    status: &'static str,
-    msg: String,
-}
-
-impl ApiError {
-    pub fn new(msg: String) -> Self {
-        ApiError {
-            status: "error",
-            msg,
-        }
-    }
-
-    pub fn new_ok(msg: String) -> Self {
-        ApiError { status: "ok", msg }
-    }
-
-    pub fn to_json(&self) -> Vec<u8> {
-        serde_json::to_vec(&self).unwrap()
-    }
+    CustomError(ApiError),
 }
 
 impl IntoResponse for ApiResp {
@@ -122,10 +87,7 @@ impl IntoResponse for ApiResp {
                         .into(),
                 )
                 .unwrap(),
-            ApiResp::CustomError(code, err) => Response::builder()
-                .status(code)
-                .body(err.to_json().into())
-                .unwrap(),
+            ApiResp::CustomError(err) => err.into_response(),
         }
     }
 }
@@ -164,12 +126,11 @@ async fn simple_get(db: &Pool, name: &str) -> Result<Option<Moose>, String> {
 async fn resolve_moose(State(db): State<MooseWebData>, Path(moose_name): Path<String>) -> ApiResp {
     let db = &db.db;
     match simple_get(db, &moose_name).await {
-        Ok(Some(moose)) => ApiResp::CustomError(
-            StatusCode::OK,
-            ApiError::new_ok(percent_encode(moose.name.as_bytes(), NON_ALPHANUMERIC).to_string()),
-        ),
+        Ok(Some(moose)) => ApiResp::CustomError(ApiError::new_ok(
+            percent_encode(moose.name.as_bytes(), NON_ALPHANUMERIC).to_string(),
+        )),
         Ok(None) => ApiResp::NotFound(moose_name),
-        Err(redir) => ApiResp::CustomError(StatusCode::OK, ApiError::new_ok(redir)),
+        Err(redir) => ApiResp::CustomError(ApiError::new_ok(redir)),
     }
 }
 
@@ -179,15 +140,14 @@ async fn get_moose(
     uri: Uri,
 ) -> ApiResp {
     let db = &db.db;
-    let Some(path) = uri.path().split('/').skip(1).next() else {
+    let Some(path) = uri.path().split('/').nth(1) else {
         eprintln!(
             "ERR: [WEB/API/GET_MOOSE] Path seems wrong for some call: {:?}",
             uri.path()
         );
-        return ApiResp::CustomError(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            ApiError::new("Path seems to be missing components; how did you get here?".to_owned()),
-        );
+        return ApiResp::CustomError(ApiError::new(
+            "Path seems to be missing components; how did you get here?".to_owned(),
+        ));
     };
     match simple_get(db, &moose_name).await {
         Ok(Some(moose)) => {
@@ -200,10 +160,9 @@ async fn get_moose(
                     eprintln!(
                         "ERR: [WEB/API/GET_MOOSE] Router is passing paths that don't make sense: {path:?}",
                     );
-                    return ApiResp::CustomError(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        ApiError::new("Cannot fetch moose type: {path:?}".to_owned()),
-                    );
+                    return ApiResp::CustomError(ApiError::new(
+                        "Cannot fetch moose type: {path:?}".to_owned(),
+                    ));
                 }
             };
             ApiResp::Body(body, ctype)
@@ -278,70 +237,18 @@ async fn get_search_page(
 
 pub const MAX_BODY_SIZE: usize = 2usize.pow(14);
 
-// fn moose_validation_err<T: Display>(mut base: HttpResponseBuilder, msg: T) -> HttpResponse {
-//     base.insert_header(JSON_TYPE).json(ApiError {
-//         status: "error",
-//         msg: msg.to_string(),
-//     })
-// }
-
-fn moose_validation_err<T: Display>(code: StatusCode, msg: T) -> Response {
-    let body = ApiError::new(msg.to_string()).to_json();
-    Response::builder()
-        .status(code)
-        .header(JSON_TYPE.0, JSON_TYPE.1)
-        .body(body.into())
-        .unwrap()
-}
-
-/// Global Moose rate-limiter, prevents a new moose every minute.
-/// TODO: make this session based.
-#[cfg(feature = "bad_rate_limiter")]
-fn check_ratelimit() -> Result<(), HttpResponse> {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    // nothing depends on stores to the value of LIMITER other than here.
-    if let Err(old) = LIMITER.fetch_update(Relaxed, Relaxed, |time| {
-        if now - time > 60 { Some(now) } else { None }
-    }) {
-        let retry_after = format!("{}", 60 - (now - old));
-        Err(HttpResponse::TooManyRequests()
-            .insert_header(("Retry-After", retry_after.as_str()))
-            .json(ApiError {
-                status: "error",
-                msg: format!("Retry again in {retry_after}"),
-            }))
-    } else {
-        Ok(())
-    }
-}
-
 async fn put_new_moose(
     State(webdata): State<MooseWebData>,
-    session: Cookies,
+    session_author: Author,
     payload: Result<Json<Moose>, JsonRejection>,
-) -> Response {
-    #[cfg(feature = "bad_rate_limiter")]
-    if let Err(e) = check_ratelimit() {
-        return e;
-    }
-
+) -> ApiError {
     let Json(mut moose) = match payload {
         Ok(moose) => moose,
         Err(e) => {
-            return moose_validation_err(StatusCode::BAD_REQUEST, e);
+            return ApiError::new_with_status(StatusCode::BAD_REQUEST, e);
         }
     };
 
-    // TODO: fix sessions later.
-    // if let Ok(Some(author)) = session.get::<Author>("login") {
-    //     moose.author = author;
-    // } else {
-    //     moose.author = Author::Anonymous;
-    // }
-    let session_author = get_login(&session, &webdata.cookie_key).unwrap_or_default();
     moose.author = session_author;
 
     // Ignore these user fields by replacing them with defaults.
@@ -349,8 +256,8 @@ async fn put_new_moose(
     moose.upvotes = 0;
 
     if let Dimensions::Custom(_, _) = moose.dimensions {
-        return moose_validation_err(
-            StatusCode::BAD_REQUEST,
+        return ApiError::new_with_status(
+            StatusCode::UNPROCESSABLE_ENTITY,
             "Custom dimensions are not allowed through the public API.",
         );
     }
@@ -360,26 +267,16 @@ async fn put_new_moose(
     if let Err(e) = db.insert_moose(moose).await {
         if let Sqlite3Error::Sqlite3(rusqlite::Error::SqliteFailure(e, _)) = e {
             if matches!(e.code, rusqlite::ErrorCode::ConstraintViolation) {
-                return moose_validation_err(
+                return ApiError::new_with_status(
                     StatusCode::UNPROCESSABLE_ENTITY,
                     format!("{moose_name} already exists."),
                 );
             }
         }
-        moose_validation_err(StatusCode::UNPROCESSABLE_ENTITY, e)
+        ApiError::new_with_status(StatusCode::UNPROCESSABLE_ENTITY, e)
     } else {
         notify_new();
-        Response::builder()
-            .header(JSON_TYPE.0, JSON_TYPE.1)
-            .body(
-                ApiError {
-                    status: "ok",
-                    msg: format!("Saved {moose_name}."),
-                }
-                .to_json()
-                .into(),
-            )
-            .unwrap()
+        ApiError::new_ok(format!("Saved {moose_name}."))
     }
 }
 
@@ -419,5 +316,5 @@ pub fn routes() -> Router<MooseWebData> {
         .route("/nav/{page_num}", get(get_page_nav_range))
         .route("/search", get(get_search_page))
         .route("/dump", get(get_dump))
-        .route("/new", put(put_new_moose))
+        .route("/new", put(put_new_moose).post(put_new_moose))
 }

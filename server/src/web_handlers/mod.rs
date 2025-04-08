@@ -14,9 +14,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 
-use http::{HeaderName, HeaderValue, header::CONTENT_TYPE};
+use axum::response::{IntoResponse, Response};
+use http::{HeaderName, HeaderValue, StatusCode, header::CONTENT_TYPE};
+use serde::Serialize;
 use tower_cookies::{Cookies, Key};
 
 use crate::model::{app_data::AppData, author::Author};
@@ -45,4 +47,62 @@ pub fn get_login(c: &Cookies, k: &Key) -> Option<Author> {
     c.private(k)
         .get(LOGIN_COOKIE)
         .and_then(|c| serde_json::from_str::<Author>(c.value()).ok())
+}
+
+#[derive(Serialize, Debug)]
+pub struct ApiError {
+    #[serde(skip)]
+    code: StatusCode,
+    status: &'static str,
+    msg: String,
+}
+
+const FALLBACK: &[u8] = br##"{ "status": "critical", "msg": "failed to serialize api message." }"##;
+
+impl ApiError {
+    pub fn new(msg: String) -> Self {
+        ApiError {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            status: "error",
+            msg,
+        }
+    }
+
+    pub fn new_ok(msg: String) -> Self {
+        ApiError {
+            code: StatusCode::OK,
+            status: "ok",
+            msg,
+        }
+    }
+
+    pub fn new_with_status<T: Display>(code: StatusCode, msg: T) -> Self {
+        ApiError {
+            code,
+            status: if code.is_success() { "ok" } else { "error" },
+            msg: msg.to_string(),
+        }
+    }
+
+    pub fn to_json(&self) -> Vec<u8> {
+        match serde_json::to_vec(&self) {
+            Ok(ok) => ok,
+            Err(e) => {
+                eprintln!(
+                    "ERR: [WEB/MOD] Could not Serialize ApiError Struct: {self:?}, reason {e}"
+                );
+                FALLBACK.to_owned()
+            }
+        }
+    }
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> axum::response::Response {
+        Response::builder()
+            .status(self.code)
+            .header(JSON_TYPE.0, JSON_TYPE.1)
+            .body(self.to_json().into())
+            .unwrap()
+    }
 }

@@ -16,7 +16,7 @@
 
 use std::borrow::Cow;
 
-use super::{CSRF_COOKIE, LOGIN_COOKIE, MooseWebData, REDIR_COOKIE, get_login};
+use super::{ApiError, CSRF_COOKIE, LOGIN_COOKIE, MooseWebData, REDIR_COOKIE, get_login};
 use crate::{model::author::Author, web_handlers::JSON_TYPE};
 use axum::{
     Form, Router,
@@ -58,14 +58,14 @@ pub enum AuthApiError {
 
     #[error("Could not get CSRF from cookie.")]
     SessionGet,
+
+    #[error("CSRF Mismatch")]
+    MismatchedCSRF,
 }
 
 impl IntoResponse for AuthApiError {
     fn into_response(self) -> Response {
-        Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(self.to_string().into())
-            .unwrap()
+        ApiError::new(self.to_string()).into_response()
     }
 }
 
@@ -93,16 +93,24 @@ where
         .build()
 }
 
+// Form type deserializes GET Queries for some reason.
+async fn login_get(
+    auth_client: State<MooseWebData>,
+    session: Cookies,
+) -> Result<Response, ApiError> {
+    login(auth_client, session, Form(LogInOutRedir::default())).await
+}
+
 async fn login(
     State(auth_client): State<MooseWebData>,
     session: Cookies,
     Form(query): Form<LogInOutRedir>,
-) -> Response {
+) -> Result<Response, ApiError> {
     if let Some(oauth2_client) = &auth_client.oauth2_client {
         if let Some(author) = get_login(&session, &auth_client.cookie_key) {
-            return Response::builder()
-                .body(format!("Already logged in as: {author:?}").into())
-                .unwrap();
+            return Err(ApiError::new_ok(format!(
+                "Already logged in as: {author:?}"
+            )));
         }
 
         let (authorize_url, csrf_state) =
@@ -115,16 +123,16 @@ async fn login(
             serde_json::to_string(&query).unwrap(),
         ));
 
-        Response::builder()
+        Ok(Response::builder()
             .status(StatusCode::FOUND)
             .header(LOCATION, authorize_url.to_string())
             .body(().into())
-            .unwrap()
+            .unwrap())
     } else {
-        Response::builder()
-            .status(StatusCode::NOT_IMPLEMENTED)
-            .body("Authentication is disabled; the admin has to add an OAuth2 provider.".into())
-            .unwrap()
+        Err(ApiError::new_with_status(
+            StatusCode::NOT_IMPLEMENTED,
+            "Authentication is disabled; the admin has to add an OAuth2 provider.",
+        ))
     }
 }
 
@@ -147,10 +155,7 @@ async fn auth(
         let csrf_tok = CsrfToken::new(get_csrf(&session, &auth_client.cookie_key)?);
 
         if csrf_tok.secret() != csrf_val.secret() {
-            return Ok(Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .body("No CSRF".to_owned().into())
-                .unwrap());
+            return Err(AuthApiError::MismatchedCSRF);
         }
 
         let token = oauth2_client
@@ -227,15 +232,19 @@ async fn auth(
     }
 }
 
-async fn logged_in(State(webdata): State<MooseWebData>, session: Cookies) -> Response {
-    let body = match get_login(&session, &webdata.cookie_key) {
-        Some(Author::Oauth2(username)) => serde_json::to_vec(&username).unwrap(),
-        Some(Author::Anonymous) => {
-            // how?
-            session.remove(new_cookie(LOGIN_COOKIE, ""));
-            b"null".to_vec()
-        }
-        _ => b"null".to_vec(),
+const NULL_RESP: &[u8] = b"null";
+
+async fn logged_in(username: Author) -> Response {
+    let body = match username {
+        Author::Oauth2(username) => match serde_json::to_vec(&username) {
+            Ok(ok) => ok,
+            Err(e) => {
+                // shouldn't be possible?
+                eprintln!("ERR: [WEB/OAUTH/LOGGED_IN] HUH? {e:?}");
+                NULL_RESP.to_vec()
+            }
+        },
+        Author::Anonymous => NULL_RESP.to_vec(),
     };
     Response::builder()
         .header(JSON_TYPE.0, JSON_TYPE.1)
@@ -254,7 +263,7 @@ async fn logout(
 
 pub fn routes() -> Router<MooseWebData> {
     Router::new()
-        .route("/login", get(login).post(login))
+        .route("/login", get(login_get).post(login))
         .route("/auth", get(auth))
         .route("/login/username", post(logged_in))
         .route("/logout", post(logout))

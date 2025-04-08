@@ -16,7 +16,7 @@
 
 use std::path::PathBuf;
 
-use super::{MooseWebData, api::ApiError};
+use super::{ApiError, MooseWebData};
 use crate::{
     middleware::etag::crc32_etag,
     model::mime::get_mime,
@@ -46,14 +46,8 @@ impl IntoResponse for Static {
         let (body, ctype) = if let Static::Content(body, ctype) = self {
             (body, ctype)
         } else {
-            return Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(
-                    serde_json::to_string(&ApiError::new("No such file.".to_string()))
-                        .unwrap()
-                        .into(),
-                )
-                .unwrap();
+            return ApiError::new_with_status(StatusCode::NOT_FOUND, "No such file.")
+                .into_response();
         };
         Response::builder()
             .header(
