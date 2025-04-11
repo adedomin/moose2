@@ -1,0 +1,111 @@
+:root {
+  --bg: #eae8e3;
+  --fg: black;
+  --bg-body: #cecbc2;
+  --bg-btn: #dfded9;
+  --select-col: #4e92ff;
+  --select-hover: #7bc0ff;
+  --destructive-col: #ff2b56;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #333;
+    --fg: whitesmoke;
+    --bg-body: #252525;
+    --bg-btn: grey;
+    --select-col: #276cda;
+    --select-hover: #276caa;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body, html {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  color: var(--fg);
+  background-color: var(--bg-body);
+  font-family: sans-serif;
+}
+
+.center-me {
+  display: grid;
+  place-content: center;
+}
+
+.transparent, .img {
+  background: repeating-conic-gradient(#999 0% 25%, #666 0% 50%) 50% / 1em 1em;
+}
+
+.nav {
+  margin: 0.5em;
+}
+
+.nav a {
+  text-align: center;
+  text-decoration: none;
+}
+
+.float-right {
+  float: right;
+}
+
+.btn {
+  font-size: 1.5em;
+  text-align: center;
+  padding: 0.25em 0.5em 0.25em 0.5em;
+  border: 0px solid var(--bg-btn);
+  background-color: var(--bg-btn);
+  color: var(--fg);
+}
+
+.btn:hover {
+  background-color: var(--select-hover);
+}
+
+.btn.is-destructive {
+	background-color: var(--destructive-col);
+	color: #fff;
+}
+
+.btn.selected {
+  background-color: var(--select-col);
+}
+
+.btn-grp {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.btn-grp > .btn {
+  flex: 0 1 auto;
+}
+
+.btn-grp > .btn:first-child {
+  margin-left: 0;
+  border-left: 0;
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.btn-grp > .btn:last-child {
+  margin-right: 0;
+  border-right: 0;
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+input[type=text] {
+  background: var(--bg);
+  color: var(--fg);
+  border: none;
+  font-size: 1.5em;
+  flex: 1;
+  padding: 0.25em 0.5em 0.25em 0.5em;
+}

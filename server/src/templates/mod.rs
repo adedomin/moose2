@@ -28,6 +28,7 @@ pub fn header(page_title: &str, css: &'static str) -> Markup {
             meta charset="utf-8";
             meta name="description" content="Draw and Share Moose with your IRC friends.";
             meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no";
+            link rel="stylesheet" href="/public/root/common.css";
             link rel="stylesheet" href=(css);
             title { "Moose2 - " (page_title) }
         }
@@ -37,7 +38,7 @@ pub fn header(page_title: &str, css: &'static str) -> Markup {
 pub fn navbar(username: Option<String>) -> Markup {
     let is_login = username.is_some();
     html! {
-        .nav-actual {
+        .nav {
             .btn-grp {
                 a.btn href="/" { "Moose2" }
                 a.btn.selected href="/gallery" onclick="return false" { "Gallery" }
@@ -107,7 +108,7 @@ pub fn moose_card(moose: &Moose, href_pre: &str) -> Markup {
     let pix_h = pix_h * PIX_FMT_HEIGHT;
     let moose_enc = percent_encode(moose_name.as_bytes(), NON_ALPHANUMERIC);
     html! {
-       #{"-m-" (moose_enc)} .card {
+       #{"-m-" (moose_enc)} .card.center-me {
             a href={"/img/" (moose_enc)} {
                 img .img width=(pix_w) height=(pix_h) src={"/img/" (moose_enc)};
             }
@@ -120,7 +121,7 @@ pub fn moose_card(moose: &Moose, href_pre: &str) -> Markup {
 pub fn moose_card_template() -> Markup {
     html! {
         template #moose-card-template {
-            .card {
+            .card.center-me {
                 a .nil {
                     img .img;
                 }
@@ -134,10 +135,10 @@ pub fn moose_card_template() -> Markup {
 pub fn search_bar() -> Markup {
     html! {
         form #search-form method="get" {
-            .full-width {
-                input #search-field name="q"    type="text"   placeholder="Search Moose";
-                input               name="nojs" type="hidden" value="true";
-                input #submit                   type="submit" value="Search";
+            .full-width.btn-grp {
+                input      #search-field name="q"    type="text"   placeholder="Search Moose";
+                input                    name="nojs" type="hidden" value="true";
+                input .btn #submit                   type="submit" value="Search";
             }
         }
         // script type="module" src="/public/gallery/moose2.js" {}

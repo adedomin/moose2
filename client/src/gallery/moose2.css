@@ -1,56 +1,16 @@
 /* Copyright (C) 2024  Anthony DeDominic
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-
-:root {
-   --bg: #eae8e3;
-   --fg: black;
-   --paddle-bg: #dfded9;
-   --bg-body: #cecbc2;
-   --paddle-fg: black;
-   --select-col: #4e92ff;
-   --select-hover: #7bc0ff;
-   --destructive-col: #ff2b56;
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #333;
-        --fg: whitesmoke;
-        --paddle-bg: grey;
-        --paddle-fg: white;
-        --bg-body: #252525;
-        --select-col: #276cda;
-        --select-hover: #276caa;
-    }
-}
-
-* {
-    box-sizing: border-box;
-}
-
 img {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
 }
 
-body,
-html {
-    margin: 0;
-    padding: 0;
-}
-
 html {
     min-width: 300px;
     overflow-x: hidden;
     overflow-y: scroll;
-}
-
-body {
-    background-color: var(--bg-body);
-    color: var(--fg);
-    font-family: sans-serif;
 }
 
 :root { --col-size: 3; }
@@ -77,12 +37,6 @@ body {
     background-color: var(--bg);
     border-radius: 2%;
     text-align: center;
-    display: grid;
-    place-content: center;
-}
-
-.img {
-    background: repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 50% / 20px 20px;
 }
 
 .nav-block {
@@ -92,34 +46,19 @@ body {
     user-select: none;
 }
 
-.nav-actual {
-    display: flex;
-    justify-content: space-between;
-    margin: 0.5em 0.5em;
-}
-
-.nav-actual a {
-  text-align: center;
-  text-decoration: none;
-}
-
 @media only screen and (max-width: 480px) {
     .nav-block {
         flex-wrap: wrap;
     }
 }
 
-.nav-block>a {
+.nav-block > a {
     margin-left: 0.1em;
     margin-right: 0.1em;
 }
 
 .float-right {
     float: right;
-}
-
-.float-left {
-    float: left;
 }
 
 .black-link {
@@ -133,44 +72,20 @@ body {
     margin-right: 2em;
 }
 
-input {
-    background: var(--bg);
-    color: var(--fg);
-    border: none;
-}
-
-input[type="submit"] {
-    background: var(--paddle-bg);
-}
-
-.full-width > input[type="text"] {
-    flex: 1;
-    padding: 0.25em 0.5em 0.25em 0.5em;
-    font-size: 1.5em;
-}
-
-.full-width > input[type="submit"] {
-    padding: 0.25em 0.5em 0.25em 0.5em;
-    font-size: 1.5em;
-}
-
-
 @media only screen and (max-width: 480px) {
     .full-width {
         margin-left: 0.5em;
         margin-right: 0.5em;
     }
 
-    .full-width>input[type="submit"] {
+    .full-width > input[type="submit"] {
         display: none;
     }
 }
 
 .center-banner {
-    display: flex;
-    justify-content: center;
-    align-items: center;
     margin: 40px;
+    text-align: center;
 }
 
 .hidden {
@@ -185,8 +100,8 @@ input[type="submit"] {
 .paddle {
     text-align: center;
     text-decoration: none;
-    color: var(--paddle-fg);
-    background-color: var(--paddle-bg);
+    color: var(--fg);
+    background-color: var(--bg-btn);
     padding: 0.25em 0.5em 0.25em 0.5em;
     /* margin: 1em 0.05em 1em 0.05em; */
 }
@@ -195,21 +110,21 @@ input[type="submit"] {
     /* margin: 1em 0.25em 1em 0.05em; */
     padding: 0.25em 3em 0.25em 1em;
     text-decoration: none;
-    color: var(--paddle-fg);
+    color: var(--fg);
     background:
         linear-gradient(-120deg, transparent 1em,
-            var(--paddle-bg) 1.05em,
-            var(--paddle-bg) 1.5em,
+            var(--bg-btn) 1.05em,
+            var(--bg-btn) 1.5em,
             transparent 1.45em,
             transparent 2em,
-            var(--paddle-bg) 2.05em) top no-repeat,
+            var(--bg-btn) 2.05em) top no-repeat,
         linear-gradient(300deg,
             transparent 1em,
-            var(--paddle-bg) 1.05em,
-            var(--paddle-bg) 1.5em,
+            var(--bg-btn) 1.05em,
+            var(--bg-btn) 1.5em,
             transparent 1.45em,
             transparent 2em,
-            var(--paddle-bg) 2.05em) bottom no-repeat;
+            var(--bg-btn) 2.05em) bottom no-repeat;
     text-align: left;
     background-size: 100% 50%;
 }
@@ -218,21 +133,21 @@ input[type="submit"] {
     /* margin: 1em 0.05em 1em 0.25em; */
     padding: 0.25em 1em 0.25em 3em;
     text-decoration: none;
-    color: var(--paddle-fg);
+    color: var(--fg);
     background:
         linear-gradient(120deg, transparent 1em,
-            var(--paddle-bg) 1.05em,
-            var(--paddle-bg) 1.5em,
+            var(--bg-btn) 1.05em,
+            var(--bg-btn) 1.5em,
             transparent 1.45em,
             transparent 2em,
-            var(--paddle-bg) 2.05em) top no-repeat,
+            var(--bg-btn) 2.05em) top no-repeat,
         linear-gradient(-300deg,
             transparent 1em,
-            var(--paddle-bg) 1.05em,
-            var(--paddle-bg) 1.5em,
+            var(--bg-btn) 1.05em,
+            var(--bg-btn) 1.5em,
             transparent 1.45em,
             transparent 2em,
-            var(--paddle-bg) 2.05em) bottom no-repeat;
+            var(--bg-btn) 2.05em) bottom no-repeat;
     text-align: right;
     background-size: 100% 50%;
 }
@@ -254,8 +169,8 @@ input[type="submit"] {
     .paddle {
         text-align: center;
         text-decoration: none;
-        color: var(--paddle-fg);
-        background-color: var(--paddle-bg);
+        color: var(--fg);
+        background-color: var(--bg-btn);
         padding: 0.25em 0.2em 0.25em 0.2em;
         margin: 0.1em;
         font-size: 1.5em;
@@ -269,53 +184,6 @@ input[type="submit"] {
     }
 }
 
-.selected {
-    background-color: var(--select-col);
-}
-
-.btn {
-  font-size: 1.5em;
-  text-align: center;
-  padding: 0.25em 0.5em 0.25em 0.5em;
-  border: 0px solid var(--paddle-bg);
-  background-color: var(--paddle-bg);
-  color: var(--fg); 
-}
-
-.btn:hover, .paddle:hover, input[type="submit"]:hover {
+.paddle:hover, input[type="submit"]:hover {
   background-color: var(--select-hover);
 }
-
-.btn.is-destructive {
-	background-color: var(--destructive-col);
-	color: #fff;
-}
-
-.btn.selected {
-  background-color: var(--select-col);
-}
-
-.btn-grp {
-  display: inline-flex;
-  vertical-align: middle;
-}
-
-.btn-grp > .btn {
-  flex: 0 1 auto;
-}
-
-.btn-grp > .btn:first-child {
-  margin-left: 0;
-  border-left: 0;
-  border-top-left-radius: 6px;
-  border-bottom-left-radius: 6px;
-  
-}
-
-.btn-grp > .btn:last-child {
-  margin-right: 0;
-  border-right: 0;
-  border-top-right-radius: 6px;
-  border-bottom-right-radius: 6px;
-}
-
