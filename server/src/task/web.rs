@@ -83,16 +83,16 @@ pub fn web_task(
         }
         None => None,
     };
-    let moose_dump = rc.get_moose_dump();
     let app_data = Arc::new(AppData {
         db,
         cookie_key: Key::from(&rc.cookie_key.0),
-        moose_dump,
         oauth2_client,
     });
+    let moose_dump = rc.get_moose_dump();
 
     let app = Router::new()
         .merge(api::routes())
+        .merge(api::dump_route(moose_dump))
         .merge(oauth2_gh::routes())
         .merge(display::routes())
         .merge(static_files::routes())

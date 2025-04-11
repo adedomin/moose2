@@ -14,8 +14,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::path::PathBuf;
-
 // WTF
 type OAClient = oauth2::Client<
     oauth2::StandardErrorResponse<oauth2::basic::BasicErrorResponseType>,
@@ -40,7 +38,6 @@ use crate::db::sqlite3_impl::Pool;
 pub struct AppData {
     pub db: Pool,
     pub cookie_key: Key,
-    pub moose_dump: PathBuf,
     pub oauth2_client: Option<Oa>,
 }
 
