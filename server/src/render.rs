@@ -217,22 +217,17 @@ fn draw_bitmap(
     dim_y: usize,
     total: usize,
 ) -> Vec<u8> {
+    let width = PIX_FMT_WIDTH * dim_x;
     let mut bitmap = vec![0x99u8; total * PIX_FMT_WIDTH * PIX_FMT_HEIGHT];
-    xyrange(0, dim_x, 0, dim_y).for_each(|(x, y)| {
-        let pixel = image[y][x];
-        let pixel = color_map[pixel as usize];
-
-        let base_y = y * PIX_FMT_HEIGHT;
-        let base_x = x * PIX_FMT_WIDTH;
-        xyrange(
-            base_x,
-            base_x + PIX_FMT_WIDTH,
-            base_y,
-            base_y + PIX_FMT_HEIGHT,
-        )
-        .map(|(x, y)| idx_1dto2d(x, y, PIX_FMT_WIDTH * dim_x))
-        .for_each(|i| bitmap[i] = pixel);
-    });
+    xyrange(0, dim_x, 0, dim_y)
+        .flat_map(|(x, y)| {
+            let pixel = image[y][x];
+            let pixel = color_map[pixel as usize];
+            let base_y = y * PIX_FMT_HEIGHT;
+            let base_x = x * PIX_FMT_WIDTH;
+            (base_y..base_y + PIX_FMT_HEIGHT).map(move |y| (idx_1dto2d(base_x, y, width), pixel))
+        })
+        .for_each(|(idx, pixel)| bitmap[idx..idx + PIX_FMT_WIDTH].fill(pixel));
     bitmap
 }
 
