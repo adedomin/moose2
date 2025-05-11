@@ -47,7 +47,14 @@ fn main() {
         return;
     }
 
+    #[cfg(not(feature = "multi-thread"))]
     let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .enable_io()
+        .build()
+        .unwrap();
+    #[cfg(feature = "multi-thread")]
+    let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_time()
         .enable_io()
         .build()

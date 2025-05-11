@@ -280,7 +280,7 @@ async fn put_new_moose(
     }
 }
 
-#[cfg(not(feature = "serve_static"))]
+#[cfg(not(feature = "serve-static"))]
 const DUMP_PROD_MSG: &str = r###"
 Release moose does not implement read and serving file-system content.
 You are expected to use a Reverse Proxy to host moose2 over the internet.
@@ -297,7 +297,7 @@ location = /dump {
 ```
 "###;
 
-#[cfg(not(feature = "serve_static"))]
+#[cfg(not(feature = "serve-static"))]
 async fn get_dump() -> Response {
     Response::builder()
         .status(http::StatusCode::OK)
@@ -322,7 +322,7 @@ pub fn routes() -> Router<MooseWebData> {
 
 pub fn dump_route<T: AsRef<std::path::Path>>(_dump_path: T) -> Router<MooseWebData> {
     let r = Router::new();
-    #[cfg(feature = "serve_static")]
+    #[cfg(feature = "serve-static")]
     // NOTE: 256KiB was chosen based on performance testing
     //
     // `ab -k -n 1000 -c 8 http://localhost:5921/dump`
@@ -336,7 +336,7 @@ pub fn dump_route<T: AsRef<std::path::Path>>(_dump_path: T) -> Router<MooseWebDa
         "/dump",
         tower_http::services::ServeFile::new(_dump_path).with_buf_chunk_size(256 * 1024),
     );
-    #[cfg(not(feature = "serve_static"))]
+    #[cfg(not(feature = "serve-static"))]
     let r = r.route("/dump", get(get_dump));
     r
 }

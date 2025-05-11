@@ -6,7 +6,8 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-serve_static = ["dep:tower-http"]
+multi-thread = ["tokio/rt-multi-thread"]
+serve-static = ["dep:tower-http"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
