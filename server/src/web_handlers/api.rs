@@ -323,7 +323,19 @@ pub fn routes() -> Router<MooseWebData> {
 pub fn dump_route<T: AsRef<std::path::Path>>(_dump_path: T) -> Router<MooseWebData> {
     let r = Router::new();
     #[cfg(feature = "serve_static")]
-    let r = r.route_service("/dump", tower_http::services::ServeFile::new(_dump_path));
+    // NOTE: 256KiB was chosen based on performance testing
+    //
+    // `ab -k -n 1000 -c 8 http://localhost:5921/dump`
+    // -----------------------------------------------
+    //  64KiB:   ~225 req/sec  ServeFile default buffer size.
+    // 128KiB:  ~1500 req/sec
+    // 256KiB:  ~1600 req/sec  Current GNU Coreutils read(..., BUFSIZ) default.
+    // 512KiB:  ~1300 req/sec
+    //   1MiB:  ~1000 req/sec
+    let r = r.route_service(
+        "/dump",
+        tower_http::services::ServeFile::new(_dump_path).with_buf_chunk_size(256 * 1024),
+    );
     #[cfg(not(feature = "serve_static"))]
     let r = r.route("/dump", get(get_dump));
     r
