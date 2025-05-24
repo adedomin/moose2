@@ -17,7 +17,6 @@
 use std::{
     fs::{self},
     io::{self},
-    os::unix::fs::MetadataExt,
     path::PathBuf,
     sync::atomic::AtomicBool,
     time::Duration,
@@ -46,9 +45,9 @@ async fn dump_moose(
     // check if database was "likely" changed to prevent wastefully dumping every startup.
     let mdc = moose_dump.clone();
     match tokio::task::spawn_blocking(move || -> Result<bool, io::Error> {
-        let dump = fs::metadata(mdc)?;
-        let db = fs::metadata(dbpath)?;
-        Ok(dump.mtime() < db.mtime())
+        let dump_mtime = fs::metadata(mdc)?.modified()?;
+        let db_mtime = fs::metadata(dbpath)?.modified()?;
+        Ok(dump_mtime < db_mtime)
     })
     .await
     .unwrap()

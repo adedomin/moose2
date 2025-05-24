@@ -43,21 +43,27 @@ fn main() {
 
 #[cfg(windows)]
 fn main() {
+    use windows_services::{Command, Service};
     let (subcmd, rc) = config::parse_args();
     let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
     if let SubComm::Svc = subcmd {
         let mut thread = None;
-        windows_services::Service::new().can_stop().run(move |msg| {
+        Service::new().can_stop().run(move |msg| {
             match msg {
                 Command::Start => {
-                    thread = std::thread::spawn(move || {
-                        real_main(subcmd, rc, stopchan_tx.clone(), stopchan_rx);
-                    });
+                    if thread.is_none() {
+                        let st_tx = stopchan_tx.clone();
+                        let st_rx = st_tx.subscribe();
+                        let rc = rc.clone();
+                        thread = Some(std::thread::spawn(move || {
+                            real_main(SubComm::Svc, rc, st_tx, st_rx);
+                        }));
+                    }
                 }
                 Command::Stop => {
-                    if let Some(thread) = thread {
-                        stopchan_tx.send(()).unwrap();
-                        _ = thread.join();
+                    if let Some(jh) = thread.take() {
+                        _ = stopchan_tx.send(());
+                        _ = jh.join();
                     }
                 }
                 // unsupported command

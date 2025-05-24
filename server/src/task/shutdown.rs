@@ -47,11 +47,11 @@ pub fn shutdown_task(
     subcmd: SubComm,
 ) -> JoinHandle<Result<(), SendError<()>>> {
     // the service manager will signal shutdown; just exit early.
-    if let SubComm::Svc = SubComm {
+    if let SubComm::Svc = subcmd {
         tokio::spawn(async move { Ok(()) })
     } else {
         tokio::spawn(async move {
-            tokio::signal::ctrl_c().await;
+            _ = tokio::signal::ctrl_c().await;
             println!("WARN: [SHUTDOWN] SIGINT: shutting down.");
             shutdown_channel.send(())?;
             Ok(())

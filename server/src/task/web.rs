@@ -18,11 +18,9 @@ use std::sync::Arc;
 
 use axum::{Router, middleware};
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl, basic::BasicClient};
-use tokio::{
-    net::{TcpListener, UnixListener},
-    sync::broadcast::Receiver,
-    task::JoinHandle,
-};
+#[cfg(unix)]
+use tokio::net::UnixListener;
+use tokio::{net::TcpListener, sync::broadcast::Receiver, task::JoinHandle};
 use tower::ServiceBuilder;
 use tower_cookies::{CookieManagerLayer, Key};
 
@@ -107,12 +105,20 @@ pub fn web_task(
         let shutdown_h = async move {
             shutdown_signal.recv().await.unwrap();
         };
+        #[cfg(unix)]
         if let Some(path) = listen_addr.strip_prefix("unix:") {
             let uds = UnixListener::bind(path).unwrap();
             axum::serve(uds, app)
                 .with_graceful_shutdown(shutdown_h)
                 .await
         } else {
+            let inet = TcpListener::bind(listen_addr).await.unwrap();
+            axum::serve(inet, app)
+                .with_graceful_shutdown(shutdown_h)
+                .await
+        }
+        #[cfg(not(unix))]
+        {
             let inet = TcpListener::bind(listen_addr).await.unwrap();
             axum::serve(inet, app)
                 .with_graceful_shutdown(shutdown_h)
