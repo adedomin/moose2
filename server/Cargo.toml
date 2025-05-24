@@ -40,3 +40,6 @@ tower-http = { version = "0.6", optional = true, features = ["fs"] }
 version = "0.8"
 default-features = false
 features = ["http1", "json", "form", "query", "tokio"]
+
+[target.'cfg(windows)'.dependencies]
+windows-services = "0.24.0"

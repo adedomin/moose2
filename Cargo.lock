@@ -1072,6 +1072,7 @@ dependencies = [
  "tower",
  "tower-cookies",
  "tower-http",
+ "windows-services",
 ]
 
 [[package]]
@@ -2190,6 +2191,15 @@ name = "windows-result"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c64fd11a4fd95df68efcfee5f44a294fe71b8bc6a91993e2791938abcc712252"
+dependencies = [
+ "windows-link",
+]
+
+[[package]]
+name = "windows-services"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9089524f2581700a26ab666b2594f4dd9774e588788b064eb05ae09e798c41f7"
 dependencies = [
  "windows-link",
 ]

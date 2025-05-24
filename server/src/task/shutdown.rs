@@ -14,15 +14,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use crate::config::SubComm;
 use tokio::{
-    signal::unix::SignalKind,
     sync::broadcast::{Sender, error::SendError},
     task::JoinHandle,
 };
 
-pub fn shutdown_task(shutdown_channel: Sender<()>) -> JoinHandle<Result<(), SendError<()>>> {
+#[cfg(unix)]
+pub fn shutdown_task(
+    shutdown_channel: Sender<()>,
+    _subcmd: SubComm,
+) -> JoinHandle<Result<(), SendError<()>>> {
     tokio::spawn(async move {
-        let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate()).unwrap();
+        let mut sigterm =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
                 println!("WARN: [SHUTDOWN] SIGINT: shutting down.");
@@ -34,4 +39,22 @@ pub fn shutdown_task(shutdown_channel: Sender<()>) -> JoinHandle<Result<(), Send
         shutdown_channel.send(())?;
         Ok(())
     })
+}
+
+#[cfg(windows)]
+pub fn shutdown_task(
+    shutdown_channel: Sender<()>,
+    subcmd: SubComm,
+) -> JoinHandle<Result<(), SendError<()>>> {
+    // the service manager will signal shutdown; just exit early.
+    if let SubComm::Svc = SubComm {
+        tokio::spawn(async move { Ok(()) })
+    } else {
+        tokio::spawn(async move {
+            tokio::signal::ctrl_c().await;
+            println!("WARN: [SHUTDOWN] SIGINT: shutting down.");
+            shutdown_channel.send(())?;
+            Ok(())
+        })
+    }
 }

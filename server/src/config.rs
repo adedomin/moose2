@@ -24,6 +24,33 @@ use std::{
     process::exit,
 };
 
+#[cfg(unix)]
+mod env_vars {
+    pub mod config {
+        pub const BASE: &str = "CONFIGURATION_DIRECTORY";
+        pub const USER: &str = "XDG_CONFIG_HOME";
+        pub const FALLBACK: &str = "/etc";
+    }
+    pub mod data {
+        pub const BASE: &str = "STATE_DIRECTORY";
+        pub const USER: &str = "XDG_DATA_HOME";
+        pub const FALLBACK: &str = "/var/lib";
+    }
+}
+#[cfg(windows)]
+mod env_vars {
+    pub mod config {
+        pub const BASE: &str = "MOOSE2_HOME";
+        pub const USER: &str = "AppData";
+        pub const FALLBACK: &str = r"C:\ProgramData";
+    }
+    pub mod data {
+        pub use super::config::{BASE, FALLBACK, USER};
+    }
+}
+
+use env_vars::{config, data};
+
 const PBKDF_SALT: &[u8] = br####";o'"#|`=8kZhT:DWK\x4#<:&C.#Rzdd@"####;
 const PBKDF_ROUNDS: u32 = 8u32;
 
@@ -59,7 +86,7 @@ impl RunConfig {
         if let Some(path) = &self.moose_path {
             path.clone()
         } else {
-            find_systemd_or_xdg_path("STATE_DIRECTORY", "XDG_DATA_HOME", "/var/lib", "moose2.db")
+            find_systemd_or_xdg_path(data::BASE, data::USER, data::FALLBACK, "moose2.db")
         }
     }
 
@@ -67,12 +94,7 @@ impl RunConfig {
         if let Some(path) = &self.moose_dump {
             path.clone()
         } else {
-            find_systemd_or_xdg_path(
-                "STATE_DIRECTORY",
-                "XDG_DATA_HOME",
-                "/var/lib",
-                "moose2.json",
-            )
+            find_systemd_or_xdg_path(data::BASE, data::USER, data::FALLBACK, "moose2.json")
         }
     }
 
@@ -140,6 +162,7 @@ struct Comm {
 }
 pub enum SubComm {
     Run,
+    Svc,
     Import(BulkModeDupe, Option<PathBuf>),
     Convert(Option<(PathBuf, Option<PathBuf>)>),
 }
@@ -165,6 +188,7 @@ Options:
     -u | --update    for import subcommand: update existing duplicate moose (by name).
 
 Subcommand:
+    svc                  Run as a Windows Service.
     import  [input]      Import moose from [input] json file.
     convert [from] [to]  Convert moose json dump to modern moose2 format.
 "###;
@@ -217,11 +241,12 @@ fn parse_argv() -> Comm {
                 "-h" | "--help" => usage(""),
                 arg if arg.starts_with('-') => usage(format!("Unknown Flag {arg}.").as_str()),
                 arg => match (comm.subcmd, arg) {
+                    (SubComm::Run, "svc") => comm.subcmd = SubComm::Svc,
                     (SubComm::Run, "import") => {
                         comm.subcmd = SubComm::Import(BulkModeDupe::Fail, None)
                     }
                     (SubComm::Run, "convert") => comm.subcmd = SubComm::Convert(None),
-                    (SubComm::Run, anything) => {
+                    (SubComm::Run, anything) | (SubComm::Svc, anything) => {
                         usage(format!("Invalid subcommand {anything}.").as_str())
                     }
                     (SubComm::Import(d, None), file) => {
@@ -256,12 +281,9 @@ pub fn parse_args() -> (SubComm, RunConfig) {
 
     let config_file_path = match args.config {
         Some(c) => c,
-        None => find_systemd_or_xdg_path(
-            "CONFIGURATION_DIRECTORY",
-            "XDG_CONFIG_HOME",
-            "/etc",
-            "config.json",
-        ),
+        None => {
+            find_systemd_or_xdg_path(config::BASE, config::USER, config::FALLBACK, "config.json")
+        }
     };
     if let Some(mut conf) = open_or_write_default(config_file_path) {
         if let Some(listen) = args.listen {

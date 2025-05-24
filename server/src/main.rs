@@ -16,13 +16,13 @@
 
 // use moosedb::MooseDb;
 use crate::{
-    config::SubComm,
+    config::{RunConfig, SubComm},
     model::moose::moose_bulk_transform,
     task::{dump_moose_task, shutdown_task, web_task},
 };
 
 use db::MooseDB;
-use tokio::sync::broadcast;
+use tokio::sync::broadcast::{self, Receiver, Sender};
 
 pub mod config;
 pub mod db;
@@ -34,8 +34,42 @@ pub mod task;
 pub mod templates;
 pub mod web_handlers;
 
+#[cfg(unix)]
 fn main() {
     let (subcmd, rc) = config::parse_args();
+    let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
+    real_main(subcmd, rc, stopchan_tx, stopchan_rx);
+}
+
+#[cfg(windows)]
+fn main() {
+    let (subcmd, rc) = config::parse_args();
+    let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
+    if let SubComm::Svc = subcmd {
+        let mut thread = None;
+        windows_services::Service::new().can_stop().run(move |msg| {
+            match msg {
+                Command::Start => {
+                    thread = std::thread::spawn(move || {
+                        real_main(subcmd, rc, stopchan_tx.clone(), stopchan_rx);
+                    });
+                }
+                Command::Stop => {
+                    if let Some(thread) = thread {
+                        stopchan_tx.send(()).unwrap();
+                        _ = thread.join();
+                    }
+                }
+                // unsupported command
+                _ => return,
+            }
+        })
+    } else {
+        real_main(subcmd, rc, stopchan_tx, stopchan_rx);
+    }
+}
+
+fn real_main(subcmd: SubComm, rc: RunConfig, stopchan_tx: Sender<()>, stopchan_rx: Receiver<()>) {
     if let SubComm::Convert(io) = subcmd {
         // We do not need the runtime or database for this
         eprintln!("INFO: [MAIN] Converting moose-legacy format to moose2 format.");
@@ -74,13 +108,12 @@ fn main() {
 
         let moose_dump_file = rc.get_moose_dump();
         let dbx = db.clone();
-        let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
         let dump_task = dump_moose_task(moose_dump_file, rc.get_moose_path(), dbx, stopchan_rx);
 
         let stopchan_rx = stopchan_tx.subscribe();
         let web_task = web_task(rc, db, stopchan_rx);
 
-        let shutdown_task = shutdown_task(stopchan_tx);
+        let shutdown_task = shutdown_task(stopchan_tx, subcmd);
 
         let _ = tokio::try_join!(shutdown_task, web_task, dump_task)
             .expect("All tasks to start/shutdown successfully.");
