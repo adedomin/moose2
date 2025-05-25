@@ -43,7 +43,7 @@ fn main() {
 fn main() {
     use windows_services::{Command, Service, State};
     if let Some(_) = std::env::args().find(|arg| arg == "svc") {
-        let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
+        let (stopchan_tx, _) = broadcast::channel(1);
         let mut thread = None;
         Service::new().can_stop().run(move |msg| {
             match msg {
@@ -58,7 +58,9 @@ fn main() {
                                 )
                                 .target(env_logger::Target::Pipe(logfile))
                                 .init();
-                                real_main(st_tx, st_rx);
+                                if let Err(e) = real_main(st_tx, st_rx) {
+                                    log::error!("{e}");
+                                }
                             } // else without event log insanity, it's hard to let the user know something is wrong...
                             windows_services::set_state(State::Stopped);
                         }));

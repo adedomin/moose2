@@ -7,7 +7,7 @@ edition = "2024"
 
 [features]
 multi-thread = ["tokio/rt-multi-thread"]
-serve-static = ["dep:tower-http"]
+serve-dump = ["dep:tower-http"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

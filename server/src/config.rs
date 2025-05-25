@@ -148,9 +148,9 @@ fn find_systemd_or_xdg_path(systemd: &str, xdg: &str, fallback: &str, dest: &str
 }
 
 #[cfg(windows)]
-pub fn get_service_logfile() -> io::Result<Box<dyn Write + Send + 'static>> {
+pub fn get_service_logfile() -> io::Result<Box<std::fs::File>> {
     let fpath = find_systemd_or_xdg_path(data::BASE, data::USER, data::FALLBACK, "moose2.log");
-    Box::new(std::fs::File::create(fpath)?)
+    Ok(Box::new(std::fs::File::create(fpath)?))
 }
 
 pub fn open_or_write_default<T>(config_path: T) -> Result<RunConfig, ArgsError>
