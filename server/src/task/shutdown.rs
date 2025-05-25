@@ -49,7 +49,7 @@ pub fn shutdown_task(
 ) -> JoinHandle<Result<(), SendError<()>>> {
     // the service manager will signal shutdown; just exit early.
     if let SubComm::Svc = subcmd {
-        log::info!("Running as Windows Service; not running.");
+        log::info!("Running as Windows Service; not running task.");
         tokio::spawn(async move { Ok(()) })
     } else {
         log::info!("Setting up shutdown listener.");

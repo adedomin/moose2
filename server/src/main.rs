@@ -42,38 +42,39 @@ fn main() {
 #[cfg(windows)]
 fn main() {
     use windows_services::{Command, Service, State};
-    if let Some(_) = std::env::args().find(|arg| arg == "svc") {
+    if std::env::args().any(|arg| &arg == "svc") {
         let (stopchan_tx, _) = broadcast::channel(1);
         let mut thread = None;
+        // this is a "best effort" file logger.
+        if let Ok(logfile) = config::get_service_logfile() {
+            env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+                .target(env_logger::Target::Pipe(logfile))
+                .init();
+        }
         Service::new().can_stop().run(move |msg| {
             match msg {
                 Command::Start => {
+                    log::debug!("Service Starting...");
                     if thread.is_none() {
                         let st_tx = stopchan_tx.clone();
                         let st_rx = st_tx.subscribe();
                         thread = Some(std::thread::spawn(move || {
-                            if let Ok(logfile) = config::get_service_logfile() {
-                                env_logger::Builder::from_env(
-                                    env_logger::Env::default().default_filter_or("info"),
-                                )
-                                .target(env_logger::Target::Pipe(logfile))
-                                .init();
-                                if let Err(e) = real_main(st_tx, st_rx) {
-                                    log::error!("{e}");
-                                }
-                            } // else without event log insanity, it's hard to let the user know something is wrong...
+                            if let Err(e) = real_main(st_tx, st_rx) {
+                                log::error!("{e}");
+                            }
                             windows_services::set_state(State::Stopped);
                         }));
                     }
                 }
                 Command::Stop => {
+                    log::warn!("Windows asked us to stop; stopping...");
                     if let Some(jh) = thread.take() {
                         _ = stopchan_tx.send(());
                         _ = jh.join();
                     }
                 }
                 // unsupported command
-                _ => return,
+                _ => (),
             }
         })
     } else {
