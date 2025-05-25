@@ -89,7 +89,9 @@ fn user_main() {
     if let Err(e) = real_main(stopchan_tx, stopchan_rx) {
         match e {
             config::ArgsError::Usage(usage) => {
-                log::error!("{usage}");
+                if !usage.is_empty() {
+                    log::error!("{usage}")
+                };
                 eprintln!("{}", config::USAGE);
             }
             e => log::error!("{e}"),
