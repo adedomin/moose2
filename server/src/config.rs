@@ -21,7 +21,6 @@ use std::{
     env, fs,
     io::{self, BufReader, Write},
     path::{Path, PathBuf},
-    process::exit,
 };
 
 #[cfg(unix)]
@@ -53,6 +52,20 @@ use env_vars::{config, data};
 
 const PBKDF_SALT: &[u8] = br####";o'"#|`=8kZhT:DWK\x4#<:&C.#Rzdd@"####;
 const PBKDF_ROUNDS: u32 = 8u32;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ArgsError {
+    #[error("Config file not found; created example one at location: {0:?} ")]
+    NoConfig(PathBuf),
+    #[error("Failed to deserialize config: {0}")]
+    DeserConfig(#[from] serde_json::Error),
+    #[error("Unknown IO error: {0}")]
+    IoErr(#[from] io::Error),
+    #[error("Invalid cookie secret: {0}")]
+    Bcrypt(#[from] bcrypt_pbkdf::Error),
+    #[error("usage err: {0}")]
+    Usage(String),
+}
 
 #[derive(Deserialize, Clone)]
 pub struct GitHubOauth2 {
@@ -134,23 +147,30 @@ fn find_systemd_or_xdg_path(systemd: &str, xdg: &str, fallback: &str, dest: &str
     base
 }
 
-pub fn open_or_write_default<T>(config_path: T) -> Option<RunConfig>
+#[cfg(windows)]
+pub fn get_service_logfile() -> io::Result<Box<dyn Write + Send + 'static>> {
+    let fpath = find_systemd_or_xdg_path(data::BASE, data::USER, data::FALLBACK, "moose2.log");
+    Box::new(std::fs::File::create(fpath)?)
+}
+
+pub fn open_or_write_default<T>(config_path: T) -> Result<RunConfig, ArgsError>
 where
     T: std::fmt::Debug + AsRef<Path>,
 {
-    if let Ok(file) = std::fs::File::open(&config_path) {
-        let file = BufReader::new(file);
-        Some(serde_json::from_reader(file).unwrap())
-    } else {
-        eprintln!(
-            "ERROR: [config] Configuration file not found or could not be opened at: {config_path:?}",
-        );
-        eprint!("INFO:  [config] Creating configuration file... ");
-        create_parent_dirs(&config_path).unwrap();
-        let mut file = std::fs::File::create(&config_path).unwrap();
-        file.write_all(EXAMPLE_CONFIG).unwrap();
-        eprintln!("\nINFO:  [config] Edit the file {config_path:?} and restart the application.");
-        None
+    match std::fs::File::open(&config_path) {
+        Ok(file) => {
+            let file = BufReader::new(file);
+            Ok(serde_json::from_reader(file)?)
+        }
+        Err(_) => {
+            log::error!("Configuration file not found or could not be opened at: {config_path:?}",);
+            log::info!("Creating configuration file... ");
+            create_parent_dirs(&config_path)?;
+            let mut file = std::fs::File::create(&config_path)?;
+            file.write_all(EXAMPLE_CONFIG)?;
+            log::info!("Edit the file {config_path:?} and restart the application.");
+            Err(ArgsError::NoConfig(config_path.as_ref().to_path_buf()))
+        }
     }
 }
 
@@ -178,7 +198,7 @@ impl Default for Comm {
     }
 }
 
-const USAGE: &str = r###"usage: moose2 [OPTIONS] [SUBCOMMAND]
+pub const USAGE: &str = r###"usage: moose2 [OPTIONS] [SUBCOMMAND]
 
 Options:
     -c | --config=c  Configuration file to read from; default: $CONFIGURATION_DIRECTORY/config.json
@@ -193,15 +213,7 @@ Subcommand:
     convert [from] [to]  Convert moose json dump to modern moose2 format.
 "###;
 
-fn usage(err: &str) -> ! {
-    if !err.is_empty() {
-        eprintln!("ERROR: {err}\n");
-    }
-    eprintln!("{USAGE}");
-    exit(1)
-}
-
-fn parse_argv() -> Comm {
+fn parse_argv() -> Result<Comm, ArgsError> {
     enum F {
         Config,
         Listen,
@@ -224,13 +236,13 @@ fn parse_argv() -> Comm {
             args
         })
         .into_iter()
-        .fold((Comm::default(), None), |(mut comm, flag_slot), arg| {
+        .try_fold((Comm::default(), None), |(mut comm, flag_slot), arg| {
             if let Some(flag) = flag_slot {
                 match flag {
                     F::Config => comm.config = Some(arg.into()),
                     F::Listen => comm.listen = Some(arg.to_owned()),
                 }
-                return (comm, None);
+                return Ok((comm, None));
             };
             let mut flag_slot = None;
             match arg.as_str() {
@@ -238,8 +250,10 @@ fn parse_argv() -> Comm {
                 "-l" | "--listen" => flag_slot = Some(F::Listen),
                 "-i" | "--ignore" => comm.dupe = BulkModeDupe::Ignore,
                 "-u" | "--update" => comm.dupe = BulkModeDupe::Update,
-                "-h" | "--help" => usage(""),
-                arg if arg.starts_with('-') => usage(format!("Unknown Flag {arg}.").as_str()),
+                "-h" | "--help" => return Err(ArgsError::Usage("".to_owned())),
+                arg if arg.starts_with('-') => {
+                    return Err(ArgsError::Usage(format!("Unknown Flag {arg}.")));
+                }
                 arg => match (comm.subcmd, arg) {
                     (SubComm::Run, "svc") => comm.subcmd = SubComm::Svc,
                     (SubComm::Run, "import") => {
@@ -247,12 +261,14 @@ fn parse_argv() -> Comm {
                     }
                     (SubComm::Run, "convert") => comm.subcmd = SubComm::Convert(None),
                     (SubComm::Run, anything) | (SubComm::Svc, anything) => {
-                        usage(format!("Invalid subcommand {anything}.").as_str())
+                        return Err(ArgsError::Usage(format!("Invalid subcommand {anything}.")));
                     }
                     (SubComm::Import(d, None), file) => {
                         comm.subcmd = SubComm::Import(d, Some(file.into()));
                     }
-                    (SubComm::Import(_, Some(_)), _) => usage("Too many arguments to import."),
+                    (SubComm::Import(_, Some(_)), _) => {
+                        return Err(ArgsError::Usage("Too many arguments to import.".to_owned()));
+                    }
                     (SubComm::Convert(None), file) => {
                         comm.subcmd = SubComm::Convert(Some((file.into(), None)));
                     }
@@ -260,20 +276,23 @@ fn parse_argv() -> Comm {
                         comm.subcmd = SubComm::Convert(Some((input, Some(output.into()))));
                     }
                     (SubComm::Convert(Some((_, Some(_)))), _) => {
-                        usage("Too many files given to convert.")
+                        return Err(ArgsError::Usage(
+                            "Too many files given to convert.".to_owned(),
+                        ));
                     }
                 },
             }
-            (comm, flag_slot)
-        });
+            Ok((comm, flag_slot))
+        })?;
     if flag.is_some() {
-        usage("No value given for flag.");
+        Err(ArgsError::Usage("No value given for flag.".to_owned()))
+    } else {
+        Ok(comm)
     }
-    comm
 }
 
-pub fn parse_args() -> (SubComm, RunConfig) {
-    let args = parse_argv();
+pub fn parse_args() -> Result<(SubComm, RunConfig), ArgsError> {
+    let args = parse_argv()?;
     let sub = match args.subcmd {
         SubComm::Import(_, input) => SubComm::Import(args.dupe, input),
         sc => sc,
@@ -285,31 +304,25 @@ pub fn parse_args() -> (SubComm, RunConfig) {
             find_systemd_or_xdg_path(config::BASE, config::USER, config::FALLBACK, "config.json")
         }
     };
-    if let Some(mut conf) = open_or_write_default(config_file_path) {
-        if let Some(listen) = args.listen {
-            // command line listen does not override configuration.
-            if conf.listen.is_none() {
-                conf.listen = Some(listen);
-            }
+    let mut conf = open_or_write_default(config_file_path)?;
+    if let Some(listen) = args.listen {
+        // command line listen does not override configuration.
+        if conf.listen.is_none() {
+            conf.listen = Some(listen);
         }
-        match &conf.cookie_secret {
-            None => {
-                for i in 0..64 {
-                    conf.cookie_key.0[i] = rand::random();
-                }
-            }
-            Some(user_secret) => {
-                bcrypt_pbkdf(
-                    user_secret,
-                    PBKDF_SALT,
-                    PBKDF_ROUNDS,
-                    &mut conf.cookie_key.0,
-                )
-                .unwrap();
-            }
-        }
-        (sub, conf)
-    } else {
-        exit(1)
     }
+    match &conf.cookie_secret {
+        None => {
+            for i in 0..64 {
+                conf.cookie_key.0[i] = rand::random();
+            }
+        }
+        Some(user_secret) => bcrypt_pbkdf(
+            user_secret,
+            PBKDF_SALT,
+            PBKDF_ROUNDS,
+            &mut conf.cookie_key.0,
+        )?,
+    }
+    Ok((sub, conf))
 }

@@ -35,6 +35,8 @@ http = "1"
 tower = "0.5"
 tower-cookies = { version = "0.11", features = ["private"] }
 tower-http = { version = "0.6", optional = true, features = ["fs"] }
+log = "0.4"
+env_logger = "0.11"
 
 [dependencies.axum]
 version = "0.8"

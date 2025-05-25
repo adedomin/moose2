@@ -47,7 +47,7 @@ async fn gallery_random_redir(State(db): State<MooseWebData>) -> Response {
             }
         }
         Err(e) => {
-            eprintln!("ERR: [WEB/DISPLAY/RANDOM] DB: {e}");
+            log::error!("DB: {e}");
             ApiError::new(e.to_string()).into_response()
         }
     }
@@ -60,7 +60,7 @@ async fn gallery_latest_redir(State(db): State<MooseWebData>) -> Response {
             Redirect::to(&format!("/gallery/{}", page_count.saturating_sub(1))).into_response()
         }
         Err(e) => {
-            eprintln!("ERR: [WEB/DISPLAY/LATEST] DB: {e}");
+            log::error!("DB: {e}");
             ApiError::new(e.to_string()).into_response()
         }
     }
@@ -79,7 +79,7 @@ async fn nojs_gallery_search(
         .search_moose(query, search_page)
         .await
         .unwrap_or_else(|err| {
-            eprintln!("ERR: [WEB/DISPLAY/SEARCH/NOJS] DB: {err}");
+            log::error!("DB: {err}");
             MooseSearchPage::default()
         });
 
@@ -104,7 +104,7 @@ async fn normal_gallery_page(
     let db = &db.db;
     let meese = if nojs {
         let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
-            eprintln!("ERR: [WEB/DISPLAY/GALLERY] DB: {err}");
+            log::error!("DB: {err}");
             vec![]
         });
         Some(

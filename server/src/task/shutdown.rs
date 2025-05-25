@@ -25,15 +25,16 @@ pub fn shutdown_task(
     shutdown_channel: Sender<()>,
     _subcmd: SubComm,
 ) -> JoinHandle<Result<(), SendError<()>>> {
+    log::info!("Setting up shutdown listener.");
     tokio::spawn(async move {
         let mut sigterm =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
-                println!("WARN: [SHUTDOWN] SIGINT: shutting down.");
+                log::warn!("SIGINT: shutting down.");
             }
             _ = sigterm.recv() => {
-                println!("WARN: [SHUTDOWN] SIGTERM: shutting down.");
+                log::warn!("SIGTERM: shutting down.");
             }
         }
         shutdown_channel.send(())?;
@@ -48,11 +49,13 @@ pub fn shutdown_task(
 ) -> JoinHandle<Result<(), SendError<()>>> {
     // the service manager will signal shutdown; just exit early.
     if let SubComm::Svc = subcmd {
+        log::info!("Running as Windows Service; not running.");
         tokio::spawn(async move { Ok(()) })
     } else {
+        log::info!("Setting up shutdown listener.");
         tokio::spawn(async move {
             _ = tokio::signal::ctrl_c().await;
-            println!("WARN: [SHUTDOWN] SIGINT: shutting down.");
+            log::warn!("SIGINT: shutting down.");
             shutdown_channel.send(())?;
             Ok(())
         })

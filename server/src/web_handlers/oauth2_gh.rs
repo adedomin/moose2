@@ -240,7 +240,7 @@ async fn logged_in(username: Author) -> Response {
             Ok(ok) => ok,
             Err(e) => {
                 // shouldn't be possible?
-                eprintln!("ERR: [WEB/OAUTH/LOGGED_IN] HUH? {e:?}");
+                log::error!("HUH? {e:?}");
                 NULL_RESP.to_vec()
             }
         },

@@ -154,10 +154,7 @@ pub fn moose_line(moose: &Moose, l: LineType) -> Vec<u8> {
                 .created
                 .format(&time::format_description::well_known::Rfc2822)
                 .unwrap_or_else(|e| {
-                    eprintln!(
-                        "ERROR: [RENDER/LINE] time claimed formatting the timestamp failed {}",
-                        e
-                    );
+                    log::error!("time claimed formatting the timestamp failed {e}");
                     "(TIME FORMAT ERROR)".to_owned()
                 })
         )

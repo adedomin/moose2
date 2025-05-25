@@ -16,7 +16,7 @@
 
 // use moosedb::MooseDb;
 use crate::{
-    config::{RunConfig, SubComm},
+    config::SubComm,
     model::moose::moose_bulk_transform,
     task::{dump_moose_task, shutdown_task, web_task},
 };
@@ -36,17 +36,14 @@ pub mod web_handlers;
 
 #[cfg(unix)]
 fn main() {
-    let (subcmd, rc) = config::parse_args();
-    let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
-    real_main(subcmd, rc, stopchan_tx, stopchan_rx);
+    user_main()
 }
 
 #[cfg(windows)]
 fn main() {
-    use windows_services::{Command, Service};
-    let (subcmd, rc) = config::parse_args();
-    let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
-    if let SubComm::Svc = subcmd {
+    use windows_services::{Command, Service, State};
+    if let Some(_) = std::env::args().find(|arg| arg == "svc") {
+        let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
         let mut thread = None;
         Service::new().can_stop().run(move |msg| {
             match msg {
@@ -54,9 +51,16 @@ fn main() {
                     if thread.is_none() {
                         let st_tx = stopchan_tx.clone();
                         let st_rx = st_tx.subscribe();
-                        let rc = rc.clone();
                         thread = Some(std::thread::spawn(move || {
-                            real_main(SubComm::Svc, rc, st_tx, st_rx);
+                            if let Ok(logfile) = config::get_service_logfile() {
+                                env_logger::Builder::from_env(
+                                    env_logger::Env::default().default_filter_or("info"),
+                                )
+                                .target(env_logger::Target::Pipe(logfile))
+                                .init();
+                                real_main(st_tx, st_rx);
+                            } // else without event log insanity, it's hard to let the user know something is wrong...
+                            windows_services::set_state(State::Stopped);
                         }));
                     }
                 }
@@ -71,20 +75,37 @@ fn main() {
             }
         })
     } else {
-        real_main(subcmd, rc, stopchan_tx, stopchan_rx);
+        user_main()
     }
 }
 
-fn real_main(subcmd: SubComm, rc: RunConfig, stopchan_tx: Sender<()>, stopchan_rx: Receiver<()>) {
+fn user_main() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp(None)
+        .init();
+    let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
+    if let Err(e) = real_main(stopchan_tx, stopchan_rx) {
+        match e {
+            config::ArgsError::Usage(usage) => {
+                log::error!("{usage}");
+                eprintln!("{}", config::USAGE);
+            }
+            e => log::error!("{e}"),
+        }
+    }
+}
+
+fn real_main(stopchan_tx: Sender<()>, stopchan_rx: Receiver<()>) -> Result<(), config::ArgsError> {
+    let (subcmd, rc) = config::parse_args()?;
     if let SubComm::Convert(io) = subcmd {
         // We do not need the runtime or database for this
-        eprintln!("INFO: [MAIN] Converting moose-legacy format to moose2 format.");
+        log::info!("Converting moose-legacy format to moose2 format.");
         let (moose_in, moose_out) = match io {
             Some((i, o)) => (Some(i), o),
             None => (None, None),
         };
         moose_bulk_transform(moose_in, moose_out);
-        return;
+        return Ok(());
     }
 
     #[cfg(not(feature = "multi-thread"))]
@@ -100,14 +121,11 @@ fn real_main(subcmd: SubComm, rc: RunConfig, stopchan_tx: Sender<()>, stopchan_r
         .build()
         .unwrap();
     rt.block_on(async {
-        println!(
-            "INFO: [MAIN] Connecting to database: {:?}",
-            rc.get_moose_path()
-        );
+        log::info!("Connecting to database: {:?}", rc.get_moose_path());
         let db = db::utils::open_db(&rc).await;
 
         if let SubComm::Import(dup_behavior, moose_in) = subcmd {
-            println!("INFO: [MAIN] Importing moose. Shutting down after importing.");
+            log::info!("Importing moose. Shutting down after importing.");
             db.bulk_import(moose_in, dup_behavior).await.unwrap();
             return;
         }
@@ -124,4 +142,5 @@ fn real_main(subcmd: SubComm, rc: RunConfig, stopchan_tx: Sender<()>, stopchan_r
         let _ = tokio::try_join!(shutdown_task, web_task, dump_task)
             .expect("All tasks to start/shutdown successfully.");
     });
+    Ok(())
 }

@@ -66,10 +66,10 @@ async fn dump_moose(
             },
             _ = interval.tick() => {
                 if NEW_MOOSE_NOTIFY.swap(false, std::sync::atomic::Ordering::Relaxed) {
-                    println!("INFO: [DUMP] Dumping moose to json file: {moose_dump:?}");
+                    log::info!("Dumping moose to json file: {moose_dump:?}");
                     db.dump_moose(moose_dump.clone()).await?;
                 } else {
-                    println!("DEBUG: [DUMP] Timer Triggered, no new moose to dump.");
+                    log::debug!("Timer Triggered, no new moose to dump.");
                 }
             }
         }
@@ -82,10 +82,10 @@ pub fn dump_moose_task(
     db: Pool,
     stop_broadcast: Receiver<()>,
 ) -> JoinHandle<Result<(), Sqlite3Error>> {
-    println!("INFO: [DUMP] Setting up Auto-dumps of database.");
+    log::info!("Setting up Auto-dumps of database.");
     tokio::spawn(async move {
         let e = dump_moose(moose_dump, dbpath, db, stop_broadcast).await;
-        println!("WARN: [DUMP] Task has shut down: {:?}", e);
+        log::warn!("Task has shut down: {e:?}");
         e
     })
 }

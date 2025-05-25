@@ -88,9 +88,7 @@ impl ApiError {
         match serde_json::to_vec(&self) {
             Ok(ok) => ok,
             Err(e) => {
-                eprintln!(
-                    "ERR: [WEB/MOD] Could not Serialize ApiError Struct: {self:?}, reason {e}"
-                );
+                log::error!("Could not Serialize ApiError Struct: {self:?}, reason {e}");
                 FALLBACK.to_owned()
             }
         }

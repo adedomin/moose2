@@ -141,10 +141,7 @@ async fn get_moose(
 ) -> ApiResp {
     let db = &db.db;
     let Some(path) = uri.path().split('/').nth(1) else {
-        eprintln!(
-            "ERR: [WEB/API/GET_MOOSE] Path seems wrong for some call: {:?}",
-            uri.path()
-        );
+        log::error!("Path seems wrong for some call: {:?}", uri.path());
         return ApiResp::CustomError(ApiError::new(
             "Path seems to be missing components; how did you get here?".to_owned(),
         ));
@@ -157,9 +154,7 @@ async fn get_moose(
                 "irc" => (moose_irc(&moose), "text/irc-art"),
                 "term" => (moose_term(&moose), "text/ansi-truecolor"),
                 _ => {
-                    eprintln!(
-                        "ERR: [WEB/API/GET_MOOSE] Router is passing paths that don't make sense: {path:?}",
-                    );
+                    log::error!("Router is passing paths that don't make sense: {path:?}",);
                     return ApiResp::CustomError(ApiError::new(
                         "Cannot fetch moose type: {path:?}".to_owned(),
                     ));
@@ -175,7 +170,7 @@ async fn get_moose(
 async fn get_page_count(State(db): State<MooseWebData>) -> Response {
     let db = &db.db;
     let count = db.get_page_count().await.unwrap_or_else(|err| {
-        eprintln!("WARN: [WEB/PAGE/COUNT] {err}");
+        log::error!("{err}");
         0
     });
     let count = serde_json::to_vec(&count).unwrap();
@@ -191,7 +186,7 @@ async fn get_page_count(State(db): State<MooseWebData>) -> Response {
 async fn get_page(State(db): State<MooseWebData>, Path(page_num): Path<usize>) -> ApiResp {
     let db = &db.db;
     let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
-        eprintln!("WARN: [WEB/PAGE/{page_num}] {err}");
+        log::error!("{err}");
         vec![]
     });
     // if the page is full, it probably won't change in hours, if ever.
@@ -228,7 +223,7 @@ async fn get_search_page(
 ) -> ApiResp {
     let db = &db.db;
     let meese = db.search_moose(&query, page).await.unwrap_or_else(|err| {
-        eprintln!("WARN: [WEB/SEARCH] {err}");
+        log::warn!("{err}");
         MooseSearchPage::default()
     });
     let meese = serde_json::to_vec(&meese).unwrap();
@@ -276,6 +271,7 @@ async fn put_new_moose(
         ApiError::new_with_status(StatusCode::UNPROCESSABLE_ENTITY, e)
     } else {
         notify_new();
+        log::debug!("New moose: {moose_name}");
         ApiError::new_ok(format!("Saved {moose_name}."))
     }
 }

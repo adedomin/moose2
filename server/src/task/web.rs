@@ -38,10 +38,7 @@ pub fn web_task(
     mut shutdown_signal: Receiver<()>,
 ) -> JoinHandle<Result<(), std::io::Error>> {
     let listen_addr = rc.get_bind_addr();
-    println!(
-        "INFO: [WEB] Attempting to listen on: http://{}/",
-        listen_addr
-    );
+    log::info!("Attempting to listen on: http://{listen_addr}/");
     let oauth2_client = match &rc.github_oauth2 {
         Some(GitHubOauth2 {
             id,
@@ -103,7 +100,8 @@ pub fn web_task(
 
     tokio::spawn(async move {
         let shutdown_h = async move {
-            shutdown_signal.recv().await.unwrap();
+            _ = shutdown_signal.recv().await;
+            log::warn!("Web Task is shutting down.")
         };
         #[cfg(unix)]
         if let Some(path) = listen_addr.strip_prefix("unix:") {

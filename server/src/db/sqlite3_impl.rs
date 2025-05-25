@@ -133,7 +133,7 @@ impl MooseDB<Sqlite3Error> for Pool {
                     .flat_map(|m| match m {
                         Ok(moose) => Some(moose),
                         Err(e) => {
-                            eprintln!("{}", e);
+                            log::error!("{e}");
                             None
                         }
                     })
@@ -168,7 +168,7 @@ impl MooseDB<Sqlite3Error> for Pool {
                     .flat_map(|m| match m {
                         Ok(res) => Some(res),
                         Err(e) => {
-                            eprintln!("ERROR: [WEB/SEARCH] {}", e);
+                            log::error!("{e}");
                             None
                         }
                     })
@@ -248,7 +248,7 @@ impl MooseDB<Sqlite3Error> for Pool {
             drop(inner);
             fs::rename(tdir, moose_dump)?;
 
-            println!("INFO: [DUMP] Done dumping moose.");
+            log::info!("Done dumping moose.");
             Ok(())
         })
         .await
