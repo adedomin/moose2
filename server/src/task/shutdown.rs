@@ -25,12 +25,13 @@ pub fn shutdown_task(
     shutdown_channel: Sender<()>,
     _subcmd: SubComm,
 ) -> JoinHandle<Result<(), SendError<()>>> {
+    use tokio::signal::{ctrl_c, unix};
+
     log::info!("Setting up shutdown listener.");
     tokio::spawn(async move {
-        let mut sigterm =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
+        let mut sigterm = unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
         tokio::select! {
-            _ = tokio::signal::ctrl_c() => {
+            _ = ctrl_c() => {
                 log::warn!("SIGINT: shutting down.");
             }
             _ = sigterm.recv() => {
@@ -47,15 +48,38 @@ pub fn shutdown_task(
     shutdown_channel: Sender<()>,
     subcmd: SubComm,
 ) -> JoinHandle<Result<(), SendError<()>>> {
+    use tokio::signal::windows;
+
     // the service manager will signal shutdown; just exit early.
     if let SubComm::Svc = subcmd {
-        log::info!("Running as Windows Service; not running task.");
+        log::info!("Running as Windows Service; not running shutdown listener.");
         tokio::spawn(async move { Ok(()) })
     } else {
-        log::info!("Setting up shutdown listener.");
+        // using console or IIS HttpPlatformHandler (?)
+        log::info!("Running as Windows Console app; setting up Console Ctrl handlers.");
         tokio::spawn(async move {
-            _ = tokio::signal::ctrl_c().await;
-            log::warn!("SIGINT: shutting down.");
+            let mut ctrl_break = windows::ctrl_break().unwrap();
+            let mut ctrl_c = windows::ctrl_c().unwrap();
+            let mut ctrl_close = windows::ctrl_close().unwrap();
+            let mut ctrl_logoff = windows::ctrl_logoff().unwrap();
+            let mut ctrl_shutdown = windows::ctrl_shutdown().unwrap();
+            tokio::select! {
+                _ = ctrl_break.recv() => {
+                    log::warn!("Ctrl-BREAK: shutting down.");
+                }
+                _ = ctrl_c.recv() => {
+                    log::warn!("Ctrl-C: shutting down.");
+                }
+                _ = ctrl_close.recv() => {
+                    log::warn!("Ctrl-Close: shutting down.");
+                }
+                _ = ctrl_logoff.recv() => {
+                    log::warn!("Ctrl-Logoff: shutting down.");
+                }
+                _ = ctrl_shutdown.recv() => {
+                    log::warn!("Ctrl-Shutdown: shutting down.");
+                }
+            }
             shutdown_channel.send(())?;
             Ok(())
         })

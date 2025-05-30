@@ -306,10 +306,8 @@ pub fn parse_args() -> Result<(SubComm, RunConfig), ArgsError> {
     };
     let mut conf = open_or_write_default(config_file_path)?;
     if let Some(listen) = args.listen {
-        // command line listen does not override configuration.
-        if conf.listen.is_none() {
-            conf.listen = Some(listen);
-        }
+        // seems better to have explicit command line override configuration.
+        conf.listen = Some(listen);
     }
     match &conf.cookie_secret {
         None => {
