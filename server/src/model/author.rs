@@ -20,7 +20,7 @@ use rusqlite::{ToSql, types::FromSql};
 use serde::{Deserialize, Serialize};
 use tower_cookies::Cookies;
 
-use crate::web_handlers::{MooseWebData, get_login};
+use crate::web_handlers::{LOGIN_COOKIE, MooseWebData};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub enum Author {
@@ -77,6 +77,11 @@ where
             ));
         };
         let state = MooseWebData::from_ref(state);
-        Ok(get_login(cookies, &state.cookie_key).unwrap_or_default())
+        let author = cookies
+            .private(&state.cookie_key)
+            .get(LOGIN_COOKIE)
+            .and_then(|c| serde_json::from_str::<Author>(c.value()).ok())
+            .unwrap_or_default();
+        Ok(author)
     }
 }

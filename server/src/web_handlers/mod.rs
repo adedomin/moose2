@@ -19,9 +19,8 @@ use std::{fmt::Display, sync::Arc};
 use axum::response::{IntoResponse, Response};
 use http::{HeaderName, HeaderValue, StatusCode, header::CONTENT_TYPE};
 use serde::Serialize;
-use tower_cookies::{Cookies, Key};
 
-use crate::model::{app_data::AppData, author::Author};
+use crate::model::app_data::AppData;
 
 pub mod api;
 pub mod display;
@@ -42,12 +41,6 @@ pub const HOUR_CACHE: HeaderValue = HeaderValue::from_static("max-age=3600, stal
 pub const LOGIN_COOKIE: &str = "login";
 pub const CSRF_COOKIE: &str = "csrf";
 pub const REDIR_COOKIE: &str = "redirect";
-
-pub fn get_login(c: &Cookies, k: &Key) -> Option<Author> {
-    c.private(k)
-        .get(LOGIN_COOKIE)
-        .and_then(|c| serde_json::from_str::<Author>(c.value()).ok())
-}
 
 #[derive(Serialize, Debug)]
 pub struct ApiError {

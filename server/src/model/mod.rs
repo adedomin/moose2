@@ -22,6 +22,7 @@ pub mod mime;
 pub mod moose;
 pub mod pages;
 pub mod queries;
+pub mod secure_cookies;
 pub mod votes;
 
 // constants

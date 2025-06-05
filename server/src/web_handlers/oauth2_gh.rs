@@ -16,8 +16,11 @@
 
 use std::borrow::Cow;
 
-use super::{ApiError, CSRF_COOKIE, LOGIN_COOKIE, MooseWebData, REDIR_COOKIE, get_login};
-use crate::{model::author::Author, web_handlers::JSON_TYPE};
+use super::{ApiError, CSRF_COOKIE, LOGIN_COOKIE, MooseWebData, REDIR_COOKIE};
+use crate::{
+    model::{author::Author, secure_cookies::SecureCookies},
+    web_handlers::JSON_TYPE,
+};
 use axum::{
     Form, Router,
     extract::{Query, State},
@@ -30,7 +33,7 @@ use oauth2::{
     TokenResponse, basic::BasicErrorResponseType,
 };
 use serde::{Deserialize, Serialize};
-use tower_cookies::{Cookie, Cookies, Key, cookie::Expiration};
+use tower_cookies::{Cookie, Cookies, cookie::Expiration};
 
 #[derive(Deserialize)]
 struct GithubUserApi {
@@ -96,18 +99,22 @@ where
 // Form type deserializes GET Queries for some reason.
 async fn login_get(
     auth_client: State<MooseWebData>,
-    session: Cookies,
+    session: SecureCookies,
 ) -> Result<Response, ApiError> {
     login(auth_client, session, Form(LogInOutRedir::default())).await
 }
 
 async fn login(
     State(auth_client): State<MooseWebData>,
-    session: Cookies,
+    session: SecureCookies,
     Form(query): Form<LogInOutRedir>,
 ) -> Result<Response, ApiError> {
     if let Some(oauth2_client) = &auth_client.oauth2_client {
-        if let Some(author) = get_login(&session, &auth_client.cookie_key) {
+        let session = session.get_inner(&auth_client.cookie_key);
+        if let Some(author) = session
+            .get(LOGIN_COOKIE)
+            .and_then(|c| serde_json::from_str::<Author>(c.value()).ok())
+        {
             return Err(ApiError::new_ok(format!(
                 "Already logged in as: {author:?}"
             )));
@@ -116,7 +123,6 @@ async fn login(
         let (authorize_url, csrf_state) =
             oauth2_client.oa.authorize_url(CsrfToken::new_random).url();
 
-        let session = session.private(&auth_client.cookie_key);
         session.add(new_cookie(CSRF_COOKIE, csrf_state.into_secret()));
         session.add(new_cookie(
             REDIR_COOKIE,
@@ -136,28 +142,26 @@ async fn login(
     }
 }
 
-fn get_csrf(c: &Cookies, k: &Key) -> Result<String, AuthApiError> {
-    match c.private(k).get(CSRF_COOKIE) {
-        Some(c) => Ok(c.value().to_string()),
-        None => Err(AuthApiError::SessionGet),
-    }
-}
-
 async fn auth(
     State(auth_client): State<MooseWebData>,
-    session: Cookies,
+    session: SecureCookies,
     Query(AuthRequest { code, state }): Query<AuthRequest>,
 ) -> Result<Response, AuthApiError> {
     if let Some(oauth2_client) = &auth_client.oauth2_client {
-        let code = AuthorizationCode::new(code.clone());
+        let session = session.get_inner(&auth_client.cookie_key);
         let csrf_val = CsrfToken::new(state.clone());
-
-        let csrf_tok = CsrfToken::new(get_csrf(&session, &auth_client.cookie_key)?);
+        let csrf_cookie = session
+            .get(CSRF_COOKIE)
+            .ok_or(AuthApiError::SessionGet)?
+            .value()
+            .to_string();
+        let csrf_tok = CsrfToken::new(csrf_cookie);
 
         if csrf_tok.secret() != csrf_val.secret() {
             return Err(AuthApiError::MismatchedCSRF);
         }
 
+        let code = AuthorizationCode::new(code.clone());
         let token = oauth2_client
             .oa
             .exchange_code(code)
@@ -178,14 +182,13 @@ async fn auth(
             .await?;
 
         let login_name = res.login;
-
-        let session = session.private(&auth_client.cookie_key);
         let redirect = session
             .get(REDIR_COOKIE)
             .and_then(|c| serde_json::from_str::<LogInOutRedir>(c.value()).ok())
             .unwrap_or(LogInOutRedir { redirect: None })
             .redirect
             .unwrap_or_else(|| "/".to_owned());
+
         session.remove(new_cookie(CSRF_COOKIE, ""));
         session.remove(new_cookie(REDIR_COOKIE, ""));
         #[cfg(debug_assertions)]
@@ -253,7 +256,7 @@ async fn logged_in(username: Author) -> Response {
 }
 
 async fn logout(
-    session: Cookies,
+    session: Cookies, // we are only deleting cookies here so it doesn't matter if it is encrypted.
     Form(LogInOutRedir { redirect }): Form<LogInOutRedir>,
 ) -> impl IntoResponse {
     let redir = redirect.unwrap_or_else(|| "/".to_owned());
