@@ -178,14 +178,14 @@ async fn auth(
             .await?;
 
         let login_name = res.login;
+
+        let session = session.private(&auth_client.cookie_key);
         let redirect = session
             .get(REDIR_COOKIE)
             .and_then(|c| serde_json::from_str::<LogInOutRedir>(c.value()).ok())
             .unwrap_or(LogInOutRedir { redirect: None })
             .redirect
             .unwrap_or_else(|| "/".to_owned());
-
-        let session = session.private(&auth_client.cookie_key);
         session.remove(new_cookie(CSRF_COOKIE, ""));
         session.remove(new_cookie(REDIR_COOKIE, ""));
         #[cfg(debug_assertions)]
