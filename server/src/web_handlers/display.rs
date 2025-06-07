@@ -17,7 +17,7 @@
 use super::{HTML_TYPE, MooseWebData};
 use crate::{
     db::MooseDB,
-    middleware::etag::md5_etag,
+    middleware::etag::etag,
     model::{
         author::Author,
         pages::{MooseSearch, MooseSearchPage},
@@ -152,7 +152,7 @@ async fn gallery_page(
     Response::builder()
         .status(StatusCode::OK)
         .header(HTML_TYPE.0, HTML_TYPE.1)
-        .header(ETAG, md5_etag(&body))
+        .header(ETAG, etag(&body))
         .body(body.into())
         .unwrap()
 }

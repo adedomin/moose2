@@ -19,7 +19,7 @@ base64 = { version = "0.22" }
 png = "0.17.5"
 maud = "0.27.0"
 percent-encoding = "2.1.0"
-md5 = "0.7.0"
+sha2 = "0.10"
 deadpool-sync = "0.1.4"
 deadpool-sqlite = { version = "0.10.0", default-features = false, features = ["rt_tokio_1"] }
 rusqlite = { version = "0.33.0", features = ["bundled", "time"] }

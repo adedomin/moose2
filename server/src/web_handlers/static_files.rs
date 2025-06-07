@@ -22,7 +22,7 @@ use std::{
 
 use super::{ApiError, MooseWebData};
 use crate::{
-    middleware::etag::md5_etag,
+    middleware::etag::etag,
     model::mime::get_mime,
     shared_data::{COLORS_JS, ERR_JS, SIZ_JS},
 };
@@ -48,15 +48,15 @@ fn get_static_etag<T: AsRef<Path> + std::fmt::Debug>(p: T) -> &'static str {
     let Some(etag) = CLIENT_ETAGS
         .get_or_init(|| {
             let mut map = HashMap::new();
-            map.insert(Path::new(COLORS_JS_PATH), md5_etag(COLORS_JS));
-            map.insert(Path::new(ERR_JS_PATH), md5_etag(ERR_JS));
-            map.insert(Path::new(SIZ_JS_PATH), md5_etag(ERR_JS));
+            map.insert(Path::new(COLORS_JS_PATH), etag(COLORS_JS));
+            map.insert(Path::new(ERR_JS_PATH), etag(ERR_JS));
+            map.insert(Path::new(SIZ_JS_PATH), etag(ERR_JS));
 
             let mut stack = vec![&CLIENT_DIR];
             while let Some(dir) = stack.pop() {
                 dir.files().for_each(|f| {
                     let body = f.contents();
-                    let etag = md5_etag(body);
+                    let etag = etag(body);
                     map.insert(f.path(), etag);
                 });
                 stack.extend(dir.dirs());

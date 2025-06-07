@@ -4,10 +4,11 @@ use http::{
     StatusCode,
     header::{ETAG, IF_NONE_MATCH},
 };
+use sha2::Digest;
 
 /// Hash a response body into a strong MD5-based ETag.
-pub fn md5_etag<T: AsRef<[u8]>>(body: T) -> String {
-    let sum = md5::compute(body);
+pub fn etag<T: AsRef<[u8]>>(body: T) -> String {
+    let sum = sha2::Sha256::digest(body);
     let sum = BASE64_STANDARD_NO_PAD.encode(sum.as_slice());
     format!("\"{sum}\"")
 }
