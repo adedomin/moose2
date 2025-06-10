@@ -20,6 +20,7 @@ use crate::{
         MooseDB,
         sqlite3_impl::{Pool, Sqlite3Error},
     },
+    middleware::etag::etag,
     model::{
         PAGE_SIZE, author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage,
         queries::SearchQuery,
@@ -39,7 +40,7 @@ use axum::{
 use core::time;
 use http::{
     StatusCode, Uri,
-    header::{CACHE_CONTROL, CONTENT_TYPE, LOCATION},
+    header::{CACHE_CONTROL, CONTENT_TYPE, ETAG, LOCATION},
 };
 use percent_encoding::{NON_ALPHANUMERIC, percent_encode};
 use std::time::Duration;
@@ -66,6 +67,14 @@ impl IntoResponse for ApiResp {
                 .header(CONTENT_TYPE, ctype)
                 .body(body.into())
                 .unwrap(),
+            // if duration is zero, we should use strong etags instead.
+            ApiResp::BodyCacheTime(body, ctype, duration) if duration.is_zero() => {
+                Response::builder()
+                    .header(ETAG, etag(&body))
+                    .header(CONTENT_TYPE, ctype)
+                    .body(body.into())
+                    .unwrap()
+            }
             ApiResp::BodyCacheTime(body, ctype, duration) => Response::builder()
                 .header(
                     CACHE_CONTROL,
@@ -79,14 +88,11 @@ impl IntoResponse for ApiResp {
                 .header(LOCATION, path)
                 .body(().into())
                 .unwrap(),
-            ApiResp::NotFound(moose_name) => Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(
-                    ApiError::new(format!("no such moose: {}", moose_name))
-                        .to_json()
-                        .into(),
-                )
-                .unwrap(),
+            ApiResp::NotFound(moose_name) => ApiError::new_with_status(
+                StatusCode::NOT_FOUND,
+                format!("no such moose: {}", moose_name),
+            )
+            .into_response(),
             ApiResp::CustomError(err) => err.into_response(),
         }
     }
@@ -192,7 +198,7 @@ async fn get_page(State(db): State<MooseWebData>, Path(page_num): Path<usize>) -
     // if the page is full, it probably won't change in hours, if ever.
     // if the page isn't full, it's the last page or a page we haven't gotten to yet and can change.
     let cache_duration = if meese.len() < PAGE_SIZE {
-        Duration::from_secs(30) // last page or non-existent page.
+        Duration::from_secs(0) // last page or non-existent page.
     } else {
         Duration::from_secs(3600) // full page
     };
@@ -216,7 +222,6 @@ async fn get_page_nav_range(
         .unwrap()
 }
 
-// #[get("/search")]
 async fn get_search_page(
     State(db): State<MooseWebData>,
     Query(SearchQuery { query, page, .. }): Query<SearchQuery>,
