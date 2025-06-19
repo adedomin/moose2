@@ -117,7 +117,7 @@ pub const EXAMPLE_CONFIG: &[u8] = br###"{ "//": "OPTIONAL: default: $XDG_DATA_HO
     { "id":     "client id"
     , "secret": "client secret"
     , "//": "OPTIONAL: defaults depend on oauth provider, gh will redirect to auth cb url."
-    , "redirect": "http://[::1]:5921/auth"
+    , "redirect": "http://localhost:5921/auth"
     }
 }
 "###;
