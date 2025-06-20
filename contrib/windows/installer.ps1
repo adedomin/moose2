@@ -21,38 +21,41 @@ New-Item -Type Directory -Force -Path $MOOSE2_HOME
 [System.Environment]::SetEnvironmentVariable('MOOSE2_HOME', $MOOSE2_HOME, [System.EnvironmentVariableTarget]::Machine)
 # create new acl
 $acl = New-Object System.Security.AccessControl.DirectorySecurity
-$acl.SetAccessRuleProtection($true, $true)
-$owner = New-Object System.Security.Principal.NTAccount($ServiceAccount)
+# first disables inheritance (?), second removes all existing inherited access.
+$acl.SetAccessRuleProtection($true, $false)
+$owner = New-Object System.Security.Principal.NTAccount -ArgumentList $ServiceAccount
 $acl.SetOwner($owner)
 $aclrules = 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'
-@(
-  (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, $ServiceAccount + $aclrules)),
-  (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, 'NT AUTHORITY\SYSTEM' + $aclrules)),
-  (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, 'BUILTIN\Administrators' + $aclrules))
-) | % {
-    $acl.AddAccessRule($_)
+$aclrules =
+    (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, $ServiceAccount + $aclrules)),
+    (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, 'NT AUTHORITY\SYSTEM' + $aclrules)),
+    (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, 'BUILTIN\Administrators' + $aclrules))
+foreach ($rule in $aclrules) {
+    $acl.AddAccessRule($rule)
 }
 $acl | Set-Acl -Path $MOOSE2_HOME
 
-@'
-{ "//": "OPTIONAL: default: $XDG_DATA_HOME/moose2 or $STATE_DIRECTORY/"
-, "moose_path":    "C:\ProgramData\moose2"
-, "//": "OPTIONAL: default: $XDG_DATA_HOME/moose2/moose2.json or $STATE_DIRECTORY/moose2.json"
-, "moose_dump":    "C:\ProgramData\moose2\moose2.json"
-, "//": "OPTIONAL: can use unix:/path/to/socket for uds listening."
-, "listen":        "[::1]:5921"
-, "//": "A symmetric secret key for session cookies; delete for random; is PBKDF padded to 64 bytes."
-, "cookie_secret": "super-duper-sekret"
-, "//": "github oauth2 client configuration details, omit whole object to disable authentication."
-, "github_oauth2":
-    { "id":     "client id"
-    , "secret": "client secret"
-    , "//": "OPTIONAL: defaults depend on oauth provider, gh will redirect to auth cb url."
-    , "redirect": "http://localhost:5921/auth"
+@{
+    # Stateful storage will default to using %MOOSE2_HOME%
+    # Best to just change what %MOOSE2_HOME% is.
+    listen        = '[::1]:5921'
+    # This key is used to derive the symmetric key used to encrypt session cookies.
+    # If you want sessions to persist restarts, set this, otherwise comment it out.
+    cookie_secret = 'super secret value; delete this to randomly generate one.'
+    # See: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app
+    # Use GitHub Apps for prod & dev redirect support.
+    github_oauth2 = @{
+        id       = 'oauth2 client id'
+        secret   = 'oauth2 client secret'
+        redirect = 'http://localhost:5921/auth'
     }
-}
-'@ | Out-File -NoClobber -FilePath "$MOOSE2_HOME\config.json" -Encoding ASCII -ErrorAction 'SilentlyContinue'
-# Note, UTF8NoBOM is missing from Powershell 5.1
+} |
+ConvertTo-Json |
+Out-File -FilePath "$MOOSE2_HOME\config.json" `
+    -Encoding ASCII `
+    -NoClobber `
+    -ErrorAction 'SilentlyContinue'
+# Note that Out-File in PowerShell 5.1 does not have UTF8 without a BOM.
 
 # Firewall
 New-NetFirewallRule `
@@ -63,5 +66,16 @@ New-NetFirewallRule `
 # create service
 # New-Service demands a password for -Credential, which we do not have.
 # amazing broken quoting... my favorite Powershell 5.1 issues.
-& cmd.exe /c ('sc.exe create Moose2 binPath= """{0}"" svc" obj= "{1}" start= auto' -f "$MOOSE2_BIN\moose2.exe", $ServiceAccount)
+& cmd.exe /c (
+    'sc.exe create Moose2 binPath= """{0}"" svc" obj= "{1}" start= auto' `
+    -f "$MOOSE2_BIN\moose2.exe", $ServiceAccount
+)
 & sc.exe description Moose2 'Moose2 Web Application'
+
+## TODO: FOR IIS ##
+# '{}' | Out-File -NoClobber -FilePath "$MOOSE2_HOME\moose2.json" -Encoding ASCII -ErrorAction 'SilentlyContinue'
+# $WEB_ROOT = "C:\inetpub\wwwroot"
+# New-Item -Type Directory -Path "$WEB_ROOT\dump" -Force
+# New-Item -Type HardLink -Path "$WEB_ROOT\dump\dump.json" -Value "C:\ProgramData\moose2\moose2.json"
+# fixup ACL inheritance for hardlink.
+# & icalcs.exe $WEB_ROOT\dump\dump.json /reset
