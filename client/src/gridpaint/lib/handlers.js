@@ -16,6 +16,10 @@ function calcPosition(e) {
   this.cursor.x = Math.floor(x / w * (w / cw));
   this.cursor.y = Math.floor(y / h * (h / ch));
 }
+function dragstart(e) {
+  e.preventDefault();
+  return false;
+}
 function Handlers(that) {
   // bind useful drawing functions
   const action = that.action.bind(that);
@@ -66,6 +70,7 @@ function attach() {
   Object.keys(this.events).forEach(e => {
     this.canvas.addEventListener(e, this.events[e], false);
   });
+  this.canvas.addEventListener('dragstart', dragstart, false);
   // in case the user drags away from the canvas element
   window.addEventListener('pointerup', this.events.pointerup, false);
   window.addEventListener('resize', this.resizeEvent, false);
@@ -77,6 +82,7 @@ function detach() {
   Object.keys(this.events).forEach(e => {
     this.canvas.removeEventListener(e, this.events[e], false);
   });
+  this.canvas.removeEventListener('dragstart', dragstart, false);
   window.removeEventListener('pointerup', this.events.pointerup, false);
   window.removeEventListener('resize', this.resizeEvent, false);
 }
