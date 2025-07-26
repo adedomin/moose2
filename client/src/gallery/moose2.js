@@ -204,7 +204,7 @@ function fetch_moose_arr(type, path) {
     case SEARCH: loading(true); break;
     }
   })
-  .catch(e => {
+    .catch(e => {
       del_or_replace_cards();
       error_banner.classList.remove('hidden');
       error_banner.textContent = e.toString();

@@ -1,6 +1,6 @@
 // Copyright (C) 2016  Zorian Medwin
 // Copyright (C) 2021  Anthony DeDominic
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// See COPYING for License
 // replace all of a certain colour with another
 function replace(old, replace) {
   if (old === replace) {

@@ -1,6 +1,6 @@
 // Copyright (C) 2016  Zorian Medwin
 // Copyright (C) 2021  Anthony DeDominic
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// See COPYING for License
 import { bucket } from './bucket.js';
 import { clear, clearWith } from './clear.js';
 import { replace } from './replace.js';

@@ -1,8 +1,9 @@
-// Copyright (C) 2016  Zorian Medwin
-// Copyright (C) 2021  Anthony DeDominic
-// SPDX-License-Identifier: LGPL-3.0-or-later
 import { Canvas } from './canvas.js';
 import { isBrowser } from './browser.js';
+let makePng;
+if (!isBrowser) {
+  makePng = (await import('./node/png.js')).makePng;
+}
 /**
  * `a.click()` doesn't work for all browsers (#465)
  *
@@ -15,7 +16,7 @@ function click(node) {
   try {
     node.dispatchEvent(new MouseEvent('click'));
   }
-  catch (e) {
+  catch {
     const evt = document.createEvent('MouseEvents');
     evt.initMouseEvent('click', true, true, window, 0, 0, 0, 80, 20, false, false, false, false, 0, null);
     node.dispatchEvent(evt);
@@ -51,6 +52,8 @@ function saveAs(blob, name) {
  * @param [scale=1]             How big to make the image.
  */
 function save(file = 'painting.png', scale = 1) {
+  if (!isBrowser)
+    return makePng(this);
   const exported = Canvas(this.width * this.cellWidth, this.height * this.cellHeight);
   const eCtx = exported.getContext('2d');
   if (eCtx === null) {
@@ -58,28 +61,23 @@ function save(file = 'painting.png', scale = 1) {
     return Promise.reject('<GridPaint>#save() -> Could not get 2d Context.');
   }
   this.drawPainting(scale, eCtx);
-  if (isBrowser) {
-    if (file === ':blob:') {
-      return new Promise(resolve => {
-        exported.toBlob(blob => {
-          resolve(blob);
-        }, 'image/png');
-      });
-    }
-    else {
+  if (file === ':blob:') {
+    return new Promise(resolve => {
       exported.toBlob(blob => {
-        if (blob !== null) {
-          saveAs(blob, file);
-        }
-        else {
-          console.error('<GridPaint>#save() -> Blob should not be null!');
-          return Promise.reject('<GridPaint>#save() -> Blob should not be null!');
-        }
+        resolve(blob);
       }, 'image/png');
-    }
+    });
   }
   else {
-    // deleted
+    exported.toBlob(blob => {
+      if (blob !== null) {
+        saveAs(blob, file);
+      }
+      else {
+        console.error('<GridPaint>#save() -> Blob should not be null!');
+        return Promise.reject('<GridPaint>#save() -> Blob should not be null!');
+      }
+    }, 'image/png');
   }
   return Promise.resolve(null);
 }

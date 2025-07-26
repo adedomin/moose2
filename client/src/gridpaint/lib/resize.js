@@ -1,7 +1,6 @@
 // Copyright (C) 2016  Zorian Medwin
 // Copyright (C) 2021  Anthony DeDominic
-// SPDX-License-Identifier: LGPL-3.0-or-later
-import { isBrowser } from './browser.js';
+// See COPYING for License
 /**
  * Resize the actual canvas and cell widths and heighs so they can fit to the parent window
  *
@@ -85,8 +84,8 @@ function resizePainting(w = 0, h = 0, default_colour = 0) {
   this.draw();
 }
 function fitToWindow() {
-  if (!isBrowser) return;
-  if (!this.canvas.parentElement) return;
+  if (!this.canvas.parentElement)
+    return;
   const expectedWidth = this.origCellW * this.width;
   const aspectRatio = this.cellWidth / this.cellHeight;
   const parentWidth = this.canvas.parentElement.clientWidth;
@@ -97,15 +96,18 @@ function fitToWindow() {
     const newch = newcw / aspectRatio;
     this.resize(newcw, newch);
   }
-  else if (canWidth < expectedWidth && parentWidth < expectedWidth) {
+  else if (canWidth < expectedWidth &&
+        parentWidth < expectedWidth) {
     const newW = parentWidth;
     const newcw = newW / this.width;
     const newch = newcw / aspectRatio;
     this.resize(newcw, newch);
   }
-  else if (expectedWidth > canWidth && expectedWidth < parentWidth) {
+  else if (expectedWidth > canWidth &&
+        expectedWidth < parentWidth) {
     this.resize(this.origCellW, this.origCellH);
   }
-  if (!this.drawing) this.draw();
+  if (!this.drawing)
+    this.draw();
 }
 export { resize, resizePainting, fitToWindow };

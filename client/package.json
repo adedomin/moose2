@@ -9,6 +9,6 @@
   },
   "license": "GPL-3.0-or-later",
   "devDependencies": {
-    "eslint": "8"
+    "eslint": "9"
   }
 }

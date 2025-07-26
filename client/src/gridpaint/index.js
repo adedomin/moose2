@@ -24,6 +24,7 @@ import { save } from './lib/save.js';
 import * as tools from './lib/tools.js';
 import * as resizers from './lib/resize.js';
 import { isBrowser } from './lib/browser.js';
+function noop() { }
 const DEFAULT_PALETTE = [
   'transparent', '#fff', '#c0c0c0', '#808080', '#000',
   '#f00', '#800', '#ff0', '#808000', '#0f0', '#080',
@@ -76,14 +77,14 @@ class GridPaint {
     if (options.colour !== undefined)
       this.colour = options.colour;
     this.canvas = Canvas(this.width * this.cellWidth, this.height * this.cellHeight);
-    const ctx = this.canvas.getContext('2d');
-    if (ctx === null) {
-      throw new Error('Could not get 2d context');
-    }
-    this.ctx = ctx;
-    this.events = handlers.Handlers(this);
     this.resizeEvent = this.fitToWindow.bind(this);
+    this.events = handlers.Handlers(this);
     if (isBrowser) {
+      const ctx = this.canvas.getContext('2d');
+      if (ctx === null) {
+        throw new Error('Could not get 2d context');
+      }
+      this.ctx = ctx;
       this.canvas.className = 'gridpaint-canvas';
       this.canvas.style.cursor = 'crosshair';
       this.canvas.style.touchAction = 'none';
@@ -93,6 +94,9 @@ class GridPaint {
         this.canvas.style.outlineStyle = 'solid';
         this.canvas.style.outlineWidth = '2px';
       }
+    }
+    else {
+      this.ctx = null;
     }
     // Used for requestAnimationFrame
     this.boundDraw = this.draw.bind(this);
@@ -120,11 +124,18 @@ class GridPaint {
   }
   /** Perform the current tool's action on the painting.
         This should ideally be invoked only by an event handler. */
-  action() {
+  action(pointermove) {
     switch (this.tool) {
     case 'pencil': return this.pencil();
     case 'bucket': return this.bucket();
-    case 'line': return this.line();
+    case 'line':
+      if (!pointermove)
+        return this.line();
+      break;
+    case 'bezier':
+      if (!pointermove)
+        return this.line(/* cancel */ false, /* bezier */ true);
+      break;
     default:
       console.error('<GridPaint>#action() warning: Unknown tool selected: ' +
                     this.tool);
@@ -156,16 +167,16 @@ class GridPaint {
   line_approx = tools.line_approx;
   replace = tools.replace;
   compareChanges = tools.compare;
-  drawBackground = draw.background;
-  drawCursor = draw.cursor;
-  drawGrid = draw.grid;
-  drawPainting = draw.painting;
-  draw = draw.tick;
+  drawBackground = isBrowser ? draw.background : noop;
+  drawCursor = isBrowser ? draw.cursor : noop;
+  drawGrid = isBrowser ? draw.grid : noop;
+  drawPainting = isBrowser ? draw.painting : noop;
+  draw = isBrowser ? draw.tick : noop;
   saveAs = save;
-  attachHandlers = handlers.attach;
-  detachHandlers = handlers.detach;
+  attachHandlers = isBrowser ? handlers.attach : noop;
+  detachHandlers = isBrowser ? handlers.detach : noop;
   resize = resizers.resize;
   resizePainting = resizers.resizePainting;
-  fitToWindow = resizers.fitToWindow;
+  fitToWindow = isBrowser ? resizers.fitToWindow : noop;
 }
 export { GridPaint };
