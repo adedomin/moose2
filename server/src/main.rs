@@ -70,19 +70,21 @@ fn svc_main() -> Result<(), &'static str> {
     use windows_services::{Command, Service};
     let (stopchan_tx, _) = broadcast::channel(1);
     let mut thread = None;
+    let mut logger_set_up = false;
     Service::new().can_stop().run(move |_service, msg| {
+        if !logger_set_up {
+            if let Ok(logfile) = config::get_service_logfile() {
+                env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+                    .target(env_logger::Target::Pipe(logfile))
+                    .init();
+            }
+            logger_set_up = true;
+        }
         match msg {
             Command::Start => {
                 log::debug!("Service Starting...");
                 if thread.is_none() {
                     // this is a "best effort" file logger.
-                    if let Ok(logfile) = config::get_service_logfile() {
-                        env_logger::Builder::from_env(
-                            env_logger::Env::default().default_filter_or("info"),
-                        )
-                        .target(env_logger::Target::Pipe(logfile))
-                        .init();
-                    }
                     let st_tx = stopchan_tx.clone();
                     let st_rx = st_tx.subscribe();
                     thread = Some(std::thread::spawn(move || {
