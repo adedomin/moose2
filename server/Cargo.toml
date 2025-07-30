@@ -43,4 +43,4 @@ default-features = false
 features = ["http1", "json", "form", "query", "tokio"]
 
 [target.'cfg(windows)'.dependencies]
-windows-services = "0.24.0"
+windows-services = "0.25"

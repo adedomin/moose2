@@ -41,44 +41,9 @@ fn main() {
 
 #[cfg(windows)]
 fn main() {
-    use windows_services::{Command, Service, State};
-    if std::env::args().any(|arg| &arg == "svc") {
-        let (stopchan_tx, _) = broadcast::channel(1);
-        let mut thread = None;
-        // this is a "best effort" file logger.
-        if let Ok(logfile) = config::get_service_logfile() {
-            env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-                .target(env_logger::Target::Pipe(logfile))
-                .init();
-        }
-        Service::new().can_stop().run(move |msg| {
-            match msg {
-                Command::Start => {
-                    log::debug!("Service Starting...");
-                    if thread.is_none() {
-                        let st_tx = stopchan_tx.clone();
-                        let st_rx = st_tx.subscribe();
-                        thread = Some(std::thread::spawn(move || {
-                            if let Err(e) = real_main(st_tx, st_rx) {
-                                log::error!("{e}");
-                            }
-                            windows_services::set_state(State::Stopped);
-                        }));
-                    }
-                }
-                Command::Stop => {
-                    log::warn!("Windows asked us to stop; stopping...");
-                    if let Some(jh) = thread.take() {
-                        _ = stopchan_tx.send(());
-                        _ = jh.join();
-                    }
-                }
-                // unsupported command
-                _ => (),
-            }
-        })
-    } else {
-        user_main()
+    // if error, the software is not running as a service.
+    if svc_main().is_err() {
+        user_main();
     }
 }
 
@@ -87,7 +52,7 @@ fn user_main() {
         .format_timestamp(None)
         .init();
     let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
-    if let Err(e) = real_main(stopchan_tx, stopchan_rx) {
+    if let Err(e) = real_main(stopchan_tx, stopchan_rx, false) {
         match e {
             config::ArgsError::Usage(usage) => {
                 if !usage.is_empty() {
@@ -100,7 +65,51 @@ fn user_main() {
     }
 }
 
-fn real_main(stopchan_tx: Sender<()>, stopchan_rx: Receiver<()>) -> Result<(), config::ArgsError> {
+#[cfg(windows)]
+fn svc_main() -> Result<(), &'static str> {
+    use windows_services::{Command, Service};
+    let (stopchan_tx, _) = broadcast::channel(1);
+    let mut thread = None;
+    Service::new().can_stop().run(move |_service, msg| {
+        match msg {
+            Command::Start => {
+                log::debug!("Service Starting...");
+                if thread.is_none() {
+                    // this is a "best effort" file logger.
+                    if let Ok(logfile) = config::get_service_logfile() {
+                        env_logger::Builder::from_env(
+                            env_logger::Env::default().default_filter_or("info"),
+                        )
+                        .target(env_logger::Target::Pipe(logfile))
+                        .init();
+                    }
+                    let st_tx = stopchan_tx.clone();
+                    let st_rx = st_tx.subscribe();
+                    thread = Some(std::thread::spawn(move || {
+                        if let Err(e) = real_main(st_tx, st_rx, true) {
+                            log::error!("{e}");
+                        }
+                    }));
+                }
+            }
+            Command::Stop => {
+                log::warn!("Windows asked us to stop; stopping...");
+                if let Some(jh) = thread.take() {
+                    _ = stopchan_tx.send(());
+                    _ = jh.join();
+                }
+            }
+            // unsupported command
+            _ => (),
+        }
+    })
+}
+
+fn real_main(
+    stopchan_tx: Sender<()>,
+    stopchan_rx: Receiver<()>,
+    win_service: bool,
+) -> Result<(), config::ArgsError> {
     let (subcmd, rc) = config::parse_args()?;
     if let SubComm::Convert(io) = subcmd {
         // We do not need the runtime or database for this
@@ -142,7 +151,7 @@ fn real_main(stopchan_tx: Sender<()>, stopchan_rx: Receiver<()>) -> Result<(), c
         let stopchan_rx = stopchan_tx.subscribe();
         let web_task = web_task(rc, db, stopchan_rx);
 
-        let shutdown_task = shutdown_task(stopchan_tx, subcmd);
+        let shutdown_task = shutdown_task(stopchan_tx, win_service);
 
         let _ = tokio::try_join!(shutdown_task, web_task, dump_task)
             .expect("All tasks to start/shutdown successfully.");

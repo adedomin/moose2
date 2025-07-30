@@ -90,7 +90,7 @@ impl IntoResponse for ApiResp {
                 .unwrap(),
             ApiResp::NotFound(moose_name) => ApiError::new_with_status(
                 StatusCode::NOT_FOUND,
-                format!("no such moose: {}", moose_name),
+                format!("no such moose: {moose_name}"),
             )
             .into_response(),
             ApiResp::CustomError(err) => err.into_response(),

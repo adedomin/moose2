@@ -14,7 +14,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::config::SubComm;
 use tokio::{
     sync::broadcast::{Sender, error::SendError},
     task::JoinHandle,
@@ -23,7 +22,7 @@ use tokio::{
 #[cfg(unix)]
 pub fn shutdown_task(
     shutdown_channel: Sender<()>,
-    _subcmd: SubComm,
+    _win_service: bool,
 ) -> JoinHandle<Result<(), SendError<()>>> {
     use tokio::signal::{ctrl_c, unix};
 
@@ -46,12 +45,12 @@ pub fn shutdown_task(
 #[cfg(windows)]
 pub fn shutdown_task(
     shutdown_channel: Sender<()>,
-    subcmd: SubComm,
+    win_service: bool,
 ) -> JoinHandle<Result<(), SendError<()>>> {
     use tokio::signal::windows;
 
     // the service manager will signal shutdown; just exit early.
-    if let SubComm::Svc = subcmd {
+    if win_service {
         log::info!("Running as Windows Service; not running shutdown listener.");
         tokio::spawn(async move { Ok(()) })
     } else {

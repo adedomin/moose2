@@ -148,9 +148,11 @@ fn find_systemd_or_xdg_path(systemd: &str, xdg: &str, fallback: &str, dest: &str
 }
 
 #[cfg(windows)]
-pub fn get_service_logfile() -> io::Result<Box<std::fs::File>> {
+pub fn get_service_logfile() -> io::Result<Box<std::io::LineWriter<std::fs::File>>> {
     let fpath = find_systemd_or_xdg_path(data::BASE, data::USER, data::FALLBACK, "moose2.log");
-    Ok(Box::new(std::fs::File::create(fpath)?))
+    Ok(Box::new(std::io::LineWriter::new(std::fs::File::create(
+        fpath,
+    )?)))
 }
 
 pub fn open_or_write_default<T>(config_path: T) -> Result<RunConfig, ArgsError>
@@ -182,7 +184,6 @@ struct Comm {
 }
 pub enum SubComm {
     Run,
-    Svc,
     Import(BulkModeDupe, Option<PathBuf>),
     Convert(Option<(PathBuf, Option<PathBuf>)>),
 }
@@ -208,7 +209,6 @@ Options:
     -u | --update    for import subcommand: update existing duplicate moose (by name).
 
 Subcommand:
-    svc                  Run as a Windows Service.
     import  [input]      Import moose from [input] json file.
     convert [from] [to]  Convert moose json dump to modern moose2 format.
 "###;
@@ -255,12 +255,11 @@ fn parse_argv() -> Result<Comm, ArgsError> {
                     return Err(ArgsError::Usage(format!("Unknown Flag {arg}.")));
                 }
                 arg => match (comm.subcmd, arg) {
-                    (SubComm::Run, "svc") => comm.subcmd = SubComm::Svc,
                     (SubComm::Run, "import") => {
                         comm.subcmd = SubComm::Import(BulkModeDupe::Fail, None)
                     }
                     (SubComm::Run, "convert") => comm.subcmd = SubComm::Convert(None),
-                    (SubComm::Run, anything) | (SubComm::Svc, anything) => {
+                    (SubComm::Run, anything) => {
                         return Err(ArgsError::Usage(format!("Invalid subcommand {anything}.")));
                     }
                     (SubComm::Import(d, None), file) => {

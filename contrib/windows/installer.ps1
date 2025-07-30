@@ -67,7 +67,7 @@ New-NetFirewallRule `
 # New-Service demands a password for -Credential, which we do not have.
 # amazing broken quoting... my favorite Powershell 5.1 issues.
 & cmd.exe /c (
-    'sc.exe create Moose2 binPath= """{0}"" svc" obj= "{1}" start= auto' `
+    'sc.exe create Moose2 binPath= """{0}""" obj= "{1}" start= auto' `
     -f "$MOOSE2_BIN\moose2.exe", $ServiceAccount
 )
 & sc.exe description Moose2 'Moose2 Web Application'
