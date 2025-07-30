@@ -120,7 +120,7 @@ async fn normal_gallery_page(
         None
     };
     gallery::gallery(
-        &format!("Page {}", page_num),
+        &format!("Page {page_num}"),
         page_num,
         db.get_page_count().await.unwrap_or(page_num),
         meese,

@@ -31,7 +31,7 @@ fn single_pixel_term(pixel: u8) -> Vec<u8> {
         b"\x1b[0m ".to_vec()
     } else {
         let RGBA(r, g, b, _) = EXTENDED_COLORS[pixel as usize];
-        format!("\x1b[48;2;{0};{1};{2}m ", r, g, b).into()
+        format!("\x1b[48;2;{r};{g};{b}m ").into()
     }
 }
 

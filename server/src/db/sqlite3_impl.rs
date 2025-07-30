@@ -222,7 +222,7 @@ impl MooseDB<Sqlite3Error> for Pool {
                 None => return Err(Sqlite3Error::StrangeMooseDumpPath()),
             };
             let r: u64 = rand::random();
-            let tdir = tdir.join(format!(".moose.json.{:x}", r));
+            let tdir = tdir.join(format!(".moose.json.{r:x}"));
 
             let file = File::create(&tdir)?;
             let mut bufw = BufWriter::new(file);
