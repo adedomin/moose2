@@ -68,10 +68,11 @@ fn user_main() {
 #[cfg(windows)]
 fn svc_main() -> Result<(), &'static str> {
     use windows_services::{Command, Service};
+
     let (stopchan_tx, _) = broadcast::channel(1);
     let mut thread = None;
     let mut logger_set_up = false;
-    Service::new().can_stop().run(move |_service, msg| {
+    Service::new().can_stop().run(move |service, msg| {
         if !logger_set_up {
             if let Ok(logfile) = config::get_service_logfile() {
                 env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
@@ -84,14 +85,31 @@ fn svc_main() -> Result<(), &'static str> {
             Command::Start => {
                 log::debug!("Service Starting...");
                 if thread.is_none() {
-                    // this is a "best effort" file logger.
                     let st_tx = stopchan_tx.clone();
                     let st_rx = st_tx.subscribe();
-                    thread = Some(std::thread::spawn(move || {
-                        if let Err(e) = real_main(st_tx, st_rx, true) {
-                            log::error!("{e}");
-                        }
-                    }));
+                    // SAFETY: `service` parameter should be a valid reference for as long as the windows service is running.
+                    //          We always join this handle inside the service handler's stop routine.
+                    //
+                    //          Note that a std::thread::Scope still fails because `service` escapes its closure when the JoinHandle is stored
+                    //          in `thread`.
+                    //
+                    // The example https://github.com/microsoft/windows-rs/blob/master/crates/samples/services/thread/src/main.rs#L20-L21
+                    // does something similar since `pool.submit` accepts a closure with the same lifetime as &Service<'_>
+                    thread = Some(unsafe {
+                        std::thread::Builder::new()
+                            .spawn_unchecked(move || {
+                                if let Err(e) = real_main(st_tx, st_rx, true) {
+                                    log::error!("{e}");
+                                    // only set status on abnormal termination.
+                                    service.set_state(windows_services::State::Stopped);
+                                }
+                            })
+                            .map_err(|e| {
+                                log::error!("Failed to spawn thread: {e}");
+                                e
+                            })
+                            .unwrap()
+                    });
                 }
             }
             Command::Stop => {
@@ -142,9 +160,12 @@ fn real_main(
 
         if let SubComm::Import(dup_behavior, moose_in) = subcmd {
             log::info!("Importing moose. Shutting down after importing.");
-            db.bulk_import(moose_in, dup_behavior).await.unwrap();
-            return;
+            db.bulk_import(moose_in, dup_behavior).await?;
+            return Ok(());
         }
+
+        // make sure our DB actually works and we can open it (no permission issues for instance).
+        db.check_pool().await?;
 
         let moose_dump_file = rc.get_moose_dump();
         let dbx = db.clone();
@@ -157,6 +178,6 @@ fn real_main(
 
         let _ = tokio::try_join!(shutdown_task, web_task, dump_task)
             .expect("All tasks to start/shutdown successfully.");
-    });
-    Ok(())
+        Ok(())
+    })
 }

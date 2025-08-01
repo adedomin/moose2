@@ -14,7 +14,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::{db::BulkModeDupe, shared_data::EXAMPLE_CONFIG};
+use crate::{
+    db::{BulkModeDupe, sqlite3_impl::Sqlite3Error},
+    shared_data::EXAMPLE_CONFIG,
+};
 use bcrypt_pbkdf::bcrypt_pbkdf;
 use serde::Deserialize;
 use std::{
@@ -65,6 +68,8 @@ pub enum ArgsError {
     Bcrypt(#[from] bcrypt_pbkdf::Error),
     #[error("usage err: {0}")]
     Usage(String),
+    #[error("Cannot get database connection: {0}")]
+    DbConn(#[from] Sqlite3Error),
 }
 
 #[derive(Deserialize, Clone)]

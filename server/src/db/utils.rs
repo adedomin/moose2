@@ -16,11 +16,11 @@ pub async fn open_db(rc: &RunConfig) -> Pool {
             Box::pin(async move {
                 con.interact(|con| con.execute_batch(CREATE_TABLE).map_err(HookError::Backend))
                     .await
-                    .expect("sqlite3 interact should not fail.")
+                    .expect("conn.interact should not fail.")
             })
         }))
         .build()
-        .expect("expected to build a Sqlite3 pool.")
+        .unwrap() // only fails when no runtime given.
 }
 
 /// Escapes a search query similar to how legacy moose does. FTS5 syntax is a bit much.

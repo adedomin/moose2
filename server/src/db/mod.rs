@@ -53,6 +53,7 @@ pub trait MooseDB<E> {
         moose_in: Option<PathBuf>,
         dup_behavior: BulkModeDupe,
     ) -> Result<(), E>;
+    async fn check_pool(&self) -> Result<(), E>;
 }
 
 impl TryFrom<&rusqlite::Row<'_>> for Moose {

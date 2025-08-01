@@ -306,4 +306,9 @@ impl MooseDB<Sqlite3Error> for Pool {
         .unwrap()
         .map_err(|e| e.into())
     }
+
+    async fn check_pool(&self) -> Result<(), Sqlite3Error> {
+        drop(self.get().await?);
+        Ok(())
+    }
 }
