@@ -76,6 +76,6 @@ New-NetFirewallRule `
 # '{}' | Out-File -NoClobber -FilePath "$MOOSE2_HOME\moose2.json" -Encoding ASCII -ErrorAction 'SilentlyContinue'
 # $WEB_ROOT = "C:\inetpub\wwwroot"
 # New-Item -Type Directory -Path "$WEB_ROOT\dump" -Force
-# New-Item -Type HardLink -Path "$WEB_ROOT\dump\dump.json" -Value "C:\ProgramData\moose2\moose2.json"
+# New-Item -Type HardLink -Path "$WEB_ROOT\dump\dump.json" -Value "$MOOSE2_HOME\moose2.json"
 # fixup ACL inheritance for hardlink.
 # & icalcs.exe $WEB_ROOT\dump\dump.json /reset
