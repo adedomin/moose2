@@ -1,7 +1,6 @@
 // Copyright (C) 2020  Anthony DeDominic
 // See COPYING for License
-/** Stateful global for holding the start of a line drawing */
-const control_points = [{ x: -1, y: -1 }, { x: -1, y: -1 }];
+/* State of line drawing based on gp['control_points'] */
 const STATE = {
   unset: 0,
   line: 1,
@@ -15,7 +14,7 @@ const STATE = {
  *          STATE.line   if line control point set.
  *          STATE.bezier if quadratic bezier point set.
  */
-function currentState() {
+function currentState(control_points) {
   if (control_points[0].x === -1 && control_points[0].y === -1) {
     return STATE.unset;
   }
@@ -29,7 +28,7 @@ function currentState() {
 /**
  * clear the state of the control points.
  */
-function clear() {
+function clear(control_points) {
   for (let i = 0; i < control_points.length; ++i) {
     control_points[i].x = -1;
     control_points[i].y = -1;
@@ -44,13 +43,13 @@ function clear() {
  * @param y ending y point.
  */
 function* line_approx(x, y) {
-  switch (currentState()) {
+  switch (currentState(this.control_points)) {
   case STATE.unset:
     yield { x, y };
     break;
   case STATE.line: {
-    let x1 = control_points[0].x;
-    let y1 = control_points[0].y;
+    let x1 = this.control_points[0].x;
+    let y1 = this.control_points[0].y;
     const x2 = x;
     const y2 = y;
     const dx = Math.abs(x2 - x1);
@@ -74,13 +73,16 @@ function* line_approx(x, y) {
     break;
   }
   case STATE.bezier: {
-    const x1 = control_points[0].x;
-    const x2 = control_points[1].x;
-    const y1 = control_points[0].y;
-    const y2 = control_points[1].y;
+    const x1 = this.control_points[0].x;
+    const x2 = this.control_points[1].x;
+    const y1 = this.control_points[0].y;
+    const y2 = this.control_points[1].y;
     for (let t = 0.0; t <= 1.0; t += 0.005) {
-      const xp = (Math.pow(1 - t, 2) * x1) + (2 * (1 - t) * t * x2) + (Math.pow(t, 2) * x);
-      const yp = (Math.pow(1 - t, 2) * y1) + (2 * (1 - t) * t * y2) + (Math.pow(t, 2) * y);
+      const t2 = t * t;
+      const mt = 1 - t;
+      const mt2 = mt * mt;
+      const xp = (mt2 * x1) + (2 * mt * t * x2) + (t2 * x);
+      const yp = (mt2 * y1) + (2 * mt * t * y2) + (t2 * y);
       yield { x: Math.round(xp), y: Math.round(yp) };
     }
     break;
@@ -103,21 +105,21 @@ function* line_approx(x, y) {
  */
 function line(cancel, bezier) {
   if (cancel)
-    return clear();
-  const s = currentState();
+    return clear(this.control_points);
+  const s = currentState(this.control_points);
   if (s === STATE.unset) {
-    control_points[0].x = this.cursor.x;
-    control_points[0].y = this.cursor.y;
+    this.control_points[0].x = this.cursor.x;
+    this.control_points[0].y = this.cursor.y;
   }
   else if (s === STATE.line && bezier) {
-    control_points[1].x = this.cursor.x;
-    control_points[1].y = this.cursor.y;
+    this.control_points[1].x = this.cursor.x;
+    this.control_points[1].y = this.cursor.y;
   }
   else {
-    for (const { x, y } of line_approx(this.cursor.x, this.cursor.y)) {
+    for (const { x, y } of this.line_approx(this.cursor.x, this.cursor.y)) {
       this.painting[y][x] = this.colour;
     }
-    clear();
+    clear(this.control_points);
   }
 }
 export { line_approx, line };

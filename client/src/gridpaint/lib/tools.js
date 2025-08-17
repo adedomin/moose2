@@ -7,7 +7,8 @@ import { replace } from './replace.js';
 import { line, line_approx } from './line.js';
 const MAX_HISTORY = 64;
 function clone_painting(painting) {
-  return Array.from(painting, el => el.slice());
+  // no argument is actually slower.
+  return Array.from(painting, el => el.slice(0));
 }
 function pushHistory(top, bottom) {
   if (top.length === 0) {

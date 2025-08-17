@@ -2,7 +2,7 @@
 // Copyright (C) 2021  Anthony DeDominic
 // See COPYING for License
 function clone_painting(painting) {
-  return Array.from(painting, el => el.slice());
+  return Array.from(painting, el => el.slice(0));
 }
 function calcPosition(e) {
   const w = this.width;

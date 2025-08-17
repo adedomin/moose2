@@ -50,6 +50,7 @@ class GridPaint {
   gridColour = '#000';
   palette = DEFAULT_PALETTE;
   cursor = { x: -1, y: -1 };
+  control_points = [{ x: -1, y: -1 }, { x: -1, y: -1 }];
   painting = [[]];
   // Clear tool backup for redo/undo
   oldPainting = [[]];
