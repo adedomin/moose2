@@ -226,18 +226,17 @@ fn parse_argv() -> Result<Comm, ArgsError> {
     let (comm, flag) = std::env::args()
         .skip(1)
         .fold(vec![], |mut args, arg| {
-            if arg.starts_with("-c")
+            if (arg.starts_with("-c")
                 || arg.starts_with("--config")
                 || arg.starts_with("-l")
-                || arg.starts_with("--listen")
+                || arg.starts_with("--listen"))
+                && let Some((f, v)) = arg.split_once('=')
             {
-                if let Some((f, v)) = arg.split_once('=') {
-                    args.push(f.to_owned());
-                    args.push(v.to_owned());
-                    return args;
-                }
+                args.push(f.to_owned());
+                args.push(v.to_owned());
+            } else {
+                args.push(arg);
             }
-            args.push(arg);
             args
         })
         .into_iter()

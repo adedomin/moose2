@@ -265,13 +265,13 @@ async fn put_new_moose(
     let db = webdata.db.clone();
     let moose_name = moose.name.clone();
     if let Err(e) = db.insert_moose(moose).await {
-        if let Sqlite3Error::Sqlite3(rusqlite::Error::SqliteFailure(e, _)) = e {
-            if matches!(e.code, rusqlite::ErrorCode::ConstraintViolation) {
-                return ApiError::new_with_status(
-                    StatusCode::UNPROCESSABLE_ENTITY,
-                    format!("{moose_name} already exists."),
-                );
-            }
+        if let Sqlite3Error::Sqlite3(rusqlite::Error::SqliteFailure(e, _)) = e
+            && matches!(e.code, rusqlite::ErrorCode::ConstraintViolation)
+        {
+            return ApiError::new_with_status(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                format!("{moose_name} already exists."),
+            );
         }
         ApiError::new_with_status(StatusCode::UNPROCESSABLE_ENTITY, e)
     } else {
