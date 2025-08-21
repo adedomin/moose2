@@ -20,7 +20,8 @@ use axum::{Router, middleware};
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl, basic::BasicClient};
 #[cfg(unix)]
 use tokio::net::UnixListener;
-use tokio::{net::TcpListener, sync::broadcast::Receiver, task::JoinHandle};
+use tokio::{net::TcpListener, task::JoinHandle};
+use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
 use tower_cookies::{CookieManagerLayer, Key};
 
@@ -35,7 +36,7 @@ use crate::{
 pub fn web_task(
     rc: RunConfig,
     db: Pool,
-    mut shutdown_signal: Receiver<()>,
+    stop_token: CancellationToken,
 ) -> JoinHandle<Result<(), std::io::Error>> {
     let listen_addr = rc.get_bind_addr();
     log::info!("Attempting to listen on: http://{listen_addr}/");
@@ -100,7 +101,7 @@ pub fn web_task(
 
     tokio::spawn(async move {
         let shutdown_h = async move {
-            _ = shutdown_signal.recv().await;
+            _ = stop_token.cancelled().await;
             log::warn!("Web Task is shutting down.")
         };
         #[cfg(unix)]

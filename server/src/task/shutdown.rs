@@ -14,14 +14,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use tokio::{
-    sync::broadcast::{Sender, error::SendError},
-    task::JoinHandle,
-};
+use tokio::{sync::broadcast::error::SendError, task::JoinHandle};
+use tokio_util::sync::CancellationToken;
 
 #[cfg(unix)]
 pub fn shutdown_task(
-    shutdown_channel: Sender<()>,
+    stop_token: CancellationToken,
     _win_service: bool,
 ) -> JoinHandle<Result<(), SendError<()>>> {
     use tokio::signal::{ctrl_c, unix};
@@ -37,14 +35,14 @@ pub fn shutdown_task(
                 log::warn!("SIGTERM: shutting down.");
             }
         }
-        shutdown_channel.send(())?;
+        stop_token.cancel();
         Ok(())
     })
 }
 
 #[cfg(windows)]
 pub fn shutdown_task(
-    shutdown_channel: Sender<()>,
+    stop_token: CancellationToken,
     win_service: bool,
 ) -> JoinHandle<Result<(), SendError<()>>> {
     use tokio::signal::windows;
@@ -79,7 +77,7 @@ pub fn shutdown_task(
                     log::warn!("Ctrl-Shutdown: shutting down.");
                 }
             }
-            shutdown_channel.send(())?;
+            stop_token.cancel();
             Ok(())
         })
     }

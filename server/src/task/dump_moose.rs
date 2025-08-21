@@ -22,7 +22,8 @@ use std::{
     time::Duration,
 };
 
-use tokio::{sync::broadcast::Receiver, task::JoinHandle, time};
+use tokio::{task::JoinHandle, time};
+use tokio_util::sync::CancellationToken;
 
 use crate::db::{
     MooseDB,
@@ -40,7 +41,7 @@ async fn dump_moose(
     moose_dump: PathBuf,
     dbpath: PathBuf,
     db: Pool,
-    mut stop_broadcast: Receiver<()>,
+    stop_token: CancellationToken,
 ) -> Result<(), Sqlite3Error> {
     // check if database was "likely" changed to prevent wastefully dumping every startup.
     let mdc = moose_dump.clone();
@@ -61,7 +62,7 @@ async fn dump_moose(
 
     loop {
         tokio::select! {
-            _ = stop_broadcast.recv() => {
+            _ = stop_token.cancelled() => {
                 return Ok(());
             },
             _ = interval.tick() => {
@@ -80,11 +81,11 @@ pub fn dump_moose_task(
     moose_dump: PathBuf,
     dbpath: PathBuf,
     db: Pool,
-    stop_broadcast: Receiver<()>,
+    stop_token: CancellationToken,
 ) -> JoinHandle<Result<(), Sqlite3Error>> {
     log::info!("Setting up Auto-dumps of database.");
     tokio::spawn(async move {
-        let e = dump_moose(moose_dump, dbpath, db, stop_broadcast).await;
+        let e = dump_moose(moose_dump, dbpath, db, stop_token).await;
         log::warn!("Task has shut down: {e:?}");
         e
     })

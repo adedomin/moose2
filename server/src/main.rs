@@ -22,7 +22,7 @@ use crate::{
 };
 
 use db::MooseDB;
-use tokio::sync::broadcast::{self, Receiver, Sender};
+use tokio_util::sync::CancellationToken;
 
 pub mod config;
 pub mod db;
@@ -51,8 +51,8 @@ fn user_main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format_timestamp(None)
         .init();
-    let (stopchan_tx, stopchan_rx) = broadcast::channel(1);
-    if let Err(e) = real_main(stopchan_tx, stopchan_rx, false) {
+    let stop_token = CancellationToken::new();
+    if let Err(e) = real_main(stop_token, false) {
         match e {
             config::ArgsError::Usage(usage) => {
                 if !usage.is_empty() {
@@ -69,7 +69,7 @@ fn user_main() {
 fn svc_main() -> Result<(), &'static str> {
     use windows_services::{Command, Service};
 
-    let (stopchan_tx, _) = broadcast::channel(1);
+    let stop_token = CancellationToken::new();
     let mut thread = None;
     let mut logger_set_up = false;
     Service::new().can_stop().run(move |service, msg| {
@@ -85,8 +85,7 @@ fn svc_main() -> Result<(), &'static str> {
             Command::Start => {
                 log::debug!("Service Starting...");
                 if thread.is_none() {
-                    let st_tx = stopchan_tx.clone();
-                    let st_rx = st_tx.subscribe();
+                    let stop_token_clone = stop_token.clone();
                     // SAFETY: `service` parameter should be a valid reference for as long as the windows service is running.
                     //          We always join this handle inside the service handler's stop routine.
                     //
@@ -98,7 +97,7 @@ fn svc_main() -> Result<(), &'static str> {
                     thread = Some(unsafe {
                         std::thread::Builder::new()
                             .spawn_unchecked(move || {
-                                if let Err(e) = real_main(st_tx, st_rx, true) {
+                                if let Err(e) = real_main(stop_token_clone, true) {
                                     log::error!("{e}");
                                     // only set status on abnormal termination.
                                     service.set_state(windows_services::State::Stopped);
@@ -115,7 +114,7 @@ fn svc_main() -> Result<(), &'static str> {
             Command::Stop => {
                 log::warn!("Windows asked us to stop; stopping...");
                 if let Some(jh) = thread.take() {
-                    _ = stopchan_tx.send(());
+                    _ = stop_token.cancel();
                     _ = jh.join();
                 }
             }
@@ -125,11 +124,7 @@ fn svc_main() -> Result<(), &'static str> {
     })
 }
 
-fn real_main(
-    stopchan_tx: Sender<()>,
-    stopchan_rx: Receiver<()>,
-    win_service: bool,
-) -> Result<(), config::ArgsError> {
+fn real_main(stop_token: CancellationToken, win_service: bool) -> Result<(), config::ArgsError> {
     let (subcmd, rc) = config::parse_args()?;
     if let SubComm::Convert(io) = subcmd {
         // We do not need the runtime or database for this
@@ -167,14 +162,14 @@ fn real_main(
         // make sure our DB actually works and we can open it (no permission issues for instance).
         db.check_pool().await?;
 
-        let moose_dump_file = rc.get_moose_dump();
-        let dbx = db.clone();
-        let dump_task = dump_moose_task(moose_dump_file, rc.get_moose_path(), dbx, stopchan_rx);
-
-        let stopchan_rx = stopchan_tx.subscribe();
-        let web_task = web_task(rc, db, stopchan_rx);
-
-        let shutdown_task = shutdown_task(stopchan_tx, win_service);
+        let dump_task = dump_moose_task(
+            rc.get_moose_dump(),
+            rc.get_moose_path(),
+            db.clone(),
+            stop_token.clone(),
+        );
+        let web_task = web_task(rc, db, stop_token.clone());
+        let shutdown_task = shutdown_task(stop_token, win_service);
 
         let _ = tokio::try_join!(shutdown_task, web_task, dump_task)
             .expect("All tasks to start/shutdown successfully.");

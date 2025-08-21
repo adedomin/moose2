@@ -29,6 +29,7 @@ bcrypt-pbkdf = "0.10.0"
 include_dir = { version = "0.7", features = ["metadata"] }
 const_format = "0.2.30"
 tokio = { version = "1", default-features = false, features = ["rt", "time", "macros", "signal"] }
+tokio-util = { version = "0.7", features = [] }
 time = { version = "0.3.36", features = ["formatting", "parsing", "macros"] }
 http = "1"
 tower = "0.5"
