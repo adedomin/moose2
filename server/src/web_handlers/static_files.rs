@@ -14,8 +14,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::path::PathBuf;
-
 use super::{ApiError, MooseWebData};
 use crate::{
     model::mime::get_mime,
@@ -84,14 +82,25 @@ async fn err_js_script() -> Static {
     Static::Content(ERR_JS, "application/javascript")
 }
 
+fn get_ext(uri_path: &str) -> Option<&str> {
+    uri_path.rsplit('/').next().and_then(|fname| {
+        let mut itr = fname.rsplitn(2, '.');
+        let ext = itr.next();
+        let base = itr.next();
+        match base {
+            None | Some("") => None,
+            _ => ext,
+        }
+    })
+}
+
 async fn static_content(req: Request) -> Static {
     let loc = req.uri().path();
     let Some(loc) = loc.strip_prefix("/public/") else {
         return Static::NotFound;
     };
-    let locp = PathBuf::from(loc);
-    let ext = locp.extension().unwrap_or_default().to_string_lossy();
-    get_static_file_from(&CLIENT_DIR, loc, ext.as_ref())
+    let ext = get_ext(loc).unwrap_or("");
+    get_static_file_from(&CLIENT_DIR, loc, ext)
 }
 
 pub fn routes() -> Router<MooseWebData> {
