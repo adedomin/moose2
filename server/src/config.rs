@@ -84,7 +84,7 @@ pub struct Secret(pub [u8; 64]);
 
 impl Default for Secret {
     fn default() -> Self {
-        Secret([0u8; 64])
+        Secret(std::array::from_fn(|_| rand::random()))
     }
 }
 
@@ -312,18 +312,14 @@ pub fn parse_args() -> Result<(SubComm, RunConfig), ArgsError> {
         // seems better to have explicit command line override configuration.
         conf.listen = Some(listen);
     }
-    match &conf.cookie_secret {
-        None => {
-            for i in 0..64 {
-                conf.cookie_key.0[i] = rand::random();
-            }
-        }
-        Some(user_secret) => bcrypt_pbkdf(
+    // Secret::default() auto initializes with random bytes.
+    if let Some(user_secret) = &conf.cookie_secret {
+        bcrypt_pbkdf(
             user_secret,
             PBKDF_SALT,
             PBKDF_ROUNDS,
             &mut conf.cookie_key.0,
-        )?,
+        )?;
     }
     Ok((sub, conf))
 }

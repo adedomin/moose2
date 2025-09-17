@@ -16,7 +16,7 @@ thiserror = "1"
 # rand = { version = "0.9", features = ["thread_rng"], default-features = false }
 rand = { version = "0.8.5", features = ["std", "std_rng"], default-features = false }
 base64 = { version = "0.22" }
-png = "0.17.5"
+png = "0.18"
 maud = "0.27.0"
 percent-encoding = "2.1.0"
 sha2 = "0.10"

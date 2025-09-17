@@ -16,6 +16,7 @@
 
 pub const CREATE_TABLE: &str = r###"
 PRAGMA journal_mode = WAL;
+PRAGMA synchronous = FULL;
 PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 5000;
 PRAGMA cache_size = 512;

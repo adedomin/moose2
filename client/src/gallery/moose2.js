@@ -203,12 +203,11 @@ function fetch_moose_arr(type, path) {
     // block pagination for search results.
     case SEARCH: loading(true); break;
     }
-  })
-    .catch(e => {
-      del_or_replace_cards();
-      error_banner.classList.remove('hidden');
-      error_banner.textContent = e.toString();
-    });
+  }).catch(e => {
+    del_or_replace_cards();
+    error_banner.classList.remove('hidden');
+    error_banner.textContent = e.toString();
+  });
 }
 
 function add_nav_handlers() {
