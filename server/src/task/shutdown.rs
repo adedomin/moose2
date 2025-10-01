@@ -34,6 +34,9 @@ pub fn shutdown_task(
             _ = sigterm.recv() => {
                 log::warn!("SIGTERM: shutting down.");
             }
+            _ = stop_token.cancelled() => {
+                log::warn!("CANCELED: shutting down.");
+            }
         }
         stop_token.cancel();
         Ok(())
@@ -75,6 +78,9 @@ pub fn shutdown_task(
                 }
                 _ = ctrl_shutdown.recv() => {
                     log::warn!("Ctrl-Shutdown: shutting down.");
+                }
+                _ = stop_token.cancelled() => {
+                    log::warn!("CANCELED: shutting down.");
                 }
             }
             stop_token.cancel();

@@ -100,8 +100,11 @@ pub fn web_task(
         .with_state(app_data);
 
     tokio::spawn(async move {
+        let stop_clone = stop_token.clone();
+        // if the web server returns earlier than expected, make sure we cancel.
+        let _dropped = stop_token.drop_guard();
         let shutdown_h = async move {
-            _ = stop_token.cancelled().await;
+            _ = stop_clone.cancelled().await;
             log::warn!("Web Task is shutting down.")
         };
         #[cfg(unix)]
