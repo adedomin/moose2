@@ -48,7 +48,7 @@ async fn gallery_random_redir(State(db): State<MooseWebData>) -> Response {
         }
         Err(e) => {
             log::error!("DB: {e}");
-            ApiError::new(e.to_string()).into_response()
+            ApiError::new(e).into_response()
         }
     }
 }
@@ -61,7 +61,7 @@ async fn gallery_latest_redir(State(db): State<MooseWebData>) -> Response {
         }
         Err(e) => {
             log::error!("DB: {e}");
-            ApiError::new(e.to_string()).into_response()
+            ApiError::new(e).into_response()
         }
     }
 }

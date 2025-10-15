@@ -28,7 +28,7 @@ use tower_cookies::{CookieManagerLayer, Key};
 use crate::{
     config::{GitHubOauth2, RunConfig},
     db::sqlite3_impl::Pool,
-    middleware::etag::etag_match,
+    middleware::{csrf::header_csrf, etag::etag_match},
     model::app_data::{AppData, Oa},
     web_handlers::{api, display, oauth2_gh, static_files},
 };
@@ -94,6 +94,7 @@ pub fn web_task(
         .merge(static_files::routes())
         .layer(
             ServiceBuilder::new()
+                .layer(middleware::from_fn(header_csrf))
                 .layer(CookieManagerLayer::new())
                 .layer(middleware::from_fn(etag_match)),
         )

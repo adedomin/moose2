@@ -53,19 +53,19 @@ pub struct ApiError {
 const FALLBACK: &[u8] = br##"{ "status": "critical", "msg": "failed to serialize api message." }"##;
 
 impl ApiError {
-    pub fn new(msg: String) -> Self {
+    pub fn new<T: Display>(msg: T) -> Self {
         ApiError {
             code: StatusCode::INTERNAL_SERVER_ERROR,
             status: "error",
-            msg,
+            msg: msg.to_string(),
         }
     }
 
-    pub fn new_ok(msg: String) -> Self {
+    pub fn new_ok<T: Display>(msg: T) -> Self {
         ApiError {
             code: StatusCode::OK,
             status: "ok",
-            msg,
+            msg: msg.to_string(),
         }
     }
 

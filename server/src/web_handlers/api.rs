@@ -132,9 +132,10 @@ async fn simple_get(db: &Pool, name: &str) -> Result<Option<Moose>, String> {
 async fn resolve_moose(State(db): State<MooseWebData>, Path(moose_name): Path<String>) -> ApiResp {
     let db = &db.db;
     match simple_get(db, &moose_name).await {
-        Ok(Some(moose)) => ApiResp::CustomError(ApiError::new_ok(
-            percent_encode(moose.name.as_bytes(), NON_ALPHANUMERIC).to_string(),
-        )),
+        Ok(Some(moose)) => ApiResp::CustomError(ApiError::new_ok(percent_encode(
+            moose.name.as_bytes(),
+            NON_ALPHANUMERIC,
+        ))),
         Ok(None) => ApiResp::NotFound(moose_name),
         Err(redir) => ApiResp::CustomError(ApiError::new_ok(redir)),
     }
@@ -149,7 +150,7 @@ async fn get_moose(
     let Some(path) = uri.path().split('/').nth(1) else {
         log::error!("Path seems wrong for some call: {:?}", uri.path());
         return ApiResp::CustomError(ApiError::new(
-            "Path seems to be missing components; how did you get here?".to_owned(),
+            "Path seems to be missing components; how did you get here?",
         ));
     };
     match simple_get(db, &moose_name).await {
@@ -161,9 +162,9 @@ async fn get_moose(
                 "term" => (moose_term(&moose), "text/ansi-truecolor"),
                 _ => {
                     log::error!("Router is passing paths that don't make sense: {path:?}",);
-                    return ApiResp::CustomError(ApiError::new(
-                        "Cannot fetch moose type: {path:?}".to_owned(),
-                    ));
+                    return ApiResp::CustomError(ApiError::new(format!(
+                        "Cannot fetch moose type: {path:?}"
+                    )));
                 }
             };
             ApiResp::Body(body, ctype)

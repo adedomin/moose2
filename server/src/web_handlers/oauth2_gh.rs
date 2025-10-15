@@ -68,7 +68,7 @@ pub enum AuthApiError {
 
 impl IntoResponse for AuthApiError {
     fn into_response(self) -> Response {
-        ApiError::new(self.to_string()).into_response()
+        ApiError::new(self).into_response()
     }
 }
 
