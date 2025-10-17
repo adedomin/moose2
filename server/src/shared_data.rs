@@ -121,11 +121,3 @@ pub const EXAMPLE_CONFIG: &[u8] = br###"{ "//": "OPTIONAL: default: $XDG_DATA_HO
     }
 }
 "###;
-
-pub const ERR_JS: &[u8] = br###"window.onerror = function (event, source, lineno, colno, error) {
-  console.log(event, source, lineno, colno, error);
-  console.log('JS error, attempting to fallback to nojs.');
-  var x = window.location.origin;
-  var y = window.location.pathname;
-  window.location = x + y + '?nojs=true';
-};"###;

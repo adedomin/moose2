@@ -16,19 +16,12 @@
 
 use super::{HTML_TYPE, MooseWebData};
 use crate::{
-    db::MooseDB,
-    middleware::etag::etag,
-    model::{
-        author::Author,
-        pages::{MooseSearch, MooseSearchPage},
-        queries::SearchQuery,
-    },
-    templates::gallery,
+    db::MooseDB, middleware::etag::etag, model::author::Author, templates::gallery,
     web_handlers::ApiError,
 };
 use axum::{
     Router,
-    extract::{Path, Query, State},
+    extract::{Path, State},
     response::{IntoResponse, Redirect, Response},
     routing::get,
 };
@@ -66,87 +59,25 @@ async fn gallery_latest_redir(State(db): State<MooseWebData>) -> Response {
     }
 }
 
-async fn nojs_gallery_search(
-    db: MooseWebData,
-    page_num: usize,
-    query: &str,
-    search_page: usize,
-    nojs: bool,
-    username: Option<String>,
-) -> String {
-    let db = &db.db;
-    let meese = db
-        .search_moose(query, search_page)
-        .await
-        .unwrap_or_else(|err| {
-            log::error!("DB: {err}");
-            MooseSearchPage::default()
-        });
-
-    gallery::gallery(
-        &format!("Search: {query}"),
-        page_num,
-        db.get_page_count().await.unwrap_or(page_num),
-        Some(meese.result),
-        true,
-        nojs,
-        username,
-    )
-    .into_string()
-}
-
-async fn normal_gallery_page(
-    db: MooseWebData,
-    page_num: usize,
-    nojs: bool,
-    username: Option<String>,
-) -> String {
-    let db = &db.db;
-    let meese = if nojs {
-        let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
-            log::error!("DB: {err}");
-            vec![]
-        });
-        Some(
-            meese
-                .into_iter()
-                .map(|moose| MooseSearch {
-                    page: page_num,
-                    moose,
-                })
-                .collect::<Vec<MooseSearch>>(),
-        )
-    } else {
-        None
-    };
-    gallery::gallery(
-        &format!("Page {page_num}"),
-        page_num,
-        db.get_page_count().await.unwrap_or(page_num),
-        meese,
-        false,
-        nojs,
-        username,
-    )
-    .into_string()
-}
-
 async fn gallery_page(
     State(db): State<MooseWebData>,
-    Path(page_num): Path<usize>,
+    Path(page): Path<usize>,
     username: Author,
-    Query(query): Query<SearchQuery>,
 ) -> Response {
-    let SearchQuery { query, page, nojs } = query;
     let username = match username {
         Author::Anonymous => None,
         Author::Oauth2(s) => Some(s),
     };
 
-    let body = if !query.is_empty() && nojs {
-        nojs_gallery_search(db, page_num, &query, page, nojs, username).await
-    } else {
-        normal_gallery_page(db, page_num, nojs, username).await
+    let body = {
+        let db = &db.db;
+        gallery::gallery(
+            &format!("Page {page}"),
+            page,
+            db.get_page_count().await.unwrap_or(page),
+            username,
+        )
+        .into_string()
     };
 
     Response::builder()

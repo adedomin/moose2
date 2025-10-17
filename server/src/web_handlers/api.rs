@@ -213,7 +213,8 @@ async fn get_page_nav_range(
     Path(page_num): Path<usize>,
 ) -> Response {
     let db = &db.db;
-    let meese = templates::page_range(page_num, db.get_page_count().await.unwrap_or(page_num));
+    let meese =
+        templates::gallery::page_range(page_num, db.get_page_count().await.unwrap_or(page_num));
     let meese = serde_json::to_vec(&meese.collect::<Vec<usize>>()).unwrap();
     // response too small to make caching worth it.
     Response::builder()

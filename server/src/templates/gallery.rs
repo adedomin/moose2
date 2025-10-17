@@ -14,24 +14,49 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::{
-    model::pages::MooseSearch,
-    templates::{
-        ebanner, header, log_inout_form, moose_card, moose_card_template, navbar, pager, search_bar,
-    },
-};
+use crate::templates::{header, log_inout_form, navbar};
 use maud::{DOCTYPE, Markup, html};
+
+pub fn page_range(page: usize, page_count: usize) -> std::iter::Take<std::ops::Range<usize>> {
+    let page_start_range = page.saturating_sub(5);
+
+    let page_start_range = if page_start_range.abs_diff(page_count) < 10 {
+        page_start_range.saturating_sub(10 - page_start_range.abs_diff(page_count))
+    } else {
+        page_start_range
+    };
+
+    (page_start_range..page_count).take(10)
+}
+
+fn pager(page: usize, page_count: usize) -> Markup {
+    html! {
+        .nav-block {
+            a .arrow-left         .disable[page == 0] href={"/gallery/" (&(page.saturating_sub(1)))} { "Prev" }
+            a .paddle.paddle-edge .disable[page == 0] .paddle-edge href={"/gallery/0"} {
+                span.full { "Oldest" br; "Page" }
+                span.short { "Old" }
+            }
+
+            @for pnum in page_range(page, page_count) {
+                a .paddle .selected[pnum == page] href={"/gallery/" (pnum)} { (pnum) }
+            }
+
+            a .paddle.paddle-edge .disable[page+1 >= page_count] href={"/gallery/" (&(page_count.saturating_sub(1)))} {
+                span.full { "Newest" br; "Page" }
+                span.short { "New" }
+            }
+            a .arrow-right        .disable[page+1 >= page_count] href={"/gallery/" (&(page       + 1))} { "Next" }
+        }
+    }
+}
 
 pub fn gallery(
     page_title: &str,
     page: usize,
     page_count: usize,
-    meese: Option<Vec<MooseSearch>>,
-    search: bool,
-    nojs: bool,
     username: Option<String>,
 ) -> Markup {
-    let njs = if nojs { "?nojs=true" } else { "" };
     let is_login = username.is_some();
     html! {
         (DOCTYPE)
@@ -40,24 +65,29 @@ pub fn gallery(
             body {
                 (navbar(username))
                 // we duplicate this top and bottom, might as well reuse it?
-                @let pager_widget = pager(page, page_count, search, nojs);
+                @let pager_widget = pager(page, page_count);
                 (pager_widget)
-                (search_bar())
-                (ebanner(meese.as_ref().map(|meese| meese.is_empty()).unwrap_or(false)))
-                #moose-cards .cards {
-                    @if let Some(meese) = meese {
-                        @for MooseSearch { moose, page } in meese {
-                            (moose_card(&moose, format!("/gallery/{page}{njs}").as_str()))
-                        }
+                form #search-form method="get" {
+                    .full-width.btn-grp {
+                        input      #search-field name="q"    type="text"   placeholder="Search Moose";
+                        input                    name="nojs" type="hidden" value="true";
+                        input .btn #submit                   type="submit" value="Search";
                     }
                 }
+                h1 #hidden-banner-error .center-banner .hidden { "No Moose!" }
+                #moose-cards .cards {}
                 (pager_widget)
-                @if !nojs {
-                    (moose_card_template())
-                    script src="/public/global-modules/err.js" {}
-                    script src="/public/gallery/moose2.js" type="module" {}
+                template #moose-card-template {
+                    .card.center-me {
+                        a .nil {
+                            img .img;
+                        }
+                        br;
+                        a .black-link {}
+                    }
                 }
-                (log_inout_form(format!("/gallery/{page}{njs}").as_str(), is_login))
+                script src="/public/gallery/moose2.js" type="module" {}
+                (log_inout_form(format!("/gallery/{page}").as_str(), is_login))
             }
         }
     }

@@ -17,7 +17,7 @@
 use super::{ApiError, MooseWebData};
 use crate::{
     model::mime::get_mime,
-    shared_data::{COLORS_JS, ERR_JS, SIZ_JS},
+    shared_data::{COLORS_JS, SIZ_JS},
 };
 use axum::{
     Router,
@@ -78,10 +78,6 @@ async fn const_js_modules(AxumPath(const_js): AxumPath<String>) -> Static {
     Static::Content(body, "application/javascript")
 }
 
-async fn err_js_script() -> Static {
-    Static::Content(ERR_JS, "application/javascript")
-}
-
 fn get_ext(uri_path: &str) -> Option<&str> {
     uri_path.rsplit('/').next().and_then(|fname| {
         let mut itr = fname.rsplitn(2, '.');
@@ -108,7 +104,6 @@ pub fn routes() -> Router<MooseWebData> {
         .route("/favicon.ico", get(favicon))
         .route("/", get(index_page))
         .route("/index.html", get(index_page))
-        .route("/public/global-modules/err.js", get(err_js_script))
         .route("/public/const/{const}", get(const_js_modules))
         .fallback(static_content)
 }

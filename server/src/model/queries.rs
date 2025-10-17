@@ -32,8 +32,6 @@ pub struct SearchQuery {
         default = "page_num_default"
     )]
     pub page: usize,
-    #[serde(default = "nojs_default")]
-    pub nojs: bool,
 }
 
 fn from_qstring<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
@@ -66,10 +64,6 @@ fn default_query() -> String {
 
 fn page_num_default() -> usize {
     0
-}
-
-fn nojs_default() -> bool {
-    false
 }
 
 // #[derive(Deserialize)]
