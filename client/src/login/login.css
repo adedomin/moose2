@@ -13,6 +13,10 @@ body {
   text-align: center;
 }
 
+.err-bg-color {
+  background-color: var(--destructive-col);
+}
+
 .err-text {
   color: var(--destructive-col);
 }

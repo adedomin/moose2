@@ -10,7 +10,7 @@ fn alias_input(alias: Option<&str>) -> Markup {
 }
 
 pub fn login_choice(
-    _is_gh_enabled: bool,
+    is_gh_enabled: bool,
     alias: Option<&str>,
     err_msg: Option<&'static str>,
 ) -> Markup {
@@ -22,7 +22,12 @@ pub fn login_choice(
                 .divider {
                     (navbar(false, None))
                     .center-me {
-                        a #gh-login .btn href="/login/gh" { "Login with GitHub" }
+                        @if is_gh_enabled {
+                            a #gh-login .btn href="/login/gh" { "Login with GitHub" }
+                        }
+                        @else {
+                            a #gh-login .btn .err-bg-color href="/login/gh" onclick="return false" { "Auth Disabled" }
+                        }
                         p .choice {"OR"}
                         form #alias-form method="post" action="/login/alias" {
                             .btn-grp {
