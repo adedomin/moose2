@@ -97,9 +97,3 @@ body {
 #modal-close:hover {
   opacity: 1;
 }
-
-.divider {
-  display: grid;
-  grid-template-rows: min-content auto;
-  height: 100%;
-}

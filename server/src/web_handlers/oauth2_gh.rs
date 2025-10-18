@@ -19,12 +19,13 @@ use std::borrow::Cow;
 use super::{ApiError, CSRF_COOKIE, LOGIN_COOKIE, MooseWebData, REDIR_COOKIE};
 use crate::{
     model::{author::Author, secure_cookies::SecureCookies},
+    templates::login::login_choice,
     web_handlers::JSON_TYPE,
 };
 use axum::{
     Form, Router,
     extract::{Query, State},
-    response::{IntoResponse, Redirect, Response},
+    response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
 };
 use http::{StatusCode, header::LOCATION};
@@ -73,6 +74,11 @@ impl IntoResponse for AuthApiError {
 }
 
 #[derive(Deserialize)]
+pub struct AliasLogIn {
+    alias: String,
+}
+
+#[derive(Deserialize)]
 pub struct AuthRequest {
     code: String,
     state: String,
@@ -100,7 +106,7 @@ where
 async fn login_get(
     auth_client: State<MooseWebData>,
     session: SecureCookies,
-) -> Result<Response, ApiError> {
+) -> Result<Html<String>, ApiError> {
     login(auth_client, session, Form(LogInOutRedir::default())).await
 }
 
@@ -108,6 +114,29 @@ async fn login(
     State(auth_client): State<MooseWebData>,
     session: SecureCookies,
     Form(query): Form<LogInOutRedir>,
+) -> Result<Html<String>, ApiError> {
+    let session = session.get_inner(&auth_client.cookie_key);
+    if let Some(author) = session
+        .get(LOGIN_COOKIE)
+        .and_then(|c| serde_json::from_str::<Author>(c.value()).ok())
+    {
+        return Err(ApiError::new_ok(format!(
+            "Already logged in as: {author:?}"
+        )));
+    }
+
+    session.add(new_cookie(
+        REDIR_COOKIE,
+        serde_json::to_string(&query).unwrap(),
+    ));
+
+    let html = login_choice(auth_client.oauth2_client.is_some(), None, None).into_string();
+    Ok(Html(html))
+}
+
+async fn login_gh(
+    State(auth_client): State<MooseWebData>,
+    session: SecureCookies,
 ) -> Result<Response, ApiError> {
     if let Some(oauth2_client) = &auth_client.oauth2_client {
         let session = session.get_inner(&auth_client.cookie_key);
@@ -124,10 +153,6 @@ async fn login(
             oauth2_client.oa.authorize_url(CsrfToken::new_random).url();
 
         session.add(new_cookie(CSRF_COOKIE, csrf_state.into_secret()));
-        session.add(new_cookie(
-            REDIR_COOKIE,
-            serde_json::to_string(&query).unwrap(),
-        ));
 
         Ok(Response::builder()
             .status(StatusCode::FOUND)
@@ -140,6 +165,36 @@ async fn login(
             "Authentication is disabled; the admin has to add an OAuth2 provider.",
         ))
     }
+}
+
+async fn login_alias(
+    State(auth_client): State<MooseWebData>,
+    session: SecureCookies,
+    Form(AliasLogIn { alias }): Form<AliasLogIn>,
+) -> Result<Redirect, Html<String>> {
+    let session = session.get_inner(&auth_client.cookie_key);
+    let author = Author::new_alias(alias.clone()).map_err(|err_msg| {
+        let html = login_choice(
+            auth_client.oauth2_client.is_some(),
+            Some(&alias),
+            Some(err_msg),
+        )
+        .into_string();
+        Html(html)
+    })?;
+    let redirect = session
+        .get(REDIR_COOKIE)
+        .and_then(|c| serde_json::from_str::<LogInOutRedir>(c.value()).ok())
+        .unwrap_or(LogInOutRedir { redirect: None })
+        .redirect
+        .unwrap_or_else(|| "/".to_owned());
+    session.remove(new_cookie(REDIR_COOKIE, ""));
+    session.add(new_cookie(
+        LOGIN_COOKIE,
+        serde_json::to_string(&author).unwrap(),
+    ));
+
+    Ok(Redirect::to(&redirect))
 }
 
 async fn auth(
@@ -207,7 +262,7 @@ async fn auth(
             );
             session.add(new_cookie(
                 LOGIN_COOKIE,
-                serde_json::to_string(&Author::Oauth2(login_name)).unwrap(),
+                serde_json::to_string(&Author::GitHub(login_name)).unwrap(),
             ));
             Ok(Response::builder().body(html.into()).unwrap())
         }
@@ -215,7 +270,7 @@ async fn auth(
         {
             session.add(new_cookie(
                 LOGIN_COOKIE,
-                serde_json::to_string(&Author::Oauth2(login_name)).unwrap(),
+                serde_json::to_string(&Author::GitHub(login_name)).unwrap(),
             ));
             Ok(Response::builder()
                 .status(StatusCode::SEE_OTHER)
@@ -238,17 +293,10 @@ async fn auth(
 const NULL_RESP: &[u8] = b"null";
 
 async fn logged_in(username: Author) -> Response {
-    let body = match username {
-        Author::Oauth2(username) => match serde_json::to_vec(&username) {
-            Ok(ok) => ok,
-            Err(e) => {
-                // shouldn't be possible?
-                log::error!("HUH? {e:?}");
-                NULL_RESP.to_vec()
-            }
-        },
-        Author::Anonymous => NULL_RESP.to_vec(),
-    };
+    let body = username
+        .displayable()
+        .and_then(|username| serde_json::to_vec(&username).ok())
+        .unwrap_or_else(|| NULL_RESP.to_vec());
     Response::builder()
         .header(JSON_TYPE.0, JSON_TYPE.1)
         .body(body.into())
@@ -267,6 +315,8 @@ async fn logout(
 pub fn routes() -> Router<MooseWebData> {
     Router::new()
         .route("/login", get(login_get).post(login))
+        .route("/login/alias", post(login_alias))
+        .route("/login/gh", get(login_gh))
         .route("/auth", get(auth))
         .route("/login/username", post(logged_in))
         .route("/logout", post(logout))

@@ -64,21 +64,12 @@ async fn gallery_page(
     Path(page): Path<usize>,
     username: Author,
 ) -> Response {
-    let username = match username {
-        Author::Anonymous => None,
-        Author::Oauth2(s) => Some(s),
-    };
-
-    let body = {
+    let username = username.displayable();
+    let page_count = {
         let db = &db.db;
-        gallery::gallery(
-            &format!("Page {page}"),
-            page,
-            db.get_page_count().await.unwrap_or(page),
-            username,
-        )
-        .into_string()
+        db.get_page_count().await.unwrap_or(page)
     };
+    let body = gallery::gallery(&format!("Page {page}"), page, page_count, username).into_string();
 
     Response::builder()
         .status(StatusCode::OK)

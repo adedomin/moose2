@@ -17,7 +17,7 @@
 use maud::{Markup, html};
 
 pub mod gallery;
-// pub mod login;
+pub mod login;
 
 pub fn header(page_title: &str, css: &'static str) -> Markup {
     html! {
@@ -32,16 +32,23 @@ pub fn header(page_title: &str, css: &'static str) -> Markup {
     }
 }
 
-pub fn navbar(username: Option<String>) -> Markup {
+pub fn navbar(is_gallery: bool /* TODO: fix this crap */, username: Option<String>) -> Markup {
     let is_login = username.is_some();
     html! {
         .nav {
             .btn-grp {
                 a.btn href="/" { "Moose2" }
-                a.btn.selected href="/gallery" onclick="return false" { "Gallery" }
+                @if is_gallery {
+                    a.btn.selected href="/gallery" onclick="return false" { "Gallery" }
+                }
+                @else {
+                    a.btn href="/gallery" { "Gallery" }
+                }
             }
-            .btn-grp.float-right {
-                input.btn type="submit" form="log-inout-form" id="login" data-login=(is_login) value=(username.unwrap_or("Login".to_owned()));
+            @if is_gallery {
+                .btn-grp.float-right {
+                    input.btn type="submit" form="log-inout-form" id="login" data-login=(is_login) value=(username.unwrap_or("Login".to_owned()));
+                }
             }
         }
     }

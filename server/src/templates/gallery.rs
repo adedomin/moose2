@@ -18,15 +18,16 @@ use crate::templates::{header, log_inout_form, navbar};
 use maud::{DOCTYPE, Markup, html};
 
 pub fn page_range(page: usize, page_count: usize) -> std::iter::Take<std::ops::Range<usize>> {
-    let page_start_range = page.saturating_sub(5);
+    let page_start = page.saturating_sub(5);
 
-    let page_start_range = if page_start_range.abs_diff(page_count) < 10 {
-        page_start_range.saturating_sub(10 - page_start_range.abs_diff(page_count))
+    let page_diff = page_start.abs_diff(page_count);
+    let page_start = if page_diff < 10 {
+        page_start.saturating_sub(10 - page_diff)
     } else {
-        page_start_range
+        page_start
     };
 
-    (page_start_range..page_count).take(10)
+    (page_start..page_count).take(10)
 }
 
 fn pager(page: usize, page_count: usize) -> Markup {
@@ -63,7 +64,7 @@ pub fn gallery(
         html lang="en" {
             (header(page_title, "/public/gallery/moose2.css"))
             body {
-                (navbar(username))
+                (navbar(true, username))
                 // we duplicate this top and bottom, might as well reuse it?
                 @let pager_widget = pager(page, page_count);
                 (pager_widget)

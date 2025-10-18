@@ -1,0 +1,22 @@
+body {
+  min-width: 300px;
+  height: 100vh;
+}
+
+#gh-login {
+  text-decoration: none;
+  border-radius: 6px;
+}
+
+.choice {
+  font-size: 2em;
+  text-align: center;
+}
+
+.err-text {
+  color: var(--destructive-col);
+}
+
+input:invalid {
+  color: var(--destructive-col);
+}
