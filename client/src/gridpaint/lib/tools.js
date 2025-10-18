@@ -3,7 +3,7 @@
 // See COPYING for License
 import { bucket } from './bucket.js';
 import { clear, clearWith } from './clear.js';
-import { replace } from './replace.js';
+import { replace, replacePainting } from './replace.js';
 import { line, line_approx } from './line.js';
 const MAX_HISTORY = 64;
 function clone_painting(painting) {
@@ -44,9 +44,7 @@ function apply(isApplied) {
     this.action();
   }
 }
-/** compared oldPainting to painting & push the changes to history
- * @param state any object that returns on undo/redo.
- */
+/** compared oldPainting to painting & push the changes to history */
 function compare() {
   if (this.oldPainting.length === this.painting.length) {
     if (this.painting.every((el, i) => el.toString() === this.oldPainting[i].toString())) {
@@ -56,6 +54,8 @@ function compare() {
   this.undoHistory.push(clone_painting(this.oldPainting));
   this.undoHistory.splice(0, this.undoHistory.length - MAX_HISTORY);
   this.redoHistory.length = 0;
+  // let consumer know it changed.
+  this.onchange();
 }
 // fill in grid units one by one
 function pencil() {
@@ -85,4 +85,4 @@ export {
   /* Single Click Action Tools */
   redo, undo, clear, clearWith,
   /* These do not have "action()'s" */
-  apply, replace, compare, line_approx };
+  apply, replace, replacePainting, compare, line_approx };

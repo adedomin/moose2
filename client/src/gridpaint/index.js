@@ -60,6 +60,8 @@ class GridPaint {
   resizeEvent;
   tool = 'pencil';
   boundDraw;
+  // allow user to react to changes to the canvas, such as persisting it.
+  onchange = noop;
   constructor(options) {
     if (options.width !== undefined)
       this.width = options.width;
@@ -77,6 +79,8 @@ class GridPaint {
       this.palette = options.palette;
     if (options.colour !== undefined)
       this.colour = options.colour;
+    if (options.onchange !== undefined)
+      this.onchange = options.onchange;
     this.canvas = Canvas(this.width * this.cellWidth, this.height * this.cellHeight);
     this.resizeEvent = this.fitToWindow.bind(this);
     this.events = handlers.Handlers(this);
@@ -167,6 +171,7 @@ class GridPaint {
   applyTool = tools.apply;
   line_approx = tools.line_approx;
   replace = tools.replace;
+  replacePainting = tools.replacePainting;
   compareChanges = tools.compare;
   drawBackground = isBrowser ? draw.background : noop;
   drawCursor = isBrowser ? draw.cursor : noop;

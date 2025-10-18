@@ -39,9 +39,7 @@ const MODAL = document.getElementById('modal');
 const MODAL_TITLE = document.getElementById('modal-title');
 const MODAL_CONTENT = document.getElementById('modal-content');
 const MODAL_CLOSE = document.getElementById('modal-close');
-
 // end html elements
-
 
 // state
 let PAINTER = null;
@@ -176,7 +174,33 @@ function createPaletteBtn(color, sub = false) {
   return b;
 }
 
+function savePaintingChange() {
+  sessionStorage.setItem('size', MOOSE_SIZE);
+  sessionStorage.setItem('painting', JSON.stringify(this.painting));
+}
+
 function init() {
+  let oldPainting = sessionStorage.getItem('painting');
+  if (oldPainting !== null) {
+    oldPainting = JSON.parse(oldPainting);
+  }
+
+  let oldSize = sessionStorage.getItem('size');
+  if (oldSize !== null) {
+    MOOSE_SIZE = +oldSize;
+    if (MOOSE_SIZE === MOOSE_SIZE_HD_KEY) {
+      toggleHD();
+    }
+  }
+
+  let oldName = sessionStorage.getItem('name');
+  if (oldName !== null) {
+    NAME_INPUT.value = oldName;
+  }
+  NAME_INPUT.addEventListener('change', (e) => {
+    sessionStorage.setItem('name', e.target.value);
+  });
+  
   const [width, height] = MOOSE_SIZES.get(MOOSE_SIZE);
   const painter = new GridPaint({
     width,
@@ -187,7 +211,11 @@ function init() {
     grid: true,
     palette: EXTENDED_COLORS,
     colour: DEFAULT_COLOR,
+    onchange: savePaintingChange,
   });
+  if (oldPainting !== null) {
+    painter.replacePainting(oldPainting);
+  }
 
   // removePainter();
   PAINTER_AREA.appendChild(painter.canvas);
