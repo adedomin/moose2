@@ -77,14 +77,17 @@ impl<'de> Deserialize<'de> for Moose {
                     }
                 }
                 Dimensions::Default => {
-                    if Dimensions::from_len(&moose.image) != Some(Dimensions::Default) {
+                    if !matches!(
+                        Dimensions::from_len(&moose.image),
+                        Some(Dimensions::Default),
+                    ) {
                         return Err(serde::de::Error::custom(
                             "Moose.image length is not correct.",
                         ));
                     }
                 }
                 Dimensions::HD => {
-                    if Dimensions::from_len(&moose.image) != Some(Dimensions::HD) {
+                    if !matches!(Dimensions::from_len(&moose.image), Some(Dimensions::HD)) {
                         return Err(serde::de::Error::custom(
                             "Moose.image length is not an HD moose.",
                         ));

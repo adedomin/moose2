@@ -22,8 +22,13 @@ use crate::{
     },
     middleware::etag::etag,
     model::{
-        PAGE_SIZE, author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage,
+        PAGE_SIZE,
+        author::{AuthenticatedAuthor, Author},
+        dimensions::Dimensions,
+        moose::Moose,
+        pages::MooseSearchPage,
         queries::SearchQuery,
+        votes::VoteFlag,
     },
     render::{moose_irc, moose_png, moose_term},
     task::notify_new,
@@ -239,6 +244,16 @@ async fn get_search_page(
 
 pub const MAX_BODY_SIZE: usize = 2usize.pow(14);
 
+fn already_exists(e: &Sqlite3Error) -> bool {
+    if let Sqlite3Error::Sqlite3(rusqlite::Error::SqliteFailure(e, _)) = e
+        && matches!(e.code, rusqlite::ErrorCode::ConstraintViolation)
+    {
+        true
+    } else {
+        false
+    }
+}
+
 async fn put_new_moose(
     State(webdata): State<MooseWebData>,
     session_author: Author,
@@ -267,9 +282,7 @@ async fn put_new_moose(
     let db = webdata.db.clone();
     let moose_name = moose.name.clone();
     if let Err(e) = db.insert_moose(moose).await {
-        if let Sqlite3Error::Sqlite3(rusqlite::Error::SqliteFailure(e, _)) = e
-            && matches!(e.code, rusqlite::ErrorCode::ConstraintViolation)
-        {
+        if already_exists(&e) {
             return ApiError::new_with_status(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 format!("{moose_name} already exists."),
@@ -280,6 +293,52 @@ async fn put_new_moose(
         notify_new();
         log::debug!("New moose: {moose_name}");
         ApiError::new_ok(format!("Saved {moose_name}."))
+    }
+}
+
+async fn upvote_moose(
+    state: State<MooseWebData>,
+    author: AuthenticatedAuthor,
+    path: Path<String>,
+) -> ApiError {
+    vote_moose(VoteFlag::Up, state, author, path).await
+}
+
+async fn unvote_moose(
+    state: State<MooseWebData>,
+    author: AuthenticatedAuthor,
+    path: Path<String>,
+) -> ApiError {
+    vote_moose(VoteFlag::None, state, author, path).await
+}
+
+async fn vote_moose(
+    unvote: VoteFlag,
+    State(webdata): State<MooseWebData>,
+    author: AuthenticatedAuthor,
+    Path(moose): Path<String>,
+) -> ApiError {
+    let db = webdata.db.clone();
+    let status = match unvote {
+        VoteFlag::None => db.unvote_moose(author, moose.clone()).await,
+        VoteFlag::Up => db.upvote_moose(author, moose.clone()).await,
+        VoteFlag::Down => todo!(),
+    };
+    if let Err(e) = status {
+        if already_exists(&e) {
+            ApiError::new_with_status(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                format!("You already upvoted {moose}."),
+            )
+        } else {
+            ApiError::new_with_status(StatusCode::INTERNAL_SERVER_ERROR, e)
+        }
+    } else {
+        ApiError::new_ok(match unvote {
+            VoteFlag::None => format!("Unvoted {moose}"),
+            VoteFlag::Up => format!("Upvoted {moose}"),
+            VoteFlag::Down => todo!(),
+        })
     }
 }
 
@@ -321,6 +380,10 @@ pub fn routes() -> Router<MooseWebData> {
         .route("/nav/{page_num}", get(get_page_nav_range))
         .route("/search", get(get_search_page))
         .route("/new", put(put_new_moose).post(put_new_moose))
+        .route(
+            "/upvote/{moose_name}",
+            put(upvote_moose).delete(unvote_moose),
+        )
 }
 
 pub fn dump_route<T: AsRef<std::path::Path>>(_dump_path: T) -> Router<MooseWebData> {

@@ -16,9 +16,11 @@
 
 use serde::Serialize;
 
+use crate::model::votes::VoteFlag;
+
 use super::moose::Moose;
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize)]
 pub struct MooseSearch {
     /// The actual Moose page this moose belongs to.
     pub page: usize,
@@ -30,4 +32,11 @@ pub struct MooseSearchPage {
     /// number of pages returned by query set (max: 10)
     pub pages: usize,
     pub result: Vec<MooseSearch>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MoosePage {
+    #[serde(flatten)]
+    pub moose: Moose,
+    pub voted: VoteFlag,
 }

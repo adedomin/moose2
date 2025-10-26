@@ -53,12 +53,14 @@ impl Author {
     }
 }
 
+const GH_MAX_BYTE_LEN: usize = 39;
+
 fn gh_valid_user(author: &str) -> Result<(), &'static str> {
     if author.is_empty() {
         return Err("Author name cannot be empty.");
     }
 
-    if author.len() > 39 {
+    if author.len() > GH_MAX_BYTE_LEN {
         return Err("Author name is too long: >39 bytes.");
     }
 
@@ -142,6 +144,26 @@ pub enum AuthenticatedAuthor {
     GitHub(String),
 }
 
+impl TryFrom<Author> for AuthenticatedAuthor {
+    type Error = ();
+
+    fn try_from(value: Author) -> Result<Self, Self::Error> {
+        match value {
+            Author::Anonymous => Err(()),
+            Author::Alias(_) => Err(()),
+            Author::GitHub(a) => Ok(Self::GitHub(a)),
+        }
+    }
+}
+
+impl From<AuthenticatedAuthor> for Author {
+    fn from(value: AuthenticatedAuthor) -> Self {
+        match value {
+            AuthenticatedAuthor::GitHub(a) => Author::GitHub(a),
+        }
+    }
+}
+
 impl<S> FromRequestParts<S> for AuthenticatedAuthor
 where
     MooseWebData: FromRef<S>,
@@ -156,21 +178,38 @@ where
             ));
         };
         let state = MooseWebData::from_ref(state);
-        let author = cookies
+        cookies
             .private(&state.cookie_key)
             .get(LOGIN_COOKIE)
             .and_then(|c| serde_json::from_str::<Author>(c.value()).ok())
-            .unwrap_or_default();
-        match author {
-            Author::Anonymous => Err(ApiError::new_with_status(
+            .ok_or(ApiError::new_with_status(
                 StatusCode::UNAUTHORIZED,
                 "Authentication Required.",
-            )),
-            Author::Alias(_) => Err(ApiError::new_with_status(
-                StatusCode::FORBIDDEN,
-                "Aliases are not authenticated.",
-            )),
-            Author::GitHub(a) => Ok(AuthenticatedAuthor::GitHub(a)),
-        }
+            ))? // no auth cookie
+            .try_into()
+            .map_err(|_| {
+                ApiError::new_with_status(StatusCode::FORBIDDEN, "Aliases are not authenticated.")
+            }) // only GitHub authenticated are currently authenticated.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GH_MAX_BYTE_LEN, gh_valid_user};
+
+    #[test]
+    fn test_allowed_author_names() {
+        assert!(gh_valid_user("-kebab-name-").is_err());
+        assert!(gh_valid_user("kebab-name-no-trailing-leading").is_ok());
+        assert!(gh_valid_user("kebab-name-no-leading-").is_err());
+        assert!(gh_valid_user("-kebab-name-leading-only").is_err());
+        assert!(gh_valid_user("kebab--double-hyphen").is_err());
+        assert!(gh_valid_user("" /* empty case */).is_err());
+        let too_big = "a".repeat(GH_MAX_BYTE_LEN * 2);
+        assert!(gh_valid_user(&too_big).is_err());
+        assert!(gh_valid_user(&too_big[0..GH_MAX_BYTE_LEN]).is_ok());
+        assert!(gh_valid_user("  spaces in name  ").is_err());
+        assert!(gh_valid_user("spaces in name").is_err());
+        assert!(gh_valid_user("._*%#").is_err());
     }
 }

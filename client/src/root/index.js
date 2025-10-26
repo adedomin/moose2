@@ -101,15 +101,6 @@ function lightness(c) {
   return (lightness > 125) ? 'dark' : 'light';
 }
 
-// function removePainter(painter = PAINTER) {
-//   if (painter !== null) {
-//     painter.destroy();
-//     if (painter.canvas) {
-//       painter.canvas.parentNode.removeChild(painter.canvas);
-//     }
-//   }
-// }
-
 function addSelect(b, color) {
   b.classList.add('selected');
   b.classList.add(lightness(color));
@@ -174,8 +165,10 @@ function createPaletteBtn(color, sub = false) {
   return b;
 }
 
+// exclusively used as the PAINTER#onchange handler.
 function savePaintingChange() {
-  sessionStorage.setItem('size', MOOSE_SIZE);
+  // MOOSE_SIZE is just width * height
+  sessionStorage.setItem('size', this.width * this.height);
   sessionStorage.setItem('painting', JSON.stringify(this.painting));
 }
 
@@ -217,7 +210,6 @@ function init() {
     painter.replacePainting(oldPainting);
   }
 
-  // removePainter();
   PAINTER_AREA.appendChild(painter.canvas);
 
   PAINTER = painter;

@@ -5,11 +5,13 @@ use std::{
 };
 
 use crate::{
-    db::query::DUMP_MOOSE,
+    db::query::{DELETE_VOTE, DUMP_MOOSE, INSERT_VOTE},
     model::{
         PAGE_SEARCH_LIM, PAGE_SIZE,
+        author::{AuthenticatedAuthor, Author},
         moose::{Moose, MooseAny},
         pages::{MooseSearch, MooseSearchPage},
+        votes::VoteFlag,
     },
 };
 
@@ -23,7 +25,7 @@ use super::{
 };
 
 use rand::Rng;
-use rusqlite::{Connection, OptionalExtension, Params};
+use rusqlite::{Connection, OptionalExtension, Params, params};
 
 pub type Pool = deadpool_sqlite::Pool;
 pub type PoolConnection = deadpool_sqlite::Object;
@@ -213,6 +215,40 @@ impl MooseDB<Sqlite3Error> for Pool {
         Ok(())
     }
 
+    // only upvotes or no vote for now...
+    async fn upvote_moose(
+        &self,
+        author: AuthenticatedAuthor,
+        moose: String,
+    ) -> Result<(), Sqlite3Error> {
+        let conn = self.get().await?;
+        let author = Author::from(author);
+        conn.interact(move |conn| {
+            conn.prepare_cached(INSERT_VOTE)
+                .unwrap()
+                .execute(params![author, moose, VoteFlag::Up])
+        })
+        .await
+        .unwrap()?;
+        Ok(())
+    }
+
+    async fn unvote_moose(
+        &self,
+        author: AuthenticatedAuthor,
+        moose: String,
+    ) -> Result<(), Sqlite3Error> {
+        let conn = self.get().await?;
+        let author = Author::from(author);
+        conn.interact(move |conn| {
+            conn.prepare_cached(DELETE_VOTE)
+                .unwrap()
+                .execute(params![author, moose])
+        })
+        .await
+        .unwrap()?;
+        Ok(())
+    }
     async fn dump_moose(&self, moose_dump: PathBuf) -> Result<(), Sqlite3Error> {
         let con = self.get().await?;
         con.interact(move |con| {

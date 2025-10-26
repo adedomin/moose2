@@ -30,6 +30,9 @@ function pushHistory(top, bottom) {
     this.width = oldw;
     this.canvas.width = this.width * this.cellWidth;
   }
+  // notify consumers of change.
+  // should the user of undo/redo handle this themselves?
+  this.onchange();
 }
 // activated when the user's finger or mouse is pressed
 function apply(isApplied) {

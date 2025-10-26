@@ -67,12 +67,12 @@ CREATE TABLE IF NOT EXISTS Vote
   ) WITHOUT ROWID;
 CREATE        INDEX IF NOT EXISTS Vote_ByMNameIdx on Vote(moose_name);
 
-CREATE TRIGGER IF NOT EXISTS Vote_UpdateTrigger
+CREATE TRIGGER IF NOT EXISTS Vote_InsertTrigger
 AFTER INSERT ON Vote
 BEGIN
   UPDATE Moose
      SET upvotes = upvotes + NEW.vote_type
-   WHERE name = OLD.moose_name;
+   WHERE name = NEW.moose_name;
 END;
 
 CREATE TRIGGER IF NOT EXISTS Vote_UpdateTrigger
@@ -83,7 +83,7 @@ BEGIN
    WHERE name = OLD.moose_name;
 END;
 
-CREATE TRIGGER IF NOT EXISTS Vote_UpdateTrigger
+CREATE TRIGGER IF NOT EXISTS Vote_DeleteTrigger
 AFTER DELETE ON Vote
 BEGIN
   UPDATE Moose
@@ -96,6 +96,8 @@ END;
 
 pub const INSERT_VOTE: &str =
     "INSERT INTO Vote(author_name, moose_name, vote_type) VALUES (?, ?, ?)";
+
+pub const DELETE_VOTE: &str = "DELETE FROM Vote WHERE author_name = ? AND moose_name = ?";
 
 pub const LAST_MOOSE: &str = r###"
     SELECT name, image, dimensions, created, author, upvotes
@@ -120,6 +122,16 @@ pub const GET_MOOSE_PAGE: &str = r###"
          , m.author
          , m.upvotes
       FROM Moose m
+     WHERE m.pos >= ? AND m.pos < ?
+     ORDER BY pos
+"###;
+
+pub const GET_MOOSE_PAGE_AND_USER_VOTE: &str = r###"
+    SELECT m.name
+         , v.vote_type
+      FROM Moose m
+ LEFT JOIN Vote v
+        ON v.author_name = ? AND v.moose_name = m.name
      WHERE m.pos >= ? AND m.pos < ?
      ORDER BY pos
 "###;

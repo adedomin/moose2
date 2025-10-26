@@ -18,7 +18,12 @@ use std::path::PathBuf;
 
 use time::OffsetDateTime;
 
-use crate::model::{author::Author, dimensions::Dimensions, moose::Moose, pages::MooseSearchPage};
+use crate::model::{
+    author::{AuthenticatedAuthor, Author},
+    dimensions::Dimensions,
+    moose::Moose,
+    pages::MooseSearchPage,
+};
 
 pub mod query;
 pub mod sqlite3_impl;
@@ -47,6 +52,8 @@ pub trait MooseDB<E> {
     async fn get_moose_page(&self, page_num: usize) -> Result<Vec<Moose>, E>;
     async fn search_moose(&self, query: &str, page_num: usize) -> Result<MooseSearchPage, E>;
     async fn insert_moose(&self, moose: Moose) -> Result<(), E>;
+    async fn upvote_moose(&self, author: AuthenticatedAuthor, moose: String) -> Result<(), E>;
+    async fn unvote_moose(&self, author: AuthenticatedAuthor, moose: String) -> Result<(), E>;
     async fn dump_moose(&self, path: PathBuf) -> Result<(), E>;
     async fn bulk_import(
         &self,
