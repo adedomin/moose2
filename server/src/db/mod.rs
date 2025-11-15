@@ -16,14 +16,7 @@
 
 use std::path::PathBuf;
 
-use time::OffsetDateTime;
-
-use crate::model::{
-    author::{AuthenticatedAuthor, Author},
-    dimensions::Dimensions,
-    moose::Moose,
-    pages::MooseSearchPage,
-};
+use crate::model::{author::AuthenticatedAuthor, moose::Moose, pages::MooseSearchPage};
 
 pub mod query;
 pub mod sqlite3_impl;
@@ -61,41 +54,4 @@ pub trait MooseDB<E> {
         dup_behavior: BulkModeDupe,
     ) -> Result<(), E>;
     async fn check_pool(&self) -> Result<(), E>;
-}
-
-impl TryFrom<&rusqlite::Row<'_>> for Moose {
-    type Error = rusqlite::Error;
-
-    fn try_from(row: &rusqlite::Row<'_>) -> Result<Self, Self::Error> {
-        Ok(Moose {
-            name: row.get(0)?,
-            image: row.get(1)?,
-            dimensions: row.get(2)?,
-            created: row.get(3)?,
-            author: row.get(4)?,
-            upvotes: row.get(5)?,
-        })
-    }
-}
-
-pub type MooseToSqlParams<'a> = (
-    &'a str,
-    &'a [u8],
-    &'a Dimensions,
-    &'a OffsetDateTime,
-    &'a Author,
-    &'a i64,
-);
-
-impl<'a> From<&'a Moose> for MooseToSqlParams<'a> {
-    fn from(moose: &'a Moose) -> Self {
-        (
-            &moose.name,
-            &moose.image,
-            &moose.dimensions,
-            &moose.created,
-            &moose.author,
-            &moose.upvotes,
-        )
-    }
 }

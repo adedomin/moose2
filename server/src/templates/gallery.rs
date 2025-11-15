@@ -83,8 +83,10 @@ pub fn gallery(
                         a .nil {
                             img .img;
                         }
-                        br;
-                        a .black-link {}
+                        .meta {
+                            a .black-link {}
+                            .by {}
+                        }
                     }
                 }
                 script src="/public/gallery/moose2.js" type="module" {}

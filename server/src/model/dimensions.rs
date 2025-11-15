@@ -24,8 +24,9 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_SIZE: (usize, usize, usize) = (26, 15, 26 * 15);
 pub const HD_SIZE: (usize, usize, usize) = (36, 22, 36 * 22);
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub enum Dimensions {
+    #[default]
     Default,
     HD,
     Custom(usize, usize),
@@ -50,12 +51,6 @@ impl Dimensions {
         } else {
             None
         }
-    }
-}
-
-impl Default for Dimensions {
-    fn default() -> Self {
-        Self::Default
     }
 }
 

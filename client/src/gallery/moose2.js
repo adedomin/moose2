@@ -1,7 +1,7 @@
 // Copyright (C) 2024  Anthony DeDominic
 // SPDX-License-Identifier: GPL-3.0-or-later
 import EXTENDED_COLORS from '/public/const/colors.js';
-import { PIX_FMT_WIDTH, PIX_FMT_HEIGHT, MOOSE_SIZES } from '/public/const/sizes.js';
+import { PIX_FMT_WIDTH, PIX_FMT_HEIGHT, MOOSE_SIZES, MOOSE_SIZE_DEFAULT_KEY } from '/public/const/sizes.js';
 
 const search_form = document.getElementById('search-form');
 const search_field = document.getElementById('search-field');
@@ -117,6 +117,9 @@ function renumber_nav() {
     }
   });
 }
+const [_OLD_W, _OLD_H]= MOOSE_SIZES.get(MOOSE_SIZE_DEFAULT_KEY);
+const IMG_H = _OLD_H * PIX_FMT_HEIGHT;
+const IMG_W = _OLD_W * PIX_FMT_WIDTH;
 
 function build_cards(meese_) {
   let meese = meese_;
@@ -135,16 +138,36 @@ function build_cards(meese_) {
       const card = template.querySelector('.card');
       const img_link_a = template.querySelector('a.nil');
       const img_link = template.querySelector('img.img');
-      const text_node = template.querySelector('a.black-link');
+      const text_node = template.querySelector('.meta a.black-link');
+      const author_node = template.querySelector('.meta .by');
 
       card.id = `-m-${encodeURIComponent(moose.name)}`;
       img_link_a.href = `/img/${encodeURIComponent(moose.name)}`;
       text_node.href = `/gallery/${page}#-m-${encodeURIComponent(moose.name)}`;
       text_node.textContent = moose.name;
+      if (typeof moose.author === 'object' && moose.author !== null) {
+        const author = Object.values(moose.author)[0] ?? 'Anonymous';
+        if (moose.author.Alias !== undefined) {
+          let span = document.createElement('span');
+          span.title = 'Is an alias.';
+          span.classList.add('is-alias');
+          span.textContent = author;
+          author_node.textContent = 'by ';
+          author_node.appendChild(span);
+        }
+        else {
+          author_node.textContent = `by ${author}`;
+        }
+      }
+      else {
+        author_node.textContent = '\u00A0';
+      }
 
       const canv = draw_moose(moose.image);
-      img_link.height = canv.height;
-      img_link.width = canv.width;
+      // force the dimensions to be the same size as legacy moose
+      // object-fit: contain should preserve the aspect ratio.
+      img_link.height = IMG_H;
+      img_link.width = IMG_W;
       blob_promises.push(new Promise(resolve => {
         canv.toBlob(blob => {
           const url = URL.createObjectURL(blob);

@@ -24,9 +24,9 @@ use super::author::Author;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 pub enum VoteFlag {
-    None = 0isize,
-    Up = 1isize,
-    Down = -1isize,
+    None = 0,
+    Up = 1,
+    Down = -1,
 }
 
 impl From<i64> for VoteFlag {

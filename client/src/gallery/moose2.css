@@ -187,3 +187,8 @@ html {
 .paddle:hover, input[type="submit"]:hover {
   background-color: var(--select-hover);
 }
+
+.is-alias {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}

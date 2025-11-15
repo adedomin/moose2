@@ -346,3 +346,42 @@ fn from_js<'de, D: Deserializer<'de>>(deserializer: D) -> Result<OffsetDateTime,
             .map_err(serde::de::Error::custom)
     })
 }
+
+// DB specific:
+
+impl TryFrom<&rusqlite::Row<'_>> for Moose {
+    type Error = rusqlite::Error;
+
+    fn try_from(row: &rusqlite::Row<'_>) -> Result<Self, Self::Error> {
+        Ok(Moose {
+            name: row.get(0)?,
+            image: row.get(1)?,
+            dimensions: row.get(2)?,
+            created: row.get(3)?,
+            author: row.get(4)?,
+            upvotes: row.get(5)?,
+        })
+    }
+}
+
+pub type MooseToSqlParams<'a> = (
+    &'a str,
+    &'a [u8],
+    &'a Dimensions,
+    &'a OffsetDateTime,
+    &'a Author,
+    &'a i64,
+);
+
+impl<'a> From<&'a Moose> for MooseToSqlParams<'a> {
+    fn from(moose: &'a Moose) -> Self {
+        (
+            &moose.name,
+            &moose.image,
+            &moose.dimensions,
+            &moose.created,
+            &moose.author,
+            &moose.upvotes,
+        )
+    }
+}

@@ -245,10 +245,8 @@ async fn get_search_page(
 pub const MAX_BODY_SIZE: usize = 2usize.pow(14);
 
 fn already_exists(e: &Sqlite3Error) -> bool {
-    if let Sqlite3Error::Sqlite3(rusqlite::Error::SqliteFailure(e, _)) = e
-        && matches!(e.code, rusqlite::ErrorCode::ConstraintViolation)
-    {
-        true
+    if let Sqlite3Error::Sqlite3(rusqlite::Error::SqliteFailure(e, _)) = e {
+        matches!(e.code, rusqlite::ErrorCode::ConstraintViolation)
     } else {
         false
     }

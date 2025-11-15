@@ -14,7 +14,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use axum::extract::{FromRef, FromRequestParts};
+use axum::extract::{FromRef, FromRequestParts, OptionalFromRequestParts};
 use http::{StatusCode, request::Parts};
 use rusqlite::{
     ToSql,
@@ -121,12 +121,11 @@ where
     MooseWebData: FromRef<S>,
     S: Send + Sync,
 {
-    type Rejection = (http::StatusCode, &'static str);
+    type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let Some(cookies) = parts.extensions.get::<Cookies>() else {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
+            return Err(ApiError::new(
                 "Can't extract cookies. Is tower-cookies applied!?",
             ));
         };
@@ -190,6 +189,31 @@ where
             .map_err(|_| {
                 ApiError::new_with_status(StatusCode::FORBIDDEN, "Aliases are not authenticated.")
             }) // only GitHub authenticated are currently authenticated.
+    }
+}
+
+impl<S> OptionalFromRequestParts<S> for AuthenticatedAuthor
+where
+    MooseWebData: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &S,
+    ) -> Result<Option<Self>, Self::Rejection> {
+        let Some(cookies) = parts.extensions.get::<Cookies>() else {
+            return Err(ApiError::new(
+                "Can't extract cookies. Is tower-cookies applied!?",
+            ));
+        };
+        let state = MooseWebData::from_ref(state);
+        Ok(cookies
+            .private(&state.cookie_key)
+            .get(LOGIN_COOKIE)
+            .and_then(|c| serde_json::from_str::<Author>(c.value()).ok())
+            .and_then(|author| author.try_into().ok()))
     }
 }
 

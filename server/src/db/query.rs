@@ -126,15 +126,21 @@ pub const GET_MOOSE_PAGE: &str = r###"
      ORDER BY pos
 "###;
 
-pub const GET_MOOSE_PAGE_AND_USER_VOTE: &str = r###"
-    SELECT m.name
-         , v.vote_type
-      FROM Moose m
- LEFT JOIN Vote v
-        ON v.author_name = ? AND v.moose_name = m.name
-     WHERE m.pos >= ? AND m.pos < ?
-     ORDER BY pos
-"###;
+// TODO: impl it.
+// pub const GET_MOOSE_PAGE_AND_USER_VOTE: &str = r###"
+//     SELECT m.name
+//          , m.image
+//          , m.dimensions
+//          , m.created
+//          , m.author
+//          , m.upvotes
+//          , v.vote_type
+//       FROM Moose m
+//  LEFT JOIN Vote v
+//         ON v.author_name = ?3 AND v.moose_name = m.name
+//      WHERE m.pos >= ?1 AND m.pos < ?2
+//      ORDER BY pos
+// "###;
 
 pub const SEARCH_MOOSE_PAGE: &str = const_format::formatcp!(
     r###"

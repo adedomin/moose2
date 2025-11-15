@@ -9,14 +9,14 @@ use crate::{
     model::{
         PAGE_SEARCH_LIM, PAGE_SIZE,
         author::{AuthenticatedAuthor, Author},
-        moose::{Moose, MooseAny},
+        moose::{Moose, MooseAny, MooseToSqlParams},
         pages::{MooseSearch, MooseSearchPage},
         votes::VoteFlag,
     },
 };
 
 use super::{
-    BulkModeDupe, MooseDB, MooseToSqlParams,
+    BulkModeDupe, MooseDB,
     query::{
         GET_MOOSE, GET_MOOSE_IDX, GET_MOOSE_PAGE, INSERT_MOOSE_WITH_COMPUTED_POS, LAST_MOOSE,
         LEN_MOOSE, SEARCH_MOOSE_PAGE, UPDATE_MOOSE,
@@ -46,6 +46,14 @@ pub enum Sqlite3Error {
     IntoInner(#[from] IntoInnerError<BufWriter<File>>),
     #[error("Moose dump path is either \"/\" or an empty string, \"\".")]
     StrangeMooseDumpPath(),
+}
+
+fn already_exists(e: &rusqlite::Error) -> bool {
+    if let rusqlite::Error::SqliteFailure(e, _) = e {
+        matches!(e.code, rusqlite::ErrorCode::ConstraintViolation)
+    } else {
+        false
+    }
 }
 
 fn query_moose<P: Params>(
@@ -318,23 +326,19 @@ impl MooseDB<Sqlite3Error> for Pool {
                     .unwrap()
                     .execute(pm)
                 {
-                    match &e {
-                        rusqlite::Error::SqliteFailure(err, _reason) => match err.code {
-                            rusqlite::ErrorCode::ConstraintViolation => match dup_behavior {
-                                BulkModeDupe::Fail => Err(e),
-                                BulkModeDupe::Ignore => Ok(()),
-                                BulkModeDupe::Update => {
-                                    let _ = tx.prepare_cached(UPDATE_MOOSE).unwrap().execute(pm)?;
-                                    Ok(())
-                                }
-                            },
-                            _ => Err(e),
-                        },
-                        _ => Err(e),
+                    if already_exists(&e) {
+                        match dup_behavior {
+                            BulkModeDupe::Fail => return Err(e),
+                            BulkModeDupe::Ignore => (),
+                            BulkModeDupe::Update => {
+                                let _ = tx.prepare_cached(UPDATE_MOOSE).unwrap().execute(pm)?;
+                            }
+                        }
+                    } else {
+                        return Err(e);
                     }
-                } else {
-                    Ok(())
                 }
+                Ok(())
             })?;
             tx.commit()
         })

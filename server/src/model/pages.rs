@@ -40,3 +40,14 @@ pub struct MoosePage {
     pub moose: Moose,
     pub voted: VoteFlag,
 }
+
+impl TryFrom<&rusqlite::Row<'_>> for MoosePage {
+    type Error = rusqlite::Error;
+
+    fn try_from(row: &rusqlite::Row<'_>) -> Result<Self, Self::Error> {
+        Ok(MoosePage {
+            moose: row.try_into()?,
+            voted: row.get(6)?,
+        })
+    }
+}
