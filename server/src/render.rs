@@ -20,7 +20,6 @@ use crate::model::{
     dimensions::Dimensions,
     moose::Moose,
 };
-use std::cmp::Ordering::{Equal, Greater, Less};
 
 fn pix_char(pixel: u8) -> u8 {
     if pixel == TRANSPARENT { b' ' } else { b'@' }
@@ -43,60 +42,42 @@ fn single_pixel(pixel: u8) -> Vec<u8> {
     }
 }
 
-fn is_same(row: &&[u8]) -> bool {
-    row.iter().all(|&pixel| pixel == TRANSPARENT)
-}
-
 fn trim_moose<'m>(image: &'m [u8], dim: &Dimensions) -> Vec<&'m [u8]> {
     let (dim_x, _dim_y, _total) = dim.width_height();
-    // this is focused trimming the top and bottoms of the frame.
-    let partials = image
-        .chunks_exact(dim_x)
-        .skip_while(is_same) // skip over all the rows that are transparent at start.
-        .collect::<Vec<&'m [u8]>>()
-        .into_iter()
-        .rev() // now repeat, but from the bottom
-        .skip_while(is_same)
-        .collect::<Vec<&'m [u8]>>()
-        .into_iter()
-        .rev() // now flip again to restore original orientation.
-        .collect::<Vec<&'m [u8]>>();
-
-    if let Some((left_trim, right_trim)) = partials
+    let image = image.chunks_exact(dim_x).collect::<Vec<&'m [u8]>>();
+    // remove all "Transparent" lines from the top.
+    let top_trim = image
         .iter()
-        .map(|row| {
-            let left = row
-                .iter()
-                .take_while(|&&pixel| pixel == TRANSPARENT)
-                .count(); // how many leading transparents.
-            let right = row
-                .iter()
-                .rev()
-                .take_while(|&&pixel| pixel == TRANSPARENT)
-                .count(); // how many trailing transparents.
-            (left, right)
-        })
-        // now we find the smallest common leading and trailing transparency (if any).
-        .reduce(|(l1, r1), (l2, r2)| {
-            let lret = match l1.cmp(&l2) {
-                Less | Equal => l1,
-                Greater => l2,
-            };
-            let rret = match r1.cmp(&r2) {
-                Less | Equal => r1,
-                Greater => r2,
-            };
-            (lret, rret)
-        })
-    {
-        // now remove the leading / trailing
-        partials
-            .iter()
-            .map(|&row| &row[left_trim..(row.len() - right_trim)])
-            .collect::<Vec<&'m [u8]>>()
-    } else {
-        partials
+        .take_while(|row| row.iter().all(|&p| p == TRANSPARENT))
+        .count();
+    // empty image.
+    if top_trim == image.len() {
+        return vec![];
     }
+    // from bottom..
+    let bottom_trim = image
+        .iter()
+        .rev()
+        .take_while(|row| row.iter().all(|&p| p == TRANSPARENT))
+        .count();
+    // trim vert.
+    let partial = &image[top_trim..(image.len() - bottom_trim)];
+    // we should always have at least one row when here.
+    let (left_trim, right_trim) = partial
+        .iter()
+        .fold((usize::MAX, usize::MAX), |(l, r), row| {
+            // from left
+            let ll = row.iter().take_while(|&&p| p == TRANSPARENT).count();
+            // from right
+            let rr = row.iter().rev().take_while(|&&p| p == TRANSPARENT).count();
+            // must take the minimum to not trim content on other rows.
+            (l.min(ll), r.min(rr))
+        });
+    // trim hori, return.
+    partial
+        .iter()
+        .map(|row| &row[left_trim..(row.len() - right_trim)])
+        .collect()
 }
 
 pub enum LineType {
