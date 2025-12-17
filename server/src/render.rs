@@ -43,7 +43,8 @@ fn single_pixel(pixel: u8) -> Vec<u8> {
 }
 
 fn trim_moose<'m>(image: &'m [u8], dim: &Dimensions) -> Vec<&'m [u8]> {
-    let (dim_x, _dim_y, _total) = dim.width_height();
+    let dim_x = dim.width_height().0;
+    // break image up into rows.
     let image = image.chunks_exact(dim_x).collect::<Vec<&'m [u8]>>();
     // remove all "Transparent" lines from the top.
     let top_trim = image
@@ -51,8 +52,9 @@ fn trim_moose<'m>(image: &'m [u8], dim: &Dimensions) -> Vec<&'m [u8]> {
         .take_while(|row| row.iter().all(|&p| p == TRANSPARENT))
         .count();
     // empty image.
+    // return an image with one pixel.
     if top_trim == image.len() {
-        return vec![];
+        return vec![&[0u8]];
     }
     // from bottom..
     let bottom_trim = image
@@ -233,15 +235,11 @@ pub fn moose_png(moose: &Moose) -> Result<Vec<u8>, png::EncodingError> {
     // 4KiB
     let mut cursor = std::io::Cursor::new(Vec::with_capacity(4096usize));
     {
-        let mut trimmed = trim_moose(&moose.image, &moose.dimensions);
+        let trimmed = trim_moose(&moose.image, &moose.dimensions);
         let (dim_x, dim_y, total) = trimmed
             .first()
             .map(|row| (row.len(), trimmed.len(), row.len() * trimmed.len()))
-            .unwrap_or_else(|| {
-                // PNGs must contain at least one pixel.
-                trimmed = vec![&[0]];
-                (1, 1, 1)
-            });
+            .expect("trim_moose always returns at least one pixel.");
         let color_map = gen_color_map(&trimmed);
         let bitmap = draw_bitmap(&trimmed, &color_map, dim_x, dim_y, total);
         let trns = color_map[TRANSPARENT as usize] != COLOR_MAP_SIGIL;
