@@ -98,29 +98,28 @@ pub fn moose_term(moose: &Moose) -> Vec<u8> {
 }
 
 pub fn reladate(moose_date: &OffsetDateTime) -> String {
-    let (myear, mmonth, mday) = moose_date.to_calendar_date();
-    let (cyear, cmonth, cday) = time::OffsetDateTime::now_utc().to_calendar_date();
-    let mmonth = mmonth as u8;
-    let cmonth = cmonth as u8;
-    macro_rules! get_fmt_for {
-        ($name:ident, $moose:ident, $curr:ident) => {
-            let diff = $moose.abs_diff($curr);
-            let plural = if diff != 1 { "s" } else { "" };
-            match $moose.cmp(&$curr) {
-                std::cmp::Ordering::Less => {
-                    return format!("{diff} {}{plural} ago", stringify!($name));
-                }
-                std::cmp::Ordering::Greater => {
-                    return format!("{diff} {}{plural} in the future", stringify!($name));
-                }
-                _ => (),
-            }
-        };
+    macro_rules! fmt_diff_str {
+        ($diff:ident) => {{
+            let plural = if $diff != 1 { "s" } else { "" };
+            return format!("{} {}{plural} ago", $diff, stringify!($diff));
+        }};
     }
-    get_fmt_for!(year, myear, cyear);
-    get_fmt_for!(month, mmonth, cmonth);
-    get_fmt_for!(day, mday, cday);
-    "Today".to_owned()
+    let current = time::OffsetDateTime::now_utc();
+    if moose_date > &current {
+        return "In the future.".to_owned();
+    }
+    let year = current.year() - moose_date.year();
+    let month = (year * 12) - (moose_date.month() as i32 - 1) + (current.month() as i32 - 1);
+    let day = current.to_julian_day() - moose_date.to_julian_day();
+    if day == 0 {
+        "Today".to_owned()
+    } else if day < i32::from(current.month().length(current.year())) {
+        fmt_diff_str!(day)
+    } else if month < 12 {
+        fmt_diff_str!(month)
+    } else {
+        fmt_diff_str!(year)
+    }
 }
 
 pub fn moose_line(moose: &Moose, l: LineType) -> Vec<u8> {
