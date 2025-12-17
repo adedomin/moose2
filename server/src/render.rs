@@ -109,7 +109,7 @@ pub fn reladate(moose_date: &OffsetDateTime) -> String {
         return "In the future.".to_owned();
     }
     let year = current.year() - moose_date.year();
-    let month = (year * 12) - (moose_date.month() as i32 - 1) + (current.month() as i32 - 1);
+    let month = (year * 12) - (moose_date.month() as i32) + (current.month() as i32);
     let day = current.to_julian_day() - moose_date.to_julian_day();
     if day == 0 {
         "Today".to_owned()
