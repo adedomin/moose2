@@ -14,6 +14,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use time::OffsetDateTime;
+
 use crate::model::{
     PIX_FMT_HEIGHT, PIX_FMT_WIDTH,
     color::{COLOR_MAP_SIGIL, EXTENDED_COLORS, RGBA, TRANSPARENT},
@@ -95,6 +97,32 @@ pub fn moose_term(moose: &Moose) -> Vec<u8> {
     moose_line(moose, LineType::TrueColorTerm)
 }
 
+pub fn reladate(moose_date: &OffsetDateTime) -> String {
+    let (myear, mmonth, mday) = moose_date.to_calendar_date();
+    let (cyear, cmonth, cday) = time::OffsetDateTime::now_utc().to_calendar_date();
+    let mmonth = mmonth as u8;
+    let cmonth = cmonth as u8;
+    macro_rules! get_fmt_for {
+        ($name:ident, $moose:ident, $curr:ident) => {
+            let diff = $moose.abs_diff($curr);
+            let plural = if diff != 1 { "s" } else { "" };
+            match $moose.cmp(&$curr) {
+                std::cmp::Ordering::Less => {
+                    return format!("{diff} {}{plural} ago", stringify!($name));
+                }
+                std::cmp::Ordering::Greater => {
+                    return format!("{diff} {}{plural} in the future", stringify!($name));
+                }
+                _ => (),
+            }
+        };
+    }
+    get_fmt_for!(year, myear, cyear);
+    get_fmt_for!(month, mmonth, cmonth);
+    get_fmt_for!(day, mday, cday);
+    "Today".to_owned()
+}
+
 pub fn moose_line(moose: &Moose, l: LineType) -> Vec<u8> {
     let mut moose_image = trim_moose(&moose.image, &moose.dimensions);
 
@@ -133,13 +161,7 @@ pub fn moose_line(moose: &Moose, l: LineType) -> Vec<u8> {
             "\x02{}\x02 by \x02{:?}\x02; created {}.\n",
             moose.name,
             moose.author,
-            moose
-                .created
-                .format(&time::format_description::well_known::Rfc2822)
-                .unwrap_or_else(|e| {
-                    log::error!("time claimed formatting the timestamp failed {e}");
-                    "(TIME FORMAT ERROR)".to_owned()
-                })
+            reladate(&moose.created),
         )
         .as_bytes(),
     );
