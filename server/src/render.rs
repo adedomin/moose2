@@ -118,6 +118,8 @@ pub fn reladate(moose_date: &OffsetDateTime) -> String {
     } else if month < 12 {
         fmt_diff_str!(month)
     } else {
+        // TODO: do I want to show something like "8 years, 10 months ago." ?
+        let year = month / 12;
         fmt_diff_str!(year)
     }
 }
