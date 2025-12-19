@@ -20,7 +20,7 @@ pub fn login_choice(
             (header("Login Choices", "/public/login/login.css"))
             body {
                 .divider {
-                    (navbar(false, None))
+                    (navbar(false, None, false, false))
                     .center-me {
                         @if is_gh_enabled {
                             a #gh-login .btn href="/login/gh" { "Login with GitHub" }

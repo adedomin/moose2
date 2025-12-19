@@ -140,6 +140,8 @@ function build_cards(meese_) {
       const img_link = template.querySelector('img.img');
       const text_node = template.querySelector('.meta a.black-link');
       const author_node = template.querySelector('.meta .by');
+      const vote = template.querySelector('.vote');
+      const upvote = template.querySelector('.upvote');
 
       card.id = `-m-${encodeURIComponent(moose.name)}`;
       img_link_a.href = `/img/${encodeURIComponent(moose.name)}`;
@@ -161,6 +163,30 @@ function build_cards(meese_) {
       }
       else {
         author_node.textContent = '\u00A0';
+      }
+
+      upvote.textContent = moose.upvotes;
+      if (login.dataset.auth === 'true') {
+        upvote.addEventListener('click', el => {
+          const method = vote.classList.contains('upvoted') ? 'DELETE' : 'PUT';
+          fetch(`/upvote/${encodeURIComponent(moose.name)}`,{
+            method,
+            credentials: 'same-origin',
+          }).then(res => {
+            if (res.ok) {
+              const toggled = vote.classList.toggle('upvoted') ? 1 : -1;
+              el.target.textContent = +el.target.textContent + toggled;
+              sessionStorage.setItem('cache_key', crypto.randomUUID().replaceAll('-', '').slice(0, 8));
+            }
+            else if (res.status == 422) {
+              // bad cache view, show the proper status.
+              vote.classList.toggle('upvoted');
+            }
+          });
+        });
+      }
+      else {
+        upvote.classList.add('disable');
       }
 
       const canv = draw_moose(moose.image);
@@ -260,14 +286,18 @@ function loading(is_loading) {
 
 function search() {
   let form = new URLSearchParams(new FormData(search_form));
-  form.delete('nojs');
+  // when upvoting, we change the page(s), so make sure we get the latest.
+  let cache_key = sessionStorage.getItem('cache_key');
   if (form.get('q') !== '') {
     history.replaceState(null, '', `${window.location.pathname}?${form.toString()}`);
+    form.set('c', cache_key ?? '');
     fetch_moose_arr(SEARCH, `/search?${form.toString()}`);
   }
   else {
     history.replaceState(null, '', window.location.pathname);
-    fetch_moose_arr(PAGE, `/page/${current_page()}`);
+    form.delete('q');
+    form.set('c', cache_key ?? '');
+    fetch_moose_arr(PAGE, `/page/${current_page()}?${form.toString()}`);
   }
 }
 

@@ -192,3 +192,24 @@ html {
     text-decoration: underline;
     text-decoration-style: dotted;
 }
+
+.vote {
+    float: left;
+}
+
+.upvote {
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+}
+
+.upvote:before {
+    content: "\25b3";
+}
+
+.upvote:hover::before,
+.upvoted .upvote::before
+{
+    content: "\25b2";
+    color: var(--destructive-col);
+}

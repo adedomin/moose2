@@ -32,8 +32,12 @@ pub fn header(page_title: &str, css: &'static str) -> Markup {
     }
 }
 
-pub fn navbar(is_gallery: bool /* TODO: fix this crap */, username: Option<String>) -> Markup {
-    let is_login = username.is_some();
+pub fn navbar(
+    is_gallery: bool, /* TODO: fix this crap */
+    username: Option<String>,
+    is_login: bool,
+    is_auth: bool,
+) -> Markup {
     html! {
         .nav {
             .btn-grp {
@@ -47,7 +51,7 @@ pub fn navbar(is_gallery: bool /* TODO: fix this crap */, username: Option<Strin
             }
             @if is_gallery {
                 .btn-grp.float-right {
-                    input.btn type="submit" form="log-inout-form" id="login" data-login=(is_login) value=(username.unwrap_or("Login".to_owned()));
+                    input.btn type="submit" form="log-inout-form" id="login" data-login=(is_login) data-auth=(is_auth) value=(username.unwrap_or("Login".to_owned()));
                 }
             }
         }

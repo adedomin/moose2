@@ -64,7 +64,6 @@ async fn gallery_page(
     Path(page): Path<usize>,
     username: Author,
 ) -> Response {
-    let username = username.displayable();
     let page_count = {
         let db = &db.db;
         db.get_page_count().await.unwrap_or(page)

@@ -193,7 +193,7 @@ function init() {
   NAME_INPUT.addEventListener('change', (e) => {
     sessionStorage.setItem('name', e.target.value);
   });
-  
+
   const [width, height] = MOOSE_SIZES.get(MOOSE_SIZE);
   const painter = new GridPaint({
     width,

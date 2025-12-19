@@ -44,6 +44,13 @@ impl Author {
         Ok(Self::GitHub(author))
     }
 
+    pub fn is_auth(&self) -> bool {
+        match self {
+            Author::GitHub(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn displayable(self) -> Option<String> {
         match self {
             Author::Anonymous => None,

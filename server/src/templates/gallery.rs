@@ -14,7 +14,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use crate::templates::{header, log_inout_form, navbar};
+use crate::{
+    model::author::Author,
+    templates::{header, log_inout_form, navbar},
+};
 use maud::{DOCTYPE, Markup, html};
 
 pub fn page_range(page: usize, page_count: usize) -> std::iter::Take<std::ops::Range<usize>> {
@@ -52,26 +55,22 @@ fn pager(page: usize, page_count: usize) -> Markup {
     }
 }
 
-pub fn gallery(
-    page_title: &str,
-    page: usize,
-    page_count: usize,
-    username: Option<String>,
-) -> Markup {
+pub fn gallery(page_title: &str, page: usize, page_count: usize, username: Author) -> Markup {
+    let is_auth = username.is_auth();
+    let username = username.displayable();
     let is_login = username.is_some();
     html! {
         (DOCTYPE)
         html lang="en" {
             (header(page_title, "/public/gallery/moose2.css"))
             body {
-                (navbar(true, username))
+                (navbar(true, username, is_login, is_auth))
                 // we duplicate this top and bottom, might as well reuse it?
                 @let pager_widget = pager(page, page_count);
                 (pager_widget)
                 form #search-form method="get" {
                     .full-width.btn-grp {
                         input      #search-field name="q"    type="text"   placeholder="Search Moose";
-                        input                    name="nojs" type="hidden" value="true";
                         input .btn #submit                   type="submit" value="Search";
                     }
                 }
@@ -84,8 +83,13 @@ pub fn gallery(
                             img .img;
                         }
                         .meta {
-                            a .black-link {}
-                            .by {}
+                            .vote {
+                                a .upvote {}
+                            }
+                            .details {
+                                a .black-link {}
+                                .by {}
+                            }
                         }
                     }
                 }
