@@ -16,7 +16,11 @@
 
 use std::path::PathBuf;
 
-use crate::model::{author::AuthenticatedAuthor, moose::Moose, pages::MooseSearchPage};
+use crate::model::{
+    author::AuthenticatedAuthor,
+    moose::Moose,
+    pages::{MooseSearch, MooseSearchPage},
+};
 
 pub mod query;
 pub mod sqlite3_impl;
@@ -42,8 +46,17 @@ pub trait MooseDB<E> {
     async fn is_empty(&self) -> bool;
     async fn get_page_count(&self) -> Result<usize, E>;
     async fn get_moose(&self, moose: &str) -> Result<Option<Moose>, E>;
-    async fn get_moose_page(&self, page_num: usize) -> Result<Vec<Moose>, E>;
-    async fn search_moose(&self, query: &str, page_num: usize) -> Result<MooseSearchPage, E>;
+    async fn get_moose_page(
+        &self,
+        page_num: usize,
+        author: Option<AuthenticatedAuthor>,
+    ) -> Result<Vec<MooseSearch>, E>;
+    async fn search_moose(
+        &self,
+        query: &str,
+        page_num: usize,
+        author: Option<AuthenticatedAuthor>,
+    ) -> Result<MooseSearchPage, E>;
     async fn insert_moose(&self, moose: Moose) -> Result<(), E>;
     async fn upvote_moose(&self, author: AuthenticatedAuthor, moose: String) -> Result<(), E>;
     async fn unvote_moose(&self, author: AuthenticatedAuthor, moose: String) -> Result<(), E>;

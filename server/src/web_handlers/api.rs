@@ -194,13 +194,19 @@ async fn get_page_count(State(db): State<MooseWebData>) -> Response {
         .unwrap()
 }
 
-// #[get("/page/{page_num}")]
-async fn get_page(State(db): State<MooseWebData>, Path(page_num): Path<usize>) -> ApiResp {
+async fn get_page(
+    State(db): State<MooseWebData>,
+    author: Option<AuthenticatedAuthor>,
+    Path(page_num): Path<usize>,
+) -> ApiResp {
     let db = &db.db;
-    let meese = db.get_moose_page(page_num).await.unwrap_or_else(|err| {
-        log::error!("{err}");
-        vec![]
-    });
+    let meese = db
+        .get_moose_page(page_num, author)
+        .await
+        .unwrap_or_else(|err| {
+            log::error!("{err}");
+            vec![]
+        });
     // if the page is full, it probably won't change in hours, if ever.
     // if the page isn't full, it's the last page or a page we haven't gotten to yet and can change.
     let cache_duration = if meese.len() < PAGE_SIZE {
@@ -231,13 +237,17 @@ async fn get_page_nav_range(
 
 async fn get_search_page(
     State(db): State<MooseWebData>,
+    author: Option<AuthenticatedAuthor>,
     Query(SearchQuery { query, page, .. }): Query<SearchQuery>,
 ) -> ApiResp {
     let db = &db.db;
-    let meese = db.search_moose(&query, page).await.unwrap_or_else(|err| {
-        log::warn!("{err}");
-        MooseSearchPage::default()
-    });
+    let meese = db
+        .search_moose(&query, page, author)
+        .await
+        .unwrap_or_else(|err| {
+            log::warn!("{err}");
+            MooseSearchPage::default()
+        });
     let meese = serde_json::to_vec(&meese).unwrap();
     ApiResp::BodyCacheTime(meese, "application/json", Duration::from_secs(300))
 }

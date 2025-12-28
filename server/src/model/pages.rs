@@ -25,6 +25,7 @@ pub struct MooseSearch {
     /// The actual Moose page this moose belongs to.
     pub page: usize,
     pub moose: Moose,
+    pub voted: VoteFlag,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -32,22 +33,4 @@ pub struct MooseSearchPage {
     /// number of pages returned by query set (max: 10)
     pub pages: usize,
     pub result: Vec<MooseSearch>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct MoosePage {
-    #[serde(flatten)]
-    pub moose: Moose,
-    pub voted: VoteFlag,
-}
-
-impl TryFrom<&rusqlite::Row<'_>> for MoosePage {
-    type Error = rusqlite::Error;
-
-    fn try_from(row: &rusqlite::Row<'_>) -> Result<Self, Self::Error> {
-        Ok(MoosePage {
-            moose: row.try_into()?,
-            voted: row.get(6)?,
-        })
-    }
 }

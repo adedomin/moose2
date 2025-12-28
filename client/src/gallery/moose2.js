@@ -125,14 +125,10 @@ function build_cards(meese_) {
   let meese = meese_;
   if (meese.length > 0) {
     error_banner.classList.add('hidden');
-    if (meese[0].page === null || meese[0].page === undefined) {
-      const curr = current_page();
-      meese = meese.map(moose => ({ page: curr, moose }));
-    }
     const new_els = [];
     const new_urls = [];
     const blob_promises = [];
-    for (const { page, moose } of meese) {
+    for (const { page, voted, moose } of meese) {
       const template = moose_card_template.content.cloneNode(true);
 
       const card = template.querySelector('.card');
@@ -167,6 +163,9 @@ function build_cards(meese_) {
 
       upvote.textContent = moose.upvotes;
       if (login.dataset.auth === 'true') {
+        if (voted === "Up") {
+          vote.classList.toggle('upvoted');
+        }
         upvote.addEventListener('click', el => {
           const method = vote.classList.contains('upvoted') ? 'DELETE' : 'PUT';
           fetch(`/upvote/${encodeURIComponent(moose.name)}`,{
@@ -301,11 +300,8 @@ function search() {
   }
 }
 
-// HOLY FUCKING SHIT WHY?!?!??!?!
 // clicking on hash links causes a popstate if the current state is pushed via history API
-// who designed this shit?
 let lasthash = '';
-
 window.addEventListener('popstate', () => {
   if (lasthash === window.location.hash) {
     renumber_nav();

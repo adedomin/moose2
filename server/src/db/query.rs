@@ -92,8 +92,6 @@ BEGIN
 END;
 "###;
 
-// pub const INSERT_MOOSE: &str = "INSERT INTO Moose(name, pos, image, dimensions, created, author, upvotes) VALUES (?, ?, ?, ?, ?, ?, 0)";
-
 pub const INSERT_VOTE: &str =
     "INSERT INTO Vote(author_name, moose_name, vote_type) VALUES (?, ?, ?)";
 
@@ -121,29 +119,37 @@ pub const GET_MOOSE_PAGE: &str = r###"
          , m.created
          , m.author
          , m.upvotes
+         , ?3
       FROM Moose m
-     WHERE m.pos >= ? AND m.pos < ?
+     WHERE m.pos >= ?1 AND m.pos < ?2
      ORDER BY pos
 "###;
 
 // TODO: impl it.
-// pub const GET_MOOSE_PAGE_AND_USER_VOTE: &str = r###"
-//     SELECT m.name
-//          , m.image
-//          , m.dimensions
-//          , m.created
-//          , m.author
-//          , m.upvotes
-//          , v.vote_type
-//       FROM Moose m
-//  LEFT JOIN Vote v
-//         ON v.author_name = ?3 AND v.moose_name = m.name
-//      WHERE m.pos >= ?1 AND m.pos < ?2
-//      ORDER BY pos
-// "###;
+pub const GET_MOOSE_PAGE_AND_USER_VOTE: &str = r###"
+    SELECT m.name
+         , m.image
+         , m.dimensions
+         , m.created
+         , m.author
+         , m.upvotes
+         , v.vote_type
+      FROM Moose m
+ LEFT JOIN Vote v
+        ON v.author_name = ?3 AND v.moose_name = m.name
+     WHERE m.pos >= ?1 AND m.pos < ?2
+     ORDER BY pos
+"###;
 
 pub const SEARCH_MOOSE_PAGE: &str = const_format::formatcp!(
     r###"
+    WITH search_res(moose_name) AS
+      ( SELECT moose_name
+          FROM MooseSearch
+         WHERE moose_name MATCH ?1
+         ORDER BY RANK
+         LIMIT {0}
+      )
     SELECT m.name
          , m.image
          , m.dimensions
@@ -151,15 +157,40 @@ pub const SEARCH_MOOSE_PAGE: &str = const_format::formatcp!(
          , m.author
          , m.upvotes
          , m.pos
+         , ?2
       FROM Moose m
-INNER JOIN
-         ( SELECT moose_name
-             FROM MooseSearch
-            WHERE moose_name MATCH ?
-            ORDER BY RANK
-            LIMIT {0}
-         )
+INNER JOIN search_res
         ON m.name == moose_name
+"###,
+    crate::model::PAGE_SIZE * crate::model::PAGE_SEARCH_LIM
+);
+
+pub const SEARCH_MOOSE_PAGE_AND_USER_VOTE: &str = const_format::formatcp!(
+    r###"
+    WITH search_res(moose_name) AS
+      ( SELECT moose_name
+          FROM MooseSearch
+         WHERE moose_name MATCH ?1
+         ORDER BY RANK
+         LIMIT {0}
+      )
+    , search_w_vote(moose_name, vote_type) AS
+      ( SELECT sr.moose_name, v.vote_type
+          FROM search_res sr
+     LEFT JOIN Vote v
+            ON v.author_name = ?2 AND v.moose_name = sr.moose_name
+      )
+    SELECT m.name
+         , m.image
+         , m.dimensions
+         , m.created
+         , m.author
+         , m.upvotes
+         , m.pos
+         , swv.vote_type
+      FROM Moose m
+INNER JOIN search_w_vote swv
+        ON m.name == swv.moose_name
 "###,
     crate::model::PAGE_SIZE * crate::model::PAGE_SEARCH_LIM
 );

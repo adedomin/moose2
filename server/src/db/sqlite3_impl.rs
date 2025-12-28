@@ -5,7 +5,10 @@ use std::{
 };
 
 use crate::{
-    db::query::{DELETE_VOTE, DUMP_MOOSE, INSERT_VOTE},
+    db::query::{
+        DELETE_VOTE, DUMP_MOOSE, GET_MOOSE_PAGE_AND_USER_VOTE, INSERT_VOTE,
+        SEARCH_MOOSE_PAGE_AND_USER_VOTE,
+    },
     model::{
         PAGE_SEARCH_LIM, PAGE_SIZE,
         author::{AuthenticatedAuthor, Author},
@@ -131,15 +134,30 @@ impl MooseDB<Sqlite3Error> for Pool {
             .unwrap()
     }
 
-    async fn get_moose_page(&self, page_num: usize) -> Result<Vec<Moose>, Sqlite3Error> {
+    async fn get_moose_page(
+        &self,
+        page_num: usize,
+        author: Option<AuthenticatedAuthor>,
+    ) -> Result<Vec<MooseSearch>, Sqlite3Error> {
         let conn = self.get().await?;
         let q = conn
-            .interact(move |conn| -> Result<Vec<Moose>, rusqlite::Error> {
+            .interact(move |conn| -> Result<Vec<MooseSearch>, rusqlite::Error> {
                 let start = page_num * PAGE_SIZE;
                 let end = page_num * PAGE_SIZE + PAGE_SIZE;
+                let (sql_query, author) = if let Some(author) = author {
+                    (GET_MOOSE_PAGE_AND_USER_VOTE, author.into())
+                } else {
+                    (GET_MOOSE_PAGE, Author::Anonymous)
+                };
                 Ok(conn
-                    .prepare_cached(GET_MOOSE_PAGE)?
-                    .query_map([start, end], |row| row.try_into())?
+                    .prepare_cached(sql_query)?
+                    .query_map(params![start, end, author], |row| {
+                        Ok(MooseSearch {
+                            page: page_num,
+                            voted: row.get(6)?,
+                            moose: row.try_into()?,
+                        })
+                    })?
                     .flat_map(|m| match m {
                         Ok(moose) => Some(moose),
                         Err(e) => {
@@ -147,7 +165,7 @@ impl MooseDB<Sqlite3Error> for Pool {
                             None
                         }
                     })
-                    .collect::<Vec<Moose>>())
+                    .collect::<Vec<MooseSearch>>())
             })
             .await
             .unwrap();
@@ -162,16 +180,23 @@ impl MooseDB<Sqlite3Error> for Pool {
         &self,
         query: &str,
         page_num: usize,
+        author: Option<AuthenticatedAuthor>,
     ) -> Result<MooseSearchPage, Sqlite3Error> {
         let conn = self.get().await?;
         let query = escape_query(query);
         let q = conn
             .interact(move |conn| -> Result<MooseSearchPage, rusqlite::Error> {
+                let (sql_query, author) = if let Some(author) = author {
+                    (SEARCH_MOOSE_PAGE_AND_USER_VOTE, author.into())
+                } else {
+                    (SEARCH_MOOSE_PAGE, Author::Anonymous)
+                };
                 let result = conn
-                    .prepare_cached(SEARCH_MOOSE_PAGE)?
-                    .query_map([query], |row| {
+                    .prepare_cached(sql_query)?
+                    .query_map(params![query, author], |row| {
                         Ok(MooseSearch {
                             page: row.get::<_, usize>(6)? / PAGE_SIZE,
+                            voted: row.get(7)?,
                             moose: row.try_into()?,
                         })
                     })?

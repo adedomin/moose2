@@ -32,7 +32,6 @@ pub enum VoteFlag {
 impl From<i64> for VoteFlag {
     fn from(value: i64) -> Self {
         match value {
-            0 => VoteFlag::None,
             1 => VoteFlag::Up,
             -1 => VoteFlag::Down,
             _ => VoteFlag::None,
