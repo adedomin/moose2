@@ -162,7 +162,7 @@ async fn get_moose(
         Ok(Some(moose)) => {
             let (body, ctype) = match path {
                 "moose" => (moose.into(), "application/json"),
-                "img" => (moose_png(&moose).unwrap(), "image/png"),
+                "img" => (moose_png(&moose), "image/png"),
                 "irc" => (moose_irc(&moose), "text/irc-art"),
                 "term" => (moose_term(&moose), "text/ansi-truecolor"),
                 _ => {

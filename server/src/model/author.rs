@@ -45,10 +45,7 @@ impl Author {
     }
 
     pub fn is_auth(&self) -> bool {
-        match self {
-            Author::GitHub(_) => true,
-            _ => false,
-        }
+        matches!(self, Author::GitHub(_))
     }
 
     pub fn displayable(self) -> Option<String> {
