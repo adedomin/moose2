@@ -27,7 +27,7 @@ pub fn reladate(moose_date: &OffsetDateTime) -> String {
     }
     let current = time::OffsetDateTime::now_utc();
     if moose_date > &current {
-        return "In the future.".to_owned();
+        return "In the future".to_owned();
     }
     let year = current.year() - moose_date.year();
     let month = (year * 12) - (moose_date.month() as i32) + (current.month() as i32);
@@ -55,9 +55,9 @@ pub fn trim_moose<'m>(image: &'m [u8], dim: &Dimensions) -> Vec<&'m [u8]> {
         .take_while(|row| row.iter().all(|&p| p == TRANSPARENT))
         .count();
     // empty image.
-    // return an image with one pixel.
+    // return an image with one transparent pixel.
     if top_trim == image.len() {
-        return vec![&[0u8]];
+        return vec![&[TRANSPARENT]];
     }
     // from bottom..
     let bottom_trim = image
