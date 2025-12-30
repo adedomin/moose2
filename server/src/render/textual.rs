@@ -1,6 +1,6 @@
 use crate::{
     model::{
-        color::{COLOR_MAP_SIGIL, EXTENDED_COLORS, RGBA, TRANSPARENT},
+        color::{EXTENDED_COLORS, RGBA, TRANSPARENT},
         moose::Moose,
     },
     render::helpers::{reladate, trim_moose},
@@ -8,6 +8,18 @@ use crate::{
 
 const IRC_BOLD: &str = "\x02";
 const IRC_LINE_END: &[u8] = b"\n";
+
+fn pix_char_irc(pixel: u8) -> u8 {
+    if pixel == TRANSPARENT { b' ' } else { b'@' }
+}
+
+fn single_pixel_irc(pixel: u8) -> Vec<u8> {
+    if pixel == TRANSPARENT {
+        b"\x03 ".to_vec()
+    } else {
+        format!("\x03{0},{0}@", pixel).into()
+    }
+}
 
 const TERM_BOLD: &str = "\x1b[1m";
 const TERM_BOLD_END: &str = "\x1b[0m";
@@ -17,24 +29,12 @@ fn pix_char_term(_pixel: u8) -> u8 {
     b' '
 }
 
-fn pix_char(pixel: u8) -> u8 {
-    if pixel == TRANSPARENT { b' ' } else { b'@' }
-}
-
 fn single_pixel_term(pixel: u8) -> Vec<u8> {
     if pixel == TRANSPARENT {
         b"\x1b[0m ".to_vec()
     } else {
         let RGBA(r, g, b, _) = EXTENDED_COLORS[pixel as usize];
         format!("\x1b[48;2;{r};{g};{b}m ").into()
-    }
-}
-
-fn single_pixel(pixel: u8) -> Vec<u8> {
-    if pixel == TRANSPARENT {
-        vec![b'\x03', b' ']
-    } else {
-        format!("\x03{0},{0}{1}", pixel, pix_char(pixel) as char).into()
     }
 }
 
@@ -56,7 +56,7 @@ macro_rules! impl_line {
             trim_moose(&moose.image, &moose.dimensions)
                 .into_iter()
                 .for_each(|row| {
-                    let mut last_pix = COLOR_MAP_SIGIL;
+                    let mut last_pix = TRANSPARENT;
                     for &pix in row {
                         if pix == last_pix {
                             ret.push($pix_char_fn(pix));
@@ -75,8 +75,8 @@ macro_rules! impl_line {
 
 impl_line!(
     moose_irc,
-    pix_char,
-    single_pixel,
+    pix_char_irc,
+    single_pixel_irc,
     IRC_LINE_END,
     IRC_BOLD,
     IRC_BOLD
