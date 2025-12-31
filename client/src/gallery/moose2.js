@@ -22,6 +22,14 @@ function current_page() {
   return get_page_num(window.location.pathname);
 }
 
+function invalidate_cache() {
+  sessionStorage.setItem('cache_key', crypto.randomUUID().replaceAll('-', '').slice(0, 8));
+}
+
+function get_cache_key() {
+  return sessionStorage.getItem('cache_key') ?? '';
+}
+
 let blob_urls = [];
 function del_or_replace_cards(new_cards = undefined, new_blobs = undefined) {
   if (new_cards === undefined) {
@@ -163,7 +171,7 @@ function build_cards(meese_) {
 
       upvote.textContent = moose.upvotes;
       if (login.dataset.auth === 'true') {
-        if (voted === "Up") {
+        if (voted === 'Up') {
           vote.classList.toggle('upvoted');
         }
         upvote.addEventListener('click', el => {
@@ -175,7 +183,7 @@ function build_cards(meese_) {
             if (res.ok) {
               const toggled = vote.classList.toggle('upvoted') ? 1 : -1;
               el.target.textContent = +el.target.textContent + toggled;
-              sessionStorage.setItem('cache_key', crypto.randomUUID().replaceAll('-', '').slice(0, 8));
+              invalidate_cache();
             }
             else if (res.status == 422) {
               // bad cache view, show the proper status.
@@ -285,17 +293,15 @@ function loading(is_loading) {
 
 function search() {
   let form = new URLSearchParams(new FormData(search_form));
-  // when upvoting, we change the page(s), so make sure we get the latest.
-  let cache_key = sessionStorage.getItem('cache_key');
   if (form.get('q') !== '') {
     history.replaceState(null, '', `${window.location.pathname}?${form.toString()}`);
-    form.set('c', cache_key ?? '');
+    form.set('c', get_cache_key());
     fetch_moose_arr(SEARCH, `/search?${form.toString()}`);
   }
   else {
     history.replaceState(null, '', window.location.pathname);
     form.delete('q');
-    form.set('c', cache_key ?? '');
+    form.set('c', get_cache_key());
     fetch_moose_arr(PAGE, `/page/${current_page()}?${form.toString()}`);
   }
 }
@@ -333,6 +339,9 @@ if (login.dataset.login === 'true') {
     });
   };
   login.addEventListener('click', lev);
+  if (get_cache_key() === '') {
+    invalidate_cache();
+  }
 }
 
 const query_obj = new URLSearchParams(window.location.search);

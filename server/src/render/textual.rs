@@ -45,6 +45,9 @@ fn format_info(moose: &Moose, bold_start: &'static str, bold_end: &'static str) 
     if let Some(disp) = moose.author.clone().displayable() {
         write!(&mut ret, " by {bold_start}{disp}{bold_end}").unwrap();
     }
+    if moose.upvotes > 0 {
+        write!(&mut ret, " \u{2bc5}{}", moose.upvotes).unwrap();
+    }
     writeln!(&mut ret, " created {}", reladate(&moose.created)).unwrap();
     ret
 }
