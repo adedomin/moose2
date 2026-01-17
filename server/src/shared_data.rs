@@ -119,5 +119,14 @@ pub const EXAMPLE_CONFIG: &[u8] = br###"{ "//": "OPTIONAL: default: $XDG_DATA_HO
     , "//": "OPTIONAL: defaults depend on oauth provider, gh will redirect to auth cb url."
     , "redirect": "http://localhost:5921/auth"
     }
+, "//": "You can set this to an empty object for the defaults or omit it to disable it."
+, "ratelim":
+    { "//": "How long a user must wait between uploading moose."
+    , "secs": 60
+    , "//": "Trust reverse proxy header X-Real-IP instead of using SocketAddr"
+    , "trust_headers": true
+    , "//": "How many buckets for IP rate limiting. multiply by 8 for the size in memory. default: 128KiB"
+    , "bucket_size": 16384
+    }
 }
 "###;

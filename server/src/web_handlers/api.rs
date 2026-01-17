@@ -16,11 +16,12 @@
 
 use super::{ApiError, HOUR_CACHE, MooseWebData};
 use crate::{
+    config::Ratelim,
     db::{
         MooseDB,
         sqlite3_impl::{Pool, Sqlite3Error},
     },
-    middleware::etag::etag,
+    middleware::{etag::etag, ratelim::BucketRatelim},
     model::{
         PAGE_SIZE,
         author::{AuthenticatedAuthor, Author},
@@ -376,7 +377,8 @@ async fn get_dump() -> Response {
         .unwrap()
 }
 
-pub fn routes() -> Router<MooseWebData> {
+pub fn routes(ratelim: Option<Ratelim>) -> Router<MooseWebData> {
+    let new_method = put(put_new_moose).post(put_new_moose);
     Router::new()
         .route("/api-helper/resolve/{moose_name}", get(resolve_moose))
         .route("/moose/{moose_name}", get(get_moose))
@@ -387,7 +389,14 @@ pub fn routes() -> Router<MooseWebData> {
         .route("/page/{page_num}", get(get_page))
         .route("/nav/{page_num}", get(get_page_nav_range))
         .route("/search", get(get_search_page))
-        .route("/new", put(put_new_moose).post(put_new_moose))
+        .route(
+            "/new",
+            if let Some(rl) = ratelim {
+                new_method.route_layer::<BucketRatelim>(rl.into())
+            } else {
+                new_method
+            },
+        )
         .route(
             "/upvote/{moose_name}",
             put(upvote_moose).delete(unvote_moose),

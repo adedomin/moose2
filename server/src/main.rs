@@ -62,6 +62,7 @@ fn user_main() {
             }
             e => log::error!("{e}"),
         }
+        std::process::exit(1);
     }
 }
 

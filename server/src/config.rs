@@ -23,6 +23,7 @@ use serde::Deserialize;
 use std::{
     env, fs,
     io::{self, BufReader, Write},
+    num::NonZero,
     path::{Path, PathBuf},
 };
 
@@ -88,6 +89,33 @@ impl Default for Secret {
     }
 }
 
+#[derive(Deserialize, Clone)]
+pub struct Ratelim {
+    pub secs: Option<NonZero<u64>>,
+    pub trust_headers: Option<bool>,
+    pub bucket_size: Option<NonZero<usize>>,
+}
+
+// (8 * 16384)B = 128KiB
+const DEFAULT_BUCKET: usize = 16384;
+
+impl Ratelim {
+    pub fn secs(&self) -> u64 {
+        self.secs.map(|nz| nz.get()).unwrap_or(60)
+    }
+
+    pub fn trust_headers(&self) -> bool {
+        // moose isn't really intended to be run without a revproxy, assume true if omitted.
+        self.trust_headers.unwrap_or(true)
+    }
+
+    pub fn bucket_size(&self) -> usize {
+        self.bucket_size
+            .map(|nz| nz.get())
+            .unwrap_or(DEFAULT_BUCKET)
+    }
+}
+
 #[derive(Default, Deserialize, Clone)]
 pub struct RunConfig {
     moose_path: Option<PathBuf>,
@@ -95,6 +123,7 @@ pub struct RunConfig {
     listen: Option<String>,
     cookie_secret: Option<String>,
     pub github_oauth2: Option<GitHubOauth2>,
+    pub ratelim: Option<Ratelim>,
     #[serde(skip)]
     pub cookie_key: Secret,
 }

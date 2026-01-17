@@ -14,7 +14,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{Router, middleware};
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl, basic::BasicClient};
@@ -87,7 +87,7 @@ pub fn web_task(
     let moose_dump = rc.get_moose_dump();
 
     let app = Router::new()
-        .merge(api::routes())
+        .merge(api::routes(rc.ratelim))
         .merge(api::dump_route(moose_dump))
         .merge(oauth2_gh::routes())
         .merge(display::routes())
@@ -116,16 +116,22 @@ pub fn web_task(
                 .await
         } else {
             let inet = TcpListener::bind(listen_addr).await.unwrap();
-            axum::serve(inet, app)
-                .with_graceful_shutdown(shutdown_h)
-                .await
+            axum::serve(
+                inet,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .with_graceful_shutdown(shutdown_h)
+            .await
         }
         #[cfg(not(unix))]
         {
             let inet = TcpListener::bind(listen_addr).await.unwrap();
-            axum::serve(inet, app)
-                .with_graceful_shutdown(shutdown_h)
-                .await
+            axum::serve(
+                inet,
+                app.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .with_graceful_shutdown(shutdown_h)
+            .await
         }
     })
 }
