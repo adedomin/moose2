@@ -1,10 +1,16 @@
-use axum::{extract::Request, middleware::Next, response::IntoResponse};
+use std::task::{Context, Poll};
+
+use axum::{
+    extract::Request,
+    response::{IntoResponse, Response},
+};
 use http::{
     HeaderMap, StatusCode,
     header::{HOST, ORIGIN},
 };
+use tower::{Layer, Service};
 
-use crate::web_handlers::ApiError;
+use crate::{middleware::futs::EarlyRetFut, web_handlers::ApiError};
 
 const SEC_FETCH_SITE: &str = "Sec-Fetch-Site";
 const SEC_FETCH_SITE_ALLOWED: &str = "same-origin";
@@ -31,15 +37,49 @@ fn sec_fetch_site_check(headers: &HeaderMap) -> Option<bool> {
         .map(|v| v == SEC_FETCH_SITE_ALLOWED)
 }
 
-pub async fn header_csrf(req: Request, next: Next) -> Result<impl IntoResponse, ApiError> {
-    if !req.method().is_safe() {
-        let headers = req.headers();
-        if !sec_fetch_site_check(headers).unwrap_or_else(|| origin_check(headers).unwrap_or(true)) {
-            return Err(ApiError::new_with_status(
-                StatusCode::FORBIDDEN,
-                "CSRF failure.",
-            ));
-        }
+/// A Tower Layer that checks HTTP Headers Sec-Fetch-Site: same-origin or Origin == Host.
+#[derive(Clone)]
+pub struct HeaderCsrf;
+
+/// A Tower Service that checks HTTP Headers Sec-Fetch-Site: same-origin or Origin == Host.
+#[derive(Clone)]
+pub struct HeaderCsrfMiddle<S> {
+    inner: S,
+}
+
+impl<S> Layer<S> for HeaderCsrf {
+    type Service = HeaderCsrfMiddle<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        Self::Service { inner }
     }
-    Ok(next.run(req).await)
+}
+
+impl<S> Service<Request> for HeaderCsrfMiddle<S>
+where
+    S: Service<Request, Response = Response> + Send + 'static,
+    S::Future: Send + 'static,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = EarlyRetFut<S::Future>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, req: Request) -> Self::Future {
+        if !req.method().is_safe() {
+            let headers = req.headers();
+            if !sec_fetch_site_check(headers)
+                .unwrap_or_else(|| origin_check(headers).unwrap_or(true))
+            {
+                return EarlyRetFut::new_early(
+                    ApiError::new_with_status(StatusCode::FORBIDDEN, "CSRF failure.")
+                        .into_response(),
+                );
+            }
+        }
+        EarlyRetFut::new_next(self.inner.call(req))
+    }
 }

@@ -8,11 +8,9 @@ use governor::{
     state::{InMemoryState, NotKeyed, StateStore},
 };
 use http::{StatusCode, header::RETRY_AFTER};
-use pin_project::pin_project;
 use std::{
     hash::{BuildHasher, RandomState},
     net::{IpAddr, SocketAddr},
-    pin::Pin,
     sync::Arc,
     task::{Context, Poll},
 };
@@ -20,6 +18,7 @@ use tower::{Layer, Service};
 
 use crate::{
     config::Ratelim,
+    middleware::futs::EarlyRetFut,
     web_handlers::{ApiError, JSON_TYPE},
 };
 
@@ -97,39 +96,6 @@ impl<S> Layer<S> for BucketRatelim {
     }
 }
 
-#[pin_project]
-pub struct RlFuture<I> {
-    #[pin]
-    inner: RlFutType<I>,
-}
-
-#[pin_project(project = RlFutTypeProj)]
-pub enum RlFutType<I> {
-    Ok {
-        #[pin]
-        fut: I,
-    },
-    Exceeded {
-        resp: Option<Response>,
-    },
-}
-
-impl<I, E> Future for RlFuture<I>
-where
-    I: Future<Output = Result<Response, E>>,
-{
-    type Output = Result<Response, E>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.project().inner.project() {
-            RlFutTypeProj::Ok { fut } => fut.poll(cx),
-            RlFutTypeProj::Exceeded { resp } => Poll::Ready(Ok(resp
-                .take()
-                .expect("option used for take() out of projection."))),
-        }
-    }
-}
-
 impl<S> Service<Request> for BucketRatelimMiddle<S>
 where
     S: Service<Request, Response = Response> + Send + 'static,
@@ -137,7 +103,7 @@ where
 {
     type Response = S::Response;
     type Error = S::Error;
-    type Future = RlFuture<S::Future>;
+    type Future = EarlyRetFut<S::Future>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
@@ -172,28 +138,21 @@ where
             // bit weird... especially since NotUntil has a private field start.
             let start = self.state.ratelim.clock().now();
             let retry_after = not_until.wait_time_from(start).as_secs();
-            RlFuture {
-                inner: RlFutType::Exceeded {
-                    resp: Some(
-                        Response::builder()
-                            .status(StatusCode::TOO_MANY_REQUESTS)
-                            .header(JSON_TYPE.0, JSON_TYPE.1)
-                            .header(RETRY_AFTER, retry_after)
-                            .body(
-                                ApiError::new(format!("Retry after {retry_after} seconds."))
-                                    .to_json()
-                                    .into(),
-                            )
-                            .unwrap(),
-                    ),
-                },
-            }
+
+            EarlyRetFut::new_early(
+                Response::builder()
+                    .status(StatusCode::TOO_MANY_REQUESTS)
+                    .header(JSON_TYPE.0, JSON_TYPE.1)
+                    .header(RETRY_AFTER, retry_after)
+                    .body(
+                        ApiError::new(format!("Retry after {retry_after} seconds."))
+                            .to_json()
+                            .into(),
+                    )
+                    .unwrap(),
+            )
         } else {
-            RlFuture {
-                inner: RlFutType::Ok {
-                    fut: self.inner.call(request),
-                },
-            }
+            EarlyRetFut::new_next(self.inner.call(request))
         }
     }
 }
