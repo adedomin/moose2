@@ -123,6 +123,8 @@ pub const EXAMPLE_CONFIG: &[u8] = br###"{ "//": "OPTIONAL: default: $XDG_DATA_HO
 , "ratelim":
     { "//": "How long a user must wait between uploading moose."
     , "secs": 60
+    , "//": "how many attempts within the period 'secs' above"
+    , "burst": 1
     , "//": "Trust reverse proxy header X-Real-IP instead of using SocketAddr"
     , "trust_headers": true
     , "//": "How many buckets for IP rate limiting. multiply by 8 for the size in memory. default: 128KiB"

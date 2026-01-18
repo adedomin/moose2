@@ -92,6 +92,7 @@ impl Default for Secret {
 #[derive(Deserialize, Clone)]
 pub struct Ratelim {
     pub secs: Option<NonZero<u64>>,
+    pub burst: Option<NonZero<u32>>,
     pub trust_headers: Option<bool>,
     pub bucket_size: Option<NonZero<usize>>,
 }
@@ -100,8 +101,12 @@ pub struct Ratelim {
 const DEFAULT_BUCKET: usize = 16384;
 
 impl Ratelim {
-    pub fn secs(&self) -> u64 {
-        self.secs.map(|nz| nz.get()).unwrap_or(60)
+    pub fn secs(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.secs.map(|nz| nz.get()).unwrap_or(60))
+    }
+
+    pub fn burst(&self) -> NonZero<u32> {
+        self.burst.unwrap_or(NonZero::new(1u32).unwrap())
     }
 
     pub fn trust_headers(&self) -> bool {

@@ -1,6 +1,11 @@
 use axum::{
     extract::{ConnectInfo, Request},
-    response::{IntoResponse, Response},
+    response::Response,
+};
+use governor::{
+    Quota, RateLimiter,
+    clock::Clock,
+    state::{InMemoryState, NotKeyed, StateStore},
 };
 use http::{StatusCode, header::RETRY_AFTER};
 use pin_project::pin_project;
@@ -8,12 +13,8 @@ use std::{
     hash::{BuildHasher, RandomState},
     net::{IpAddr, SocketAddr},
     pin::Pin,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering::Relaxed},
-    },
+    sync::Arc,
     task::{Context, Poll},
-    time::{SystemTime, UNIX_EPOCH},
 };
 use tower::{Layer, Service};
 
@@ -24,10 +25,8 @@ use crate::{
 
 #[derive(Clone)]
 struct BucketRateLimState {
-    lim_secs: u64,
     trust_headers: bool,
-    hasher: RandomState,
-    buckets: Arc<Vec<AtomicU64>>,
+    ratelim: Arc<RateLimiter<IpAddr, BucketStateStore, governor::clock::MonotonicClock>>,
 }
 
 #[derive(Clone)]
@@ -35,14 +34,47 @@ pub struct BucketRatelim {
     state: BucketRateLimState,
 }
 
+pub struct BucketStateStore(RandomState, Vec<InMemoryState>);
+
+impl StateStore for BucketStateStore {
+    type Key = IpAddr;
+
+    fn measure_and_replace<T, F, E>(&self, key: &Self::Key, f: F) -> Result<T, E>
+    where
+        F: Fn(Option<governor::nanos::Nanos>) -> Result<(T, governor::nanos::Nanos), E>,
+    {
+        let ip_partial = match key.to_canonical() {
+            IpAddr::V4(ipv4) => u64::from(ipv4.to_bits()),
+            // what should we do for subnets?
+            // ip/48 is probably the most encompassing
+            // ip/56 are common for some residential ISPs.
+            // devices will be given a ip/64 for SLAAC at a minimum.
+            IpAddr::V6(ipv6) => (ipv6.to_bits() >> 64) as u64,
+        };
+        let ip_partial = self.0.hash_one(ip_partial) as usize % self.1.len();
+        self.1[ip_partial].measure_and_replace(&NotKeyed::NonKey, f)
+    }
+}
+
 impl From<Ratelim> for BucketRatelim {
     fn from(rl: Ratelim) -> Self {
+        let quota = Quota::with_period(rl.secs())
+            .expect("ratelim config is always nonzero.")
+            .allow_burst(rl.burst());
+        let state = BucketStateStore(
+            RandomState::new(),
+            (0..rl.bucket_size())
+                .map(|_| InMemoryState::default())
+                .collect(),
+        );
         Self {
             state: BucketRateLimState {
-                lim_secs: rl.secs(),
                 trust_headers: rl.trust_headers(),
-                hasher: RandomState::new(),
-                buckets: Arc::new((0..rl.bucket_size()).map(|_| AtomicU64::new(0)).collect()),
+                ratelim: Arc::new(RateLimiter::new(
+                    quota,
+                    state,
+                    governor::clock::MonotonicClock,
+                )),
             },
         }
     }
@@ -98,25 +130,6 @@ where
     }
 }
 
-fn check_lim(slot: &AtomicU64, lim_secs: u64) -> Result<(), u64> {
-    // FIXME: unfortunately, wall-clock time is the only time we can get a convenient u64 from the stdlib.
-    // please change this if there is a better monotonic source that can be repr as a u64.
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("To get the current time offset by UNIX Epoch.")
-        .as_secs();
-    slot.fetch_update(Relaxed, Relaxed, |time| {
-        // if our clock went backards in time, this condition will almost certainly be true.
-        if now.wrapping_sub(time) > lim_secs {
-            Some(now)
-        } else {
-            None
-        }
-    })
-    .map(|_| ())
-    .map_err(|old| lim_secs - (now - old))
-}
-
 impl<S> Service<Request> for BucketRatelimMiddle<S>
 where
     S: Service<Request, Response = Response> + Send + 'static,
@@ -137,7 +150,7 @@ where
                 .get::<ConnectInfo<SocketAddr>>()
                 .map(|f| f.ip())
         };
-        let ipu64 = if self.state.trust_headers {
+        let ip = if self.state.trust_headers {
             let ip = request
                 .headers()
                 .get("X-Real-IP")
@@ -153,47 +166,19 @@ where
             }
         } else {
             get_ip()
-        };
+        }.expect( "Your server is not set up correctly! Check that you're setting X-Real-IP if using Unix socket or remove the ratelim object from the config.");
 
-        let ippart = if let Some(ipu64) = ipu64 {
-            match ipu64.to_canonical() {
-                IpAddr::V4(ipv4) => u64::from(ipv4.to_bits()),
-                // what should we do for subnets?
-                // ip/48 is probably the most encompassing
-                // ip/56 are common for some residential ISPs.
-                // devices will be given a ip/64 for SLAAC at a minimum.
-                IpAddr::V6(ipv6) => (ipv6.to_bits() >> 64) as u64,
-            }
-        } else {
-            log::error!(
-                "Your server is not set up correctly! Check that you're setting X-Real-IP."
-            );
-            return RlFuture {
-                inner: RlFutType::Exceeded {
-                    resp: Some(
-                        ApiError::new_with_status(
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            "Invalid configuration or X-Real-IP header contains non-utf8 string or unparsable IP."
-                        )
-                        .into_response()
-                    )
-                }
-            };
-        };
-
-        // NOTE:
-        // We don't care about collisions. Collisions are almost a "feature" of this.
-        // Worst case scenario, a random user will share a (likely stale) rate limit of another address.
-        // If our service is so popular we have significant contention then we have other problems.
-        let iphash = self.state.hasher.hash_one(ippart) as usize % self.state.buckets.len();
-        if let Err(retry_after) = check_lim(&self.state.buckets[iphash], self.state.lim_secs) {
+        if let Err(not_until) = self.state.ratelim.check_key(&ip) {
+            // bit weird... especially since NotUntil has a private field start.
+            let start = self.state.ratelim.clock().now();
+            let retry_after = not_until.wait_time_from(start).as_secs();
             RlFuture {
                 inner: RlFutType::Exceeded {
                     resp: Some(
                         Response::builder()
                             .status(StatusCode::TOO_MANY_REQUESTS)
                             .header(JSON_TYPE.0, JSON_TYPE.1)
-                            .header(RETRY_AFTER, retry_after.to_string())
+                            .header(RETRY_AFTER, retry_after)
                             .body(
                                 ApiError::new(format!("Retry after {retry_after} seconds."))
                                     .to_json()
