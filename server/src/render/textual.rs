@@ -3,7 +3,7 @@ use crate::{
         color::{EXTENDED_COLORS, RGBA, TRANSPARENT},
         moose::Moose,
     },
-    render::helpers::{reladate, trim_moose},
+    render::helpers::trim_moose,
 };
 
 const IRC_BOLD: &str = "\x02";
@@ -48,7 +48,7 @@ fn format_info(moose: &Moose, bold_start: &'static str, bold_end: &'static str) 
     if moose.upvotes > 0 {
         write!(&mut ret, " \u{2bc5}{}", moose.upvotes).unwrap();
     }
-    writeln!(&mut ret, " created {}", reladate(&moose.created)).unwrap();
+    writeln!(&mut ret, " created {}", moose.created.date()).unwrap();
     ret
 }
 

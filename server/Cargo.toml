@@ -39,8 +39,6 @@ tower = "0.5"
 tower-cookies = { version = "0.11", features = ["private"] }
 tower-http = { version = "0.6", optional = true, features = ["fs"] }
 log = "0.4"
-env_logger = "0.11"
-# futures-util = "0.3"
 pin-project = "1"
 governor = { version = "0.10", default-features = false, features = ["std"] }
 
@@ -49,5 +47,9 @@ version = "0.8"
 default-features = false
 features = ["http1", "json", "form", "query", "tokio"]
 
+[target.'cfg(not(windows))'.dependencies]
+env_logger = { version = "0.11", default-features = false, features = ["regex"] }
+
 [target.'cfg(windows)'.dependencies]
 windows-services = "0.25"
+env_logger = { version = "0.11", default-features = false, features = ["regex", "humantime"] }
