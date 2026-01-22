@@ -346,6 +346,21 @@ pub fn parse_args() -> Result<(SubComm, RunConfig), ArgsError> {
         // seems better to have explicit command line override configuration.
         conf.listen = Some(listen);
     }
+    // if ratelim is set and unix listener is set, it makes no sense for it to be false.
+    #[cfg(unix)]
+    if let Some(ratelim) = conf.ratelim.as_mut()
+        && !ratelim.trust_headers()
+        && conf
+            .listen
+            .as_ref()
+            .map(|l| l.starts_with("unix:"))
+            .unwrap_or(false)
+    {
+        log::warn!(
+            "Rate limiter defined, with trust_headers = false, but using a unix socket listener, which is invalid. setting trust_headers = true."
+        );
+        ratelim.trust_headers = Some(true);
+    }
     // Secret::default() auto initializes with random bytes.
     if let Some(user_secret) = &conf.cookie_secret {
         bcrypt_pbkdf(

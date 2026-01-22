@@ -1,6 +1,6 @@
 use axum::{
     extract::{ConnectInfo, Request},
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use governor::{
     Quota, RateLimiter,
@@ -132,7 +132,14 @@ where
             }
         } else {
             get_ip()
-        }.expect( "Your server is not set up correctly! Check that you're setting X-Real-IP if using Unix socket or remove the ratelim object from the config.");
+        };
+        let Some(ip) = ip else {
+            log::error!("Your reverse proxy is not set up correctly. Missing X-Real-IP.");
+            return EarlyRetFut::new_early(
+                ApiError::new("X-Real-IP header missing or failed to extract IpAddr from Request.")
+                    .into_response(),
+            );
+        };
 
         if let Err(not_until) = self.state.ratelim.check_key(&ip) {
             // bit weird... especially since NotUntil has a private field start.
