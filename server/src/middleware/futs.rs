@@ -4,23 +4,26 @@ use std::{
 };
 
 use axum::response::Response;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 
-#[pin_project]
-pub struct EarlyRetFut<I> {
-    #[pin]
-    inner: EarlyRetFutType<I>,
+pin_project! {
+    pub struct EarlyRetFut<I> {
+        #[pin]
+        inner: EarlyRetFutType<I>,
+    }
 }
 
-#[pin_project(project = EarlyRetFutTypeProj)]
-pub enum EarlyRetFutType<I> {
-    Next {
-        #[pin]
-        fut: I,
-    },
-    Early {
-        resp: Option<Response>,
-    },
+pin_project! {
+    #[project = EarlyRetFutTypeProj]
+    pub enum EarlyRetFutType<I> {
+        Next {
+            #[pin]
+            fut: I,
+        },
+        Early {
+            resp: Option<Response>,
+        },
+    }
 }
 
 impl<I> EarlyRetFut<I> {

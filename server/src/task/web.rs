@@ -16,7 +16,7 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::{Router, middleware};
+use axum::Router;
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl, basic::BasicClient};
 #[cfg(unix)]
 use tokio::net::UnixListener;
@@ -28,7 +28,7 @@ use tower_cookies::{CookieManagerLayer, Key};
 use crate::{
     config::{GitHubOauth2, RunConfig},
     db::sqlite3_impl::Pool,
-    middleware::{csrf::HeaderCsrf, etag::etag_match},
+    middleware::{csrf::HeaderCsrf, etag::EtagLayer},
     model::app_data::{AppData, Oa},
     web_handlers::{api, display, oauth2_gh, static_files},
 };
@@ -96,7 +96,7 @@ pub fn web_task(
             ServiceBuilder::new()
                 .layer(HeaderCsrf)
                 .layer(CookieManagerLayer::new())
-                .layer(middleware::from_fn(etag_match)),
+                .layer(EtagLayer),
         )
         .with_state(app_data);
 
