@@ -16,7 +16,7 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::Router;
+use axum::{Router, extract::DefaultBodyLimit};
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl, basic::BasicClient};
 #[cfg(unix)]
 use tokio::net::UnixListener;
@@ -94,6 +94,8 @@ pub fn web_task(
         .merge(static_files::routes())
         .layer(
             ServiceBuilder::new()
+                // 16 KiB. Default 2 MiB is too large.
+                .layer(DefaultBodyLimit::max(16 * 1024))
                 .layer(HeaderCsrf)
                 .layer(CookieManagerLayer::new())
                 .layer(EtagLayer),
