@@ -59,6 +59,7 @@ export default defineConfig([globalIgnores(["**/*.bundle.js"]), {
         "space-before-blocks": ["error"],
         "keyword-spacing": ["error"],
         "comma-dangle": ["error", "always-multiline"],
-        "no-var": ["warn"],
+        "no-var": ["error"],
+        "eqeqeq": ["error", "always", {"null": "ignore"}],
     },
 }]);

@@ -79,6 +79,7 @@ function* page_renumber_range(to_page, page_count) {
 
 function renumber_nav() {
   const to_page = current_page();
+  document.title = `Moose2 - Page ${to_page}`;
   const nav = document.querySelector('.nav-block');
   const page_count = +nav.children[nav.childElementCount - 2].dataset.page + 1;
   const page_range = [...page_renumber_range(to_page, page_count)];
@@ -185,7 +186,7 @@ function build_cards(meese_) {
               el.target.textContent = +el.target.textContent + toggled;
               invalidate_cache();
             }
-            else if (res.status == 422) {
+            else if (res.status === 422) {
               // bad cache view, show the proper status.
               vote.classList.toggle('upvoted');
             }
@@ -273,7 +274,6 @@ function add_nav_handlers() {
       child.dataset.page = get_page_num((new URL(child.href)).pathname);
       child.addEventListener('click', ev => {
         ev.preventDefault();
-        // if (ev.currentTarget.parentElement.classList.has('disable')) return;
         if (+ev.currentTarget.dataset.page === current_page()) return;
         history.pushState(null, '', ev.currentTarget.href);
         login_redir.value = window.location.pathname;

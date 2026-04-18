@@ -20,11 +20,11 @@ miniz_oxide = "0.9"
 maud = "0.27.0"
 percent-encoding = "2"
 sha2 = "0.10"
-deadpool-sqlite = { version = "0.12", default-features = false, features = ["rt_tokio_1"] }
+deadpool-sqlite = { version = "0.13", default-features = false, features = ["rt_tokio_1"] }
 # transitive of deadpool-sqlite
 deadpool-sync = "*"
 # transitive of deadpool-sqlite
-rusqlite = { version = "*", features = ["bundled", "time"] }
+rusqlite = { version = "*", features = ["bundled", "time", "fallible_uint"] }
 oauth2 = { version = "5", default-features = false, features = ["reqwest"] }
 # transitive of oauth2
 reqwest = { version = "*", default-features = false, features = ["json", "rustls-tls"] }

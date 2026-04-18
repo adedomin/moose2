@@ -139,14 +139,14 @@ function createPaletteBtn(color, sub = false) {
   b.classList.add('palette-btn');
   b.innerText = '\xA0';
   b.title = 'switch to ' + color;
-  if (PAINTER.colour == color) {
+  if (PAINTER.colour === color) {
     addSelect(b, color);
   }
   b.addEventListener('click', () => {
     PAINTER.colour = color;
     document.querySelector(selector)?.classList.remove('selected');
     addSelect(b, color);
-    if (color == DEFAULT_COLOR && !sub) {
+    if (color === DEFAULT_COLOR && !sub) {
       PALETTE_SUB.innerHTML = '';
       for (let i = BW_PAL; i < BW_END; ++i) {
         PALETTE_SUB.appendChild(createPaletteBtn(i, true));
@@ -230,7 +230,7 @@ function init() {
       const oldh = PAINTER.height;
       const oldw = PAINTER.width;
       PAINTER.singleAction(el.id);
-      if (oldh != PAINTER.height || oldw != PAINTER.width) {
+      if (oldh !== PAINTER.height || oldw !== PAINTER.width) {
         toggleHD();
       }
       if (!PAINTER.drawing) PAINTER.draw();
@@ -304,7 +304,7 @@ function init() {
     else if (e.ctrlKey && e.key === 'y') {
       REDO.click();
     }
-    else if (e.key == 'Escape') {
+    else if (e.key === 'Escape') {
       closeModal();
     }
   });
