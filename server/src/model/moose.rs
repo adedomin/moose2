@@ -169,20 +169,9 @@ pub struct MooseLegacy {
     pub extended: bool,
 }
 
-pub fn truncate_to(s: &str, max_len: usize) -> &str {
-    if max_len >= s.len() {
-        return s;
-    }
-    let mut idx = max_len;
-    while !s.is_char_boundary(idx) {
-        idx -= 1;
-    }
-    &s[..idx]
-}
-
 impl From<MooseLegacy> for Moose {
     fn from(old: MooseLegacy) -> Self {
-        let new_image: Vec<u8> = if old.extended {
+        let image: Vec<u8> = if old.extended {
             old.image
                 .bytes()
                 .zip(old.shade.bytes())
@@ -200,15 +189,14 @@ impl From<MooseLegacy> for Moose {
         };
 
         let dimensions =
-            Dimensions::from_len(&new_image).expect("expected moose to be HD or default size.");
+            Dimensions::from_len(&image).expect("expected moose to be HD or default size.");
 
-        let name = truncate_to(&old.name, MOOSE_MAX_NAME_LEN)
-            .trim()
-            .to_string();
+        let trunc_len = old.name.floor_char_boundary(MOOSE_MAX_NAME_LEN);
+        let name = old.name[..trunc_len].to_owned();
 
         Moose {
             name,
-            image: new_image,
+            image,
             dimensions,
             created: old.created,
             author: Author::Anonymous,
