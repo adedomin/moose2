@@ -340,7 +340,7 @@ impl MooseDB<Sqlite3Error> for Pool {
         .map(|m| m.into())
         .collect::<Vec<Moose>>();
 
-        moose_in.sort_unstable_by(|lhs, rhs| lhs.created.cmp(&rhs.created));
+        moose_in.sort_unstable_by_key(|m| m.created);
         let conn = self.get().await?;
         conn.interact(move |conn| {
             let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
