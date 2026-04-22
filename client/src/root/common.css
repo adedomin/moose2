@@ -115,3 +115,5 @@ input[type=text] {
   grid-template-rows: min-content auto;
   height: 100%;
 }
+
+input { font-family: inherit; }

@@ -40,15 +40,23 @@ html {
 }
 
 .nav-block {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(14, minmax(3em, max-content));
+    /* display: flex; */
     justify-content: center;
     margin: 1em 1em;
     user-select: none;
 }
 
-@media only screen and (max-width: 480px) {
+@media only screen and (max-width: 600px) {
     .nav-block {
-        flex-wrap: wrap;
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media only screen and (min-width: 600px) and (max-width: calc(3em * 14 + 4em + 6em)) {
+    .nav-block {
+        grid-template-columns: repeat(6, 1fr);
     }
 }
 
@@ -72,12 +80,19 @@ html {
     margin-right: 2em;
 }
 
-@media only screen and (max-width: 480px) {
+.full-width > :first-child {
+    max-width: 100%;
+}
+
+@media only screen and (max-width: 600px) {
+    #search-field {
+      border-top-right-radius: 6px;
+      border-bottom-right-radius: 6px;
+    }
     .full-width {
         margin-left: 0.5em;
         margin-right: 0.5em;
     }
-
     .full-width > input[type="submit"] {
         display: none;
     }
@@ -103,11 +118,13 @@ html {
     color: var(--fg);
     background-color: var(--bg-btn);
     padding: 0.25em 0.5em 0.25em 0.5em;
-    /* margin: 1em 0.05em 1em 0.05em; */
+}
+
+.paddle.selected {
+  background-color: var(--select-col);
 }
 
 .arrow-right {
-    /* margin: 1em 0.25em 1em 0.05em; */
     padding: 0.25em 3em 0.25em 1em;
     text-decoration: none;
     color: var(--fg);
@@ -153,15 +170,16 @@ html {
 }
 
 
-@media only screen and (min-width: 481px) {
-    .paddle-edge > span.short {
-        display: none;
-    }
+.paddle-edge > span.short {
+    display: none;
 }
 
-@media only screen and (max-width: 480px) {
+@media only screen and (max-width: calc(3em * 14 + 4em + 6em)) {
     .paddle-edge > span.full {
         display: none;
+    }
+    .paddle-edge > span.short {
+        display: block;
     }
 
     .arrow-left,
@@ -178,9 +196,8 @@ html {
 
     .arrow-left,
     .arrow-right {
-        border-radius: 6px;
-        flex: 0 0 100%;
         font-size: 1.2em;
+        grid-column: 1 / -1;
     }
 }
 
