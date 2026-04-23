@@ -51,6 +51,7 @@ html {
 @media only screen and (max-width: 600px) {
     .nav-block {
         grid-template-columns: repeat(4, 1fr);
+        font-size: 1.5em;
     }
 }
 
@@ -191,7 +192,6 @@ html {
         background-color: var(--bg-btn);
         padding: 0.25em 0.2em 0.25em 0.2em;
         margin: 0.1em;
-        font-size: 1.5em;
     }
 
     .arrow-left,
@@ -201,8 +201,16 @@ html {
     }
 }
 
-.paddle:hover, input[type="submit"]:hover {
-  background-color: var(--select-hover);
+@media (hover: hover) {
+    .paddle:hover, input[type="submit"]:hover {
+      background-color: var(--select-hover);
+    }
+    .upvote:hover::before,
+    .upvoted .upvote::before
+    {
+        content: "\25b2";
+        color: var(--destructive-col);
+    }
 }
 
 .is-alias {
@@ -224,9 +232,3 @@ html {
     content: "\25b3";
 }
 
-.upvote:hover::before,
-.upvoted .upvote::before
-{
-    content: "\25b2";
-    color: var(--destructive-col);
-}

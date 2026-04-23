@@ -48,6 +48,11 @@ body {
   object-fit: contain;
 }
 
+#btn-tools > * {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
 #modal-backdrop {
   z-index: 998;
   position: fixed;

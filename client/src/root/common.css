@@ -65,8 +65,10 @@ body {
   color: var(--fg);
 }
 
-.btn:hover {
-  background-color: var(--select-hover);
+@media (hover: hover) {
+  .btn:hover {
+    background-color: var(--select-hover);
+  }
 }
 
 .btn.is-destructive {
