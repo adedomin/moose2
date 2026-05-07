@@ -8,6 +8,12 @@ body {
   border-radius: 6px;
 }
 
+@media only screen and (max-width: 600px) {
+  #alias {
+    width: 50vw;
+  }
+}
+
 .choice {
   font-size: 2em;
   text-align: center;
