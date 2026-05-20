@@ -1079,6 +1079,7 @@ dependencies = [
  "governor",
  "http",
  "include_dir",
+ "libc",
  "log",
  "maud",
  "miniz_oxide",

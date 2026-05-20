@@ -35,7 +35,36 @@ pub mod templates;
 pub mod web_handlers;
 
 #[cfg(unix)]
+fn set_rlimit() -> Result<(), libc::c_int> {
+    use libc::{getrlimit, rlimit, setrlimit};
+
+    let mut rlim = rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+
+    let rlim_ret = unsafe { getrlimit(libc::RLIMIT_NOFILE, &raw mut rlim) };
+    if rlim_ret != 0 {
+        return Err(rlim_ret);
+    };
+
+    if rlim.rlim_cur >= rlim.rlim_max {
+        return Ok(());
+    }
+    rlim.rlim_cur = rlim.rlim_max;
+
+    let rlim_ret = unsafe { setrlimit(libc::RLIMIT_NOFILE, &raw const rlim) };
+    if rlim_ret != 0 {};
+
+    Ok(())
+}
+
+#[cfg(unix)]
 fn main() {
+    // NodeJS defaults to hard NOFILE rlimit, so we should too?
+    if let Err(e) = set_rlimit() {
+        eprintln!("INIT WARNING: Failed to get/set NOFILE rlimit: {e}");
+    }
     user_main()
 }
 
