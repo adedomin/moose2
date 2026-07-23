@@ -66,5 +66,6 @@ pub trait MooseDB<E> {
         moose_in: Option<PathBuf>,
         dup_behavior: BulkModeDupe,
     ) -> Result<(), E>;
+    async fn get_cache_key(&self) -> Result<String, E>;
     async fn check_pool(&self) -> Result<(), E>;
 }

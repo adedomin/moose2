@@ -351,6 +351,14 @@ async fn vote_moose(
     }
 }
 
+/// To prevent seeing stale vote counts, the server lets the frontend
+/// know whether votes have changed via this pseudorandom key.
+/// The key is generated every time a new vote occurs.
+async fn cache_key(State(webdata): State<MooseWebData>) -> String {
+    let db = webdata.db.clone();
+    db.get_cache_key().await.unwrap_or_default()
+}
+
 #[cfg(not(feature = "serve-dump"))]
 const DUMP_PROD_MSG: &str = r###"
 Release moose does not implement read and serving file-system content.
@@ -401,6 +409,7 @@ pub fn routes(ratelim: Option<Ratelim>) -> Router<MooseWebData> {
             "/upvote/{moose_name}",
             put(upvote_moose).delete(unvote_moose),
         )
+        .route("/cache-key", get(cache_key))
 }
 
 pub fn dump_route<T: AsRef<std::path::Path>>(_dump_path: T) -> Router<MooseWebData> {

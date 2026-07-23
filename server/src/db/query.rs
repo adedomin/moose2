@@ -58,6 +58,16 @@ BEGIN
   UPDATE Moose SET pos = -(pos + 1) WHERE pos < 0;
 END;
 
+-- This key is intended for invalidating moose page views
+-- currently only happens when votes occur.
+CREATE TABLE IF NOT EXISTS CacheKey
+  ( id    INTEGER PRIMARY KEY CHECK ( id = 0 )
+  , ckey  TEXT NOT NULL
+  );
+
+-- Insert a default value.
+INSERT OR IGNORE INTO CacheKey (id, ckey) VALUES (0, hex(randomblob(16)));
+
 CREATE TABLE IF NOT EXISTS Vote
   ( author_name TEXT    NOT NULL
   , moose_name  TEXT    NOT NULL
@@ -73,6 +83,9 @@ BEGIN
   UPDATE Moose
      SET upvotes = upvotes + NEW.vote_type
    WHERE name = NEW.moose_name;
+  UPDATE CacheKey
+     SET ckey = hex(randomblob(16))
+   WHERE id = 0;
 END;
 
 CREATE TRIGGER IF NOT EXISTS Vote_UpdateTrigger
@@ -81,6 +94,9 @@ BEGIN
   UPDATE Moose
      SET upvotes = ( upvotes - OLD.vote_type ) + NEW.vote_type
    WHERE name = OLD.moose_name;
+  UPDATE CacheKey
+     SET ckey = hex(randomblob(16))
+   WHERE id = 0;
 END;
 
 CREATE TRIGGER IF NOT EXISTS Vote_DeleteTrigger
@@ -89,6 +105,9 @@ BEGIN
   UPDATE Moose
      SET upvotes = upvotes - OLD.vote_type
    WHERE name = OLD.moose_name;
+  UPDATE CacheKey
+     SET ckey = hex(randomblob(16))
+   WHERE id = 0;
 END;
 "###;
 
@@ -125,7 +144,6 @@ pub const GET_MOOSE_PAGE: &str = r###"
      ORDER BY pos
 "###;
 
-// TODO: impl it.
 pub const GET_MOOSE_PAGE_AND_USER_VOTE: &str = r###"
     SELECT m.name
          , m.image
@@ -140,6 +158,8 @@ pub const GET_MOOSE_PAGE_AND_USER_VOTE: &str = r###"
      WHERE m.pos >= ?1 AND m.pos < ?2
      ORDER BY pos
 "###;
+
+pub const GET_CACHE_KEY: &str = "SELECT ckey FROM CacheKey WHERE id = 0";
 
 pub const SEARCH_MOOSE_PAGE: &str = const_format::formatcp!(
     r###"

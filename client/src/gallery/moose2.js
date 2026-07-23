@@ -14,20 +14,21 @@ const login_redir = document.getElementById('lio-redir');
 
 const NO_MOOSE_ERR = 'No Moose!';
 
+let cache_key = '';
+
+function set_cache_key() {
+  return fetch('/cache-key')
+    .then(r => r.text())
+    .catch(() => '')
+    .then(text => cache_key = text);
+}
+
 function get_page_num(str) {
   return +(str.slice('/gallery/'.length));
 }
 
 function current_page() {
   return get_page_num(window.location.pathname);
-}
-
-function invalidate_cache() {
-  sessionStorage.setItem('cache_key', crypto.randomUUID().replaceAll('-', '').slice(0, 8));
-}
-
-function get_cache_key() {
-  return sessionStorage.getItem('cache_key') ?? '';
 }
 
 let blob_urls = [];
@@ -184,7 +185,7 @@ function build_cards(meese_) {
             if (res.ok) {
               const toggled = vote.classList.toggle('upvoted') ? 1 : -1;
               el.target.textContent = +el.target.textContent + toggled;
-              invalidate_cache();
+              return set_cache_key();
             }
             else if (res.status === 422) {
               // bad cache view, show the proper status.
@@ -295,13 +296,13 @@ function search() {
   let form = new URLSearchParams(new FormData(search_form));
   if (form.get('q') !== '') {
     history.replaceState(null, '', `${window.location.pathname}?${form.toString()}`);
-    form.set('c', get_cache_key());
+    form.set('c', cache_key);
     fetch_moose_arr(SEARCH, `/search?${form.toString()}`);
   }
   else {
     history.replaceState(null, '', window.location.pathname);
     form.delete('q');
-    form.set('c', get_cache_key());
+    form.set('c', cache_key);
     fetch_moose_arr(PAGE, `/page/${current_page()}?${form.toString()}`);
   }
 }
@@ -339,9 +340,6 @@ if (login.dataset.login === 'true') {
     });
   };
   login.addEventListener('click', lev);
-  if (get_cache_key() === '') {
-    invalidate_cache();
-  }
 }
 
 const query_obj = new URLSearchParams(window.location.search);
@@ -350,4 +348,4 @@ if (query_obj.has('q')) {
   search_field.value = q;
 }
 add_nav_handlers();
-search();
+set_cache_key().then(() => search());

@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     db::query::{
-        DELETE_VOTE, DUMP_MOOSE, GET_MOOSE_PAGE_AND_USER_VOTE, INSERT_VOTE,
+        DELETE_VOTE, DUMP_MOOSE, GET_CACHE_KEY, GET_MOOSE_PAGE_AND_USER_VOTE, INSERT_VOTE,
         SEARCH_MOOSE_PAGE_AND_USER_VOTE,
     },
     model::{
@@ -366,6 +366,17 @@ impl MooseDB<Sqlite3Error> for Pool {
                 Ok(())
             })?;
             tx.commit()
+        })
+        .await
+        .unwrap()
+        .map_err(|e| e.into())
+    }
+
+    async fn get_cache_key(&self) -> Result<String, Sqlite3Error> {
+        let conn = self.get().await?;
+        conn.interact(|conn| {
+            conn.prepare_cached(GET_CACHE_KEY)?
+                .query_one([], |r| r.get(0))
         })
         .await
         .unwrap()
