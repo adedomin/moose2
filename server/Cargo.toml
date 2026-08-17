@@ -2,12 +2,14 @@
 name = "moose2"
 authors = ["Anthony DeDominic"]
 license = "GPL-3.0-or-later"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 
 [features]
+default = ["sqlite-bundled"]
 multi-thread = ["tokio/rt-multi-thread"]
 serve-dump = ["dep:tower-http"]
+sqlite-bundled = ["rusqlite/bundled"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -24,7 +26,7 @@ deadpool-sqlite = { version = "0.13", default-features = false, features = ["rt_
 # transitive of deadpool-sqlite
 deadpool-sync = "*"
 # transitive of deadpool-sqlite
-rusqlite = { version = "*", features = ["bundled", "time", "fallible_uint"] }
+rusqlite = { version = "*", features = ["time", "fallible_uint"] }
 oauth2 = { version = "5", default-features = false, features = ["reqwest"] }
 # transitive of oauth2
 reqwest = { version = "*", default-features = false, features = ["json", "rustls-tls"] }
