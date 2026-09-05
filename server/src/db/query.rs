@@ -109,6 +109,11 @@ BEGIN
      SET ckey = hex(randomblob(16))
    WHERE id = 0;
 END;
+
+CREATE TABLE IF NOT EXISTS User
+  ( user    TEXT  PRIMARY KEY
+  , hash    BLOB
+  ) WITHOUT ROWID;
 "###;
 
 pub const INSERT_VOTE: &str =
@@ -221,5 +226,15 @@ pub const INSERT_MOOSE_WITH_COMPUTED_POS: &str = r###"
     INSERT INTO Moose(name,                                            pos, image, dimensions, created, author, upvotes)
     VALUES           (   ?,  (SELECT COALESCE(MAX(pos) + 1, 0) FROM Moose),     ?,          ?,       ?,      ?,       ?);
 "###;
+
+pub const INSERT_NEW_USER_OR_RESET: &str = r###"
+    INSERT INTO User(user, hash) VALUES (?, ?)
+    ON CONFLICT DO
+    UPDATE SET hash = excluded.hash
+"###;
+
+pub const UPDATE_USER: &str = "UPDATE User SET hash = ?3 WHERE user = ?1 AND hash = ?2";
+
+pub const CHECK_USER_MATCHED_HASH: &str = "SELECT 1 FROM User WHERE user = ? AND hash = ?";
 
 pub const DUMP_MOOSE: &str = "SELECT name, image, dimensions, created, author, upvotes FROM Moose";

@@ -16,9 +16,12 @@
 
 use crate::{
     db::{BulkModeDupe, sqlite3_impl::Sqlite3Error},
+    model::{
+        author::User,
+        secret::{CookieSecret, InviteSecret, InviteSecretError},
+    },
     shared_data::EXAMPLE_CONFIG,
 };
-use bcrypt_pbkdf::bcrypt_pbkdf;
 use serde::Deserialize;
 use std::{
     env, fs,
@@ -33,6 +36,7 @@ mod env_vars {
         pub const BASE: &str = "CONFIGURATION_DIRECTORY";
         pub const USER: &str = "XDG_CONFIG_HOME";
         pub const FALLBACK: &str = "/etc";
+        pub const CONFNAME: &str = "config.json";
     }
     pub mod data {
         pub const BASE: &str = "STATE_DIRECTORY";
@@ -46,6 +50,7 @@ mod env_vars {
         pub const BASE: &str = "MOOSE2_HOME";
         pub const USER: &str = "AppData";
         pub const FALLBACK: &str = r"C:\ProgramData";
+        pub const CONFNAME: &str = "config.json";
     }
     pub mod data {
         pub use super::config::{BASE, FALLBACK, USER};
@@ -53,9 +58,6 @@ mod env_vars {
 }
 
 use env_vars::{config, data};
-
-const PBKDF_SALT: &[u8] = br####";o'"#|`=8kZhT:DWK\x4#<:&C.#Rzdd@"####;
-const PBKDF_ROUNDS: u32 = 8u32;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ArgsError {
@@ -67,26 +69,12 @@ pub enum ArgsError {
     IoErr(#[from] io::Error),
     #[error("Invalid cookie secret: {0}")]
     Bcrypt(#[from] bcrypt_pbkdf::Error),
+    #[error("{0}")]
+    InviteSecretErr(#[from] InviteSecretError),
     #[error("usage err: {0}")]
     Usage(String),
     #[error("Cannot get database connection: {0}")]
     DbConn(#[from] Sqlite3Error),
-}
-
-#[derive(Deserialize, Clone)]
-pub struct GitHubOauth2 {
-    pub id: String,
-    pub secret: String,
-    pub redirect: Option<String>,
-}
-
-#[derive(Clone)]
-pub struct Secret(pub [u8; 64]);
-
-impl Default for Secret {
-    fn default() -> Self {
-        Secret(std::array::from_fn(|_| rand::random()))
-    }
 }
 
 #[derive(Deserialize, Clone)]
@@ -127,10 +115,12 @@ pub struct RunConfig {
     moose_dump: Option<PathBuf>,
     listen: Option<String>,
     cookie_secret: Option<String>,
-    pub github_oauth2: Option<GitHubOauth2>,
+    invite_secret: Option<String>,
     pub ratelim: Option<Ratelim>,
     #[serde(skip)]
-    pub cookie_key: Secret,
+    pub cookie_key: CookieSecret,
+    #[serde(skip)]
+    pub invite_hash: InviteSecret,
 }
 
 impl RunConfig {
@@ -225,6 +215,7 @@ pub enum SubComm {
     Run,
     Import(BulkModeDupe, Option<PathBuf>),
     Convert(Option<(PathBuf, Option<PathBuf>)>),
+    Invite(Option<User>),
 }
 
 impl Default for Comm {
@@ -238,11 +229,14 @@ impl Default for Comm {
     }
 }
 
-pub const USAGE: &str = r###"usage: moose2 [OPTIONS] [SUBCOMMAND]
+pub const USAGE: &str = const_format::formatcp!(
+    r###"usage: moose2 [OPTIONS] [SUBCOMMAND]
 
 Options:
-    -c | --config=c  Configuration file to read from; default: $CONFIGURATION_DIRECTORY/config.json
-                                                              $XDG_CONFIG_HOME/moose2/config.json
+    -c | --config=c  Configuration file to read from; default:
+                          1. ${0}{2}{1}{5}
+                          2. ${0}{3}{1}{4}{1}{5}
+                          3. {6}{1}{4}{1}{5}
     -l | --listen=l  server listen address argument; overrides configuration file.
     -i | --ignore    for import subcommand: ignore existing duplicate moose (by name).
     -u | --update    for import subcommand: update existing duplicate moose (by name).
@@ -250,7 +244,16 @@ Options:
 Subcommand:
     import  [input]      Import moose from [input] json file.
     convert [from] [to]  Convert moose json dump to modern moose2 format.
-"###;
+    invite  IRC_NICK     invite, or reset password, for a given IRC_NICK.
+"###,
+    if cfg!(windows) { "env:" } else { "" },
+    if cfg!(windows) { '\\' } else { '/' },
+    config::BASE,
+    config::USER,
+    env!("CARGO_PKG_NAME"),
+    config::CONFNAME,
+    config::FALLBACK,
+);
 
 fn parse_argv() -> Result<Comm, ArgsError> {
     enum F {
@@ -297,6 +300,7 @@ fn parse_argv() -> Result<Comm, ArgsError> {
                         comm.subcmd = SubComm::Import(BulkModeDupe::Fail, None)
                     }
                     (SubComm::Run, "convert") => comm.subcmd = SubComm::Convert(None),
+                    (SubComm::Run, "invite") => comm.subcmd = SubComm::Invite(None),
                     (SubComm::Run, anything) => {
                         return Err(ArgsError::Usage(format!("Invalid subcommand {anything}.")));
                     }
@@ -315,6 +319,18 @@ fn parse_argv() -> Result<Comm, ArgsError> {
                     (SubComm::Convert(Some((_, Some(_)))), _) => {
                         return Err(ArgsError::Usage(
                             "Too many files given to convert.".to_owned(),
+                        ));
+                    }
+                    (SubComm::Invite(None), user) => {
+                        comm.subcmd = SubComm::Invite(Some(user.try_into().map_err(|e| {
+                            ArgsError::Usage(format!(
+                                "Invited username must be a valid IRC Nick: {e}"
+                            ))
+                        })?));
+                    }
+                    (SubComm::Invite(_), _) => {
+                        return Err(ArgsError::Usage(
+                            "invite subcommand only takes one argument.".to_owned(),
                         ));
                     }
                 },
@@ -337,9 +353,12 @@ pub fn parse_args() -> Result<(SubComm, RunConfig), ArgsError> {
 
     let config_file_path = match args.config {
         Some(c) => c,
-        None => {
-            find_systemd_or_xdg_path(config::BASE, config::USER, config::FALLBACK, "config.json")
-        }
+        None => find_systemd_or_xdg_path(
+            config::BASE,
+            config::USER,
+            config::FALLBACK,
+            config::CONFNAME,
+        ),
     };
     let mut conf = open_or_write_default(config_file_path)?;
     if let Some(listen) = args.listen {
@@ -363,12 +382,10 @@ pub fn parse_args() -> Result<(SubComm, RunConfig), ArgsError> {
     }
     // Secret::default() auto initializes with random bytes.
     if let Some(user_secret) = &conf.cookie_secret {
-        bcrypt_pbkdf(
-            user_secret,
-            PBKDF_SALT,
-            PBKDF_ROUNDS,
-            &mut conf.cookie_key.0,
-        )?;
+        conf.cookie_key = user_secret.as_str().try_into()?;
+    }
+    if let Some(invite_secret) = &conf.invite_secret {
+        conf.invite_hash = InviteSecret::new_invite_hash(invite_secret)?;
     }
     Ok((sub, conf))
 }

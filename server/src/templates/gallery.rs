@@ -16,7 +16,7 @@
 
 use crate::{
     model::author::Author,
-    templates::{header, log_inout_form, navbar},
+    templates::{header, navbar, script},
 };
 use maud::{DOCTYPE, Markup, html};
 
@@ -55,16 +55,21 @@ fn pager(page: usize, page_count: usize) -> Markup {
     }
 }
 
-pub fn gallery(page_title: &str, page: usize, page_count: usize, username: Author) -> Markup {
-    let is_auth = username.is_auth();
-    let username = username.displayable();
-    let is_login = username.is_some();
+pub fn gallery(
+    page_title: &str,
+    page: usize,
+    page_count: usize,
+    username: Author,
+    cache_key: &str,
+) -> Markup {
+    // ugh
+    let redir_to = format!("/gallery/{page}");
     html! {
         (DOCTYPE)
         html lang="en" {
-            (header(page_title, "/public/gallery/moose2.css"))
+            (header(page_title, "/public/root/gallery.css"))
             body {
-                (navbar(true, username, is_login, is_auth))
+                (navbar(&redir_to, username))
                 // we duplicate this top and bottom, might as well reuse it?
                 @let pager_widget = pager(page, page_count);
                 (pager_widget)
@@ -77,7 +82,7 @@ pub fn gallery(page_title: &str, page: usize, page_count: usize, username: Autho
                 h1 #hidden-banner-error .center-banner .hidden { "No Moose!" }
                 #moose-cards .cards {}
                 (pager_widget)
-                template #moose-card-template {
+                template #moose-card-template data-cachekey=(cache_key) {
                     .card.center-me {
                         a .nil {
                             img .img;
@@ -93,8 +98,8 @@ pub fn gallery(page_title: &str, page: usize, page_count: usize, username: Autho
                         }
                     }
                 }
-                script src="/public/gallery/moose2.js" type="module" {}
-                (log_inout_form(format!("/gallery/{page}").as_str(), is_login))
+                (script("/public/root/gallery.js"))
+                (script("/public/root/loggedin.js"))
             }
         }
     }

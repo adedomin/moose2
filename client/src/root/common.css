@@ -103,7 +103,7 @@ body {
   border-bottom-right-radius: 6px;
 }
 
-input[type=text] {
+input[type=text], input[type=password] {
   background: var(--bg);
   color: var(--fg);
   border: none;

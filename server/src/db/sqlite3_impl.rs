@@ -6,14 +6,16 @@ use std::{
 
 use crate::{
     db::query::{
-        DELETE_VOTE, DUMP_MOOSE, GET_CACHE_KEY, GET_MOOSE_PAGE_AND_USER_VOTE, INSERT_VOTE,
-        SEARCH_MOOSE_PAGE_AND_USER_VOTE,
+        CHECK_USER_MATCHED_HASH, DELETE_VOTE, DUMP_MOOSE, GET_CACHE_KEY,
+        GET_MOOSE_PAGE_AND_USER_VOTE, INSERT_NEW_USER_OR_RESET, INSERT_VOTE,
+        SEARCH_MOOSE_PAGE_AND_USER_VOTE, UPDATE_USER,
     },
     model::{
         PAGE_SEARCH_LIM, PAGE_SIZE,
-        author::{AuthenticatedAuthor, Author},
+        author::{AuthenticatedAuthor, Author, User},
         moose::{Moose, MooseAny, MooseToSqlParams},
         pages::{MooseSearch, MooseSearchPage},
+        secret::InviteSecret,
         votes::VoteFlag,
     },
 };
@@ -27,7 +29,7 @@ use super::{
     utils::escape_query,
 };
 
-use rand::Rng;
+use rand::Rng as _;
 use rusqlite::{Connection, OptionalExtension, Params, params};
 
 pub type Pool = deadpool_sqlite::Pool;
@@ -48,7 +50,7 @@ pub enum Sqlite3Error {
     #[error("Failed to recover file handle: {0}")]
     IntoInner(#[from] IntoInnerError<BufWriter<File>>),
     #[error("Moose dump path is either \"/\" or an empty string, \"\".")]
-    StrangeMooseDumpPath(),
+    StrangeMooseDumpPath,
 }
 
 fn already_exists(e: &rusqlite::Error) -> bool {
@@ -70,36 +72,34 @@ fn query_moose<P: Params>(
         .map_err(|e| e.into())
 }
 
-// NOTE: conn.interact only errors on thread panic or thread abort, so just unwrap it and panic if it fails.
+/// basic boilerplate for querying sqlite
+macro_rules! db_interact {
+    ($self:ident, $fn:expr) => {{
+        let conn = $self.get().await?;
+        // NOTE: conn.interact only errors on thread panic or thread abort
+        conn.interact($fn).await.unwrap()
+    }};
+}
+
 impl MooseDB<Sqlite3Error> for Pool {
     async fn len(&self) -> Result<usize, Sqlite3Error> {
-        let conn = self.get().await?;
-        conn.interact(|conn| {
+        db_interact!(self, |conn| {
             conn.prepare_cached(LEN_MOOSE)?
                 .query_row([], |row| row.get(0))
                 .map_err(|e| e.into())
         })
-        .await
-        .unwrap()
     }
 
     async fn latest(&self) -> Result<Option<Moose>, Sqlite3Error> {
-        let conn = self.get().await?;
-        conn.interact(|conn| query_moose(conn, LAST_MOOSE, []))
-            .await
-            .unwrap()
+        db_interact!(self, |conn| query_moose(conn, LAST_MOOSE, []))
     }
 
     async fn oldest(&self) -> Result<Option<Moose>, Sqlite3Error> {
-        let conn = self.get().await?;
-        conn.interact(|conn| query_moose(conn, GET_MOOSE_IDX, [0]))
-            .await
-            .unwrap()
+        db_interact!(self, |conn| query_moose(conn, GET_MOOSE_IDX, [0]))
     }
 
     async fn random(&self) -> Result<Option<Moose>, Sqlite3Error> {
-        let conn = self.get().await?;
-        conn.interact(|conn| {
+        db_interact!(self, |conn| {
             let tx = conn.transaction()?;
             let len: usize = tx
                 .prepare_cached(LEN_MOOSE)?
@@ -112,8 +112,6 @@ impl MooseDB<Sqlite3Error> for Pool {
             tx.commit()?;
             Ok(res)
         })
-        .await
-        .unwrap()
     }
 
     async fn is_empty(&self) -> bool {
@@ -127,11 +125,8 @@ impl MooseDB<Sqlite3Error> for Pool {
     }
 
     async fn get_moose(&self, moose: &str) -> Result<Option<Moose>, Sqlite3Error> {
-        let conn = self.get().await?;
         let moose = moose.to_owned();
-        conn.interact(move |conn| query_moose(conn, GET_MOOSE, [moose]))
-            .await
-            .unwrap()
+        db_interact!(self, move |conn| query_moose(conn, GET_MOOSE, [moose]))
     }
 
     async fn get_moose_page(
@@ -139,9 +134,9 @@ impl MooseDB<Sqlite3Error> for Pool {
         page_num: usize,
         author: Option<AuthenticatedAuthor>,
     ) -> Result<Vec<MooseSearch>, Sqlite3Error> {
-        let conn = self.get().await?;
-        let q = conn
-            .interact(move |conn| -> Result<Vec<MooseSearch>, rusqlite::Error> {
+        let q = db_interact!(
+            self,
+            move |conn| -> Result<Vec<MooseSearch>, rusqlite::Error> {
                 let start = page_num * PAGE_SIZE;
                 let end = page_num * PAGE_SIZE + PAGE_SIZE;
                 let (sql_query, author) = if let Some(author) = author {
@@ -166,9 +161,8 @@ impl MooseDB<Sqlite3Error> for Pool {
                         }
                     })
                     .collect::<Vec<MooseSearch>>())
-            })
-            .await
-            .unwrap();
+            }
+        );
         match q {
             Ok(m) => Ok(m),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(vec![]),
@@ -182,10 +176,10 @@ impl MooseDB<Sqlite3Error> for Pool {
         page_num: usize,
         author: Option<AuthenticatedAuthor>,
     ) -> Result<MooseSearchPage, Sqlite3Error> {
-        let conn = self.get().await?;
         let query = escape_query(query);
-        let q = conn
-            .interact(move |conn| -> Result<MooseSearchPage, rusqlite::Error> {
+        let q = db_interact!(
+            self,
+            move |conn| -> Result<MooseSearchPage, rusqlite::Error> {
                 let (sql_query, author) = if let Some(author) = author {
                     (SEARCH_MOOSE_PAGE_AND_USER_VOTE, author.into())
                 } else {
@@ -223,9 +217,8 @@ impl MooseDB<Sqlite3Error> for Pool {
                     .take(page_lim)
                     .collect::<Vec<_>>();
                 Ok(MooseSearchPage { pages, result })
-            })
-            .await
-            .unwrap();
+            }
+        );
         match q {
             Ok(m) => Ok(m),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(MooseSearchPage {
@@ -237,15 +230,13 @@ impl MooseDB<Sqlite3Error> for Pool {
     }
 
     async fn insert_moose(&self, moose: Moose) -> Result<(), Sqlite3Error> {
-        let conn = self.get().await?;
-        conn.interact(move |conn| {
+        db_interact!(self, move |conn| {
             conn.prepare_cached(INSERT_MOOSE_WITH_COMPUTED_POS)
                 .unwrap()
                 .execute(MooseToSqlParams::from(&moose))
+                .map(|_| ())
+                .map_err(|e| e.into())
         })
-        .await
-        .unwrap()?;
-        Ok(())
     }
 
     // only upvotes or no vote for now...
@@ -254,16 +245,14 @@ impl MooseDB<Sqlite3Error> for Pool {
         author: AuthenticatedAuthor,
         moose: String,
     ) -> Result<(), Sqlite3Error> {
-        let conn = self.get().await?;
         let author = Author::from(author);
-        conn.interact(move |conn| {
+        db_interact!(self, move |conn| {
             conn.prepare_cached(INSERT_VOTE)
                 .unwrap()
                 .execute(params![author, moose, VoteFlag::Up])
+                .map(|_| ())
+                .map_err(|e| e.into())
         })
-        .await
-        .unwrap()?;
-        Ok(())
     }
 
     async fn unvote_moose(
@@ -271,24 +260,21 @@ impl MooseDB<Sqlite3Error> for Pool {
         author: AuthenticatedAuthor,
         moose: String,
     ) -> Result<(), Sqlite3Error> {
-        let conn = self.get().await?;
         let author = Author::from(author);
-        conn.interact(move |conn| {
+        db_interact!(self, move |conn| {
             conn.prepare_cached(DELETE_VOTE)
                 .unwrap()
                 .execute(params![author, moose])
+                .map(|_| ())
+                .map_err(|e| e.into())
         })
-        .await
-        .unwrap()?;
-        Ok(())
     }
     async fn dump_moose(&self, moose_dump: PathBuf) -> Result<(), Sqlite3Error> {
-        let con = self.get().await?;
-        con.interact(move |con| {
+        db_interact!(self, move |con| {
             // parent only fails when totally rooted.
             let tdir = match moose_dump.parent() {
                 Some(p) => p,
-                None => return Err(Sqlite3Error::StrangeMooseDumpPath()),
+                None => return Err(Sqlite3Error::StrangeMooseDumpPath),
             };
             let r: u64 = rand::random();
             let tdir = tdir.join(format!(".moose.json.{r:x}"));
@@ -320,8 +306,6 @@ impl MooseDB<Sqlite3Error> for Pool {
             log::info!("Done dumping moose.");
             Ok(())
         })
-        .await
-        .unwrap()
     }
 
     async fn bulk_import(
@@ -339,10 +323,9 @@ impl MooseDB<Sqlite3Error> for Pool {
         .drain(..)
         .map(|m| m.into())
         .collect::<Vec<Moose>>();
-
         moose_in.sort_unstable_by_key(|m| m.created);
-        let conn = self.get().await?;
-        conn.interact(move |conn| {
+
+        db_interact!(self, move |conn| {
             let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
             moose_in.iter().try_for_each(|moose| {
                 let pm: MooseToSqlParams = moose.into();
@@ -365,26 +348,54 @@ impl MooseDB<Sqlite3Error> for Pool {
                 }
                 Ok(())
             })?;
-            tx.commit()
+            tx.commit().map_err(|e| e.into())
         })
-        .await
-        .unwrap()
-        .map_err(|e| e.into())
     }
 
     async fn get_cache_key(&self) -> Result<String, Sqlite3Error> {
-        let conn = self.get().await?;
-        conn.interact(|conn| {
+        db_interact!(self, |conn| {
             conn.prepare_cached(GET_CACHE_KEY)?
                 .query_one([], |r| r.get(0))
+                .map_err(|e| e.into())
         })
-        .await
-        .unwrap()
-        .map_err(|e| e.into())
     }
 
     async fn check_pool(&self) -> Result<(), Sqlite3Error> {
         drop(self.get().await?);
         Ok(())
+    }
+
+    async fn invite_user(&self, user: User, hash: InviteSecret) -> Result<(), Sqlite3Error> {
+        db_interact!(self, move |conn| {
+            conn.prepare_cached(INSERT_NEW_USER_OR_RESET)
+                .unwrap()
+                .execute(params![user, hash])
+                .map(|_| ())
+                .map_err(|e| e.into())
+        })
+    }
+
+    async fn check_user_hash(&self, user: User, hash: InviteSecret) -> Result<bool, Sqlite3Error> {
+        db_interact!(self, move |conn| {
+            conn.prepare_cached(CHECK_USER_MATCHED_HASH)
+                .unwrap()
+                .exists(params![user, hash])
+                .map_err(|e| e.into())
+        })
+    }
+
+    async fn update_user_hash(
+        &self,
+        user: User,
+        old_hash: InviteSecret,
+        new_hash: InviteSecret,
+    ) -> Result<bool, Sqlite3Error> {
+        db_interact!(self, move |conn| {
+            conn.prepare_cached(UPDATE_USER)
+                .unwrap()
+                .execute(params![user, old_hash, new_hash])
+                .map_err(|e| e.into())
+                .map(|cnt| cnt == 1)
+        })
     }
 }

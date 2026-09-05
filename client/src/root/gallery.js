@@ -9,12 +9,13 @@ const moose_cards = document.getElementById('moose-cards');
 const moose_card_template = document.getElementById('moose-card-template');
 const error_banner = document.getElementById('hidden-banner-error');
 const login = document.getElementById('login');
-const login_form = document.getElementById('log-inout-form');
 const login_redir = document.getElementById('lio-redir');
 
 const NO_MOOSE_ERR = 'No Moose!';
 
-let cache_key = '';
+const AUTHLVL_AUTH = 2;
+
+let cache_key = moose_card_template.dataset.cachekey;
 
 function set_cache_key() {
   return fetch('/cache-key')
@@ -108,23 +109,13 @@ function renumber_nav() {
     const first_page = nav.children[1];
     const last_page = nav.children[nav.childElementCount - 2];
 
-    if (left_arrow.dataset.page < 0) {
-      left_arrow.classList.add('disable');
-      first_page.classList.add('disable');
-    }
-    else {
-      left_arrow.classList.remove('disable');
-      first_page.classList.remove('disable');
-    }
+    const la = +left_arrow.dataset.page < 0 ? 'add' : 'remove';
+    left_arrow.classList[la]('disable');
+    first_page.classList[la]('disable');
 
-    if (page_count - 1 < right_arrow.dataset.page) {
-      right_arrow.classList.add('disable');
-      last_page.classList.add('disable');
-    }
-    else {
-      right_arrow.classList.remove('disable');
-      last_page.classList.remove('disable');
-    }
+    const ra = page_count - 1 < +right_arrow.dataset.page ? 'add' : 'remove';
+    last_page.classList[ra]('disable');
+    right_arrow.classList[ra]('disable');
   });
 }
 const [_OLD_W, _OLD_H]= MOOSE_SIZES.get(MOOSE_SIZE_DEFAULT_KEY);
@@ -172,7 +163,7 @@ function build_cards(meese_) {
       }
 
       upvote.textContent = moose.upvotes;
-      if (login.dataset.auth === 'true') {
+      if (+login.dataset.authlevel === AUTHLVL_AUTH) {
         if (voted === 'Up') {
           vote.classList.toggle('upvoted');
         }
@@ -287,8 +278,8 @@ function add_nav_handlers() {
 
 function loading(is_loading) {
   document.querySelectorAll('.nav-block').forEach(nav => {
-    if (is_loading) nav.classList.add('disable', 'loading');
-    else nav.classList.remove('disable', 'loading');
+    if (is_loading) nav.classList.add('disable');
+    else nav.classList.remove('disable');
   });
 }
 
@@ -320,32 +311,15 @@ window.addEventListener('popstate', () => {
 search_form.addEventListener('submit', debounce_ev.bind(null, search, true));
 search_field.addEventListener('input', debounce_ev.bind(null, search, false));
 
-if (login.dataset.login === 'true') {
-  const lev = e => {
-    e.preventDefault();
-    fetch('/logout', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: new Headers({'Content-Type': 'application/x-www-form-urlencoded'}),
-    }).then(res => {
-      if (res.ok) {
-        login.value = 'Login';
-        login_form.action = '/login';
-        login_redir.value = window.location.pathname;
-        login.removeEventListener('click', lev);
-      }
-    }).catch(err => {
-      login.textContent = 'LOGOUT FAILED (SEE CONSOLE)';
-      console.error(err);
-    });
-  };
-  login.addEventListener('click', lev);
-}
-
 const query_obj = new URLSearchParams(window.location.search);
 if (query_obj.has('q')) {
   const q = query_obj.get('q');
   search_field.value = q;
 }
 add_nav_handlers();
-set_cache_key().then(() => search());
+if (cache_key === '') {
+  set_cache_key().then(() => search());
+}
+else {
+  search();
+}

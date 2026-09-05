@@ -31,11 +31,18 @@ pub enum Author {
     Anonymous,
     Alias(#[serde(deserialize_with = "github_valid_user")] String),
     GitHub(#[serde(deserialize_with = "github_valid_user")] String),
+    Builtin(#[serde(deserialize_with = "rfc2812_valid_user")] String),
+}
+
+enum AuthLevel {
+    Anon = 0,
+    Unauth = 1,
+    Auth = 2,
 }
 
 impl Author {
     pub fn new_alias(author: String) -> Result<Self, &'static str> {
-        gh_valid_user(&author)?;
+        irc_valid_user(&author)?;
         Ok(Self::Alias(author))
     }
 
@@ -44,15 +51,30 @@ impl Author {
         Ok(Self::GitHub(author))
     }
 
+    pub fn new_builtin(author: String) -> Result<Self, &'static str> {
+        irc_valid_user(&author)?;
+        Ok(Self::Builtin(author))
+    }
+
     pub fn is_auth(&self) -> bool {
-        matches!(self, Author::GitHub(_))
+        self.auth_level() == AuthLevel::Auth as u8
+    }
+
+    pub fn auth_level(&self) -> u8 {
+        (match self {
+            Author::Anonymous => AuthLevel::Anon,
+            Author::Alias(_) => AuthLevel::Unauth,
+            Author::GitHub(_) => AuthLevel::Auth,
+            Author::Builtin(_) => AuthLevel::Auth,
+        }) as u8
     }
 
     pub fn displayable(self) -> Option<String> {
         match self {
             Author::Anonymous => None,
             Author::Alias(a) => Some(format!("(Alias) {a}")),
-            Author::GitHub(a) => Some(a),
+            Author::GitHub(a) => Some(format!("(GH) {a}")),
+            Author::Builtin(a) => Some(a),
         }
     }
 }
@@ -88,6 +110,43 @@ fn github_valid_user<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Strin
     })
 }
 
+pub const IRC_MAX_BYTE_LEN: usize =
+    9 /* 9 is technically the specified limit, but we'll allow up to 24 */ + 15;
+
+// 0x5B..=0x60 + 0x7B..=0x7D
+const RFC_2812_SPECIAL: &[u8] = br"[\]^_`{|}";
+
+fn irc_valid_user(author: &str) -> Result<(), &'static str> {
+    if author.is_empty() {
+        return Err("Author name cannot be empty.");
+    }
+
+    if author.len() > IRC_MAX_BYTE_LEN {
+        return Err("Author name is too long: >20 bytes.");
+    }
+
+    let mut iter = author.bytes();
+    // should not be empty.
+    let first = iter.next().unwrap();
+    if !(first.is_ascii_alphabetic() || RFC_2812_SPECIAL.contains(&first)) {
+        return Err("Author must start with a letter or RFC2812 special character.");
+    }
+    iter.try_for_each(|c| {
+        if c.is_ascii_alphanumeric() || RFC_2812_SPECIAL.contains(&c) {
+            Ok(())
+        } else {
+            Err("Author must contain only ascii alphanumeric characters or RFC2812 specials.")
+        }
+    })
+}
+
+fn rfc2812_valid_user<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    String::deserialize(deserializer).and_then(|author| {
+        irc_valid_user(&author).map_err(serde::de::Error::custom)?;
+        Ok(author)
+    })
+}
+
 pub fn default_author() -> Author {
     Author::Anonymous
 }
@@ -98,6 +157,7 @@ impl ToSql for Author {
             Author::Anonymous => rusqlite::types::Null.to_sql(),
             Author::Alias(author) => Ok(ToSqlOutput::from(format!("Alias__{author}"))),
             Author::GitHub(author) => Ok(ToSqlOutput::from(format!("GitHub__{author}"))),
+            Author::Builtin(author) => Ok(ToSqlOutput::from(format!("Builtin__{author}"))),
         }
     }
 }
@@ -145,6 +205,7 @@ where
 
 pub enum AuthenticatedAuthor {
     GitHub(String),
+    Builtin(String),
 }
 
 impl TryFrom<Author> for AuthenticatedAuthor {
@@ -155,6 +216,7 @@ impl TryFrom<Author> for AuthenticatedAuthor {
             Author::Anonymous => Err(()),
             Author::Alias(_) => Err(()),
             Author::GitHub(a) => Ok(Self::GitHub(a)),
+            Author::Builtin(a) => Ok(Self::Builtin(a)),
         }
     }
 }
@@ -163,6 +225,7 @@ impl From<AuthenticatedAuthor> for Author {
     fn from(value: AuthenticatedAuthor) -> Self {
         match value {
             AuthenticatedAuthor::GitHub(a) => Author::GitHub(a),
+            AuthenticatedAuthor::Builtin(a) => Author::Builtin(a),
         }
     }
 }
@@ -218,6 +281,35 @@ where
             .get(LOGIN_COOKIE)
             .and_then(|c| serde_json::from_str::<Author>(c.value()).ok())
             .and_then(|author| author.try_into().ok()))
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct User(#[serde(deserialize_with = "rfc2812_valid_user")] String);
+
+impl From<User> for Author {
+    fn from(value: User) -> Self {
+        Author::Builtin(value.0)
+    }
+}
+
+impl From<User> for AuthenticatedAuthor {
+    fn from(value: User) -> Self {
+        AuthenticatedAuthor::Builtin(value.0)
+    }
+}
+
+impl TryFrom<&str> for User {
+    type Error = &'static str;
+
+    fn try_from(user: &str) -> Result<Self, Self::Error> {
+        irc_valid_user(user).map(|_| User(user.to_owned()))
+    }
+}
+
+impl ToSql for User {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        Ok(ToSqlOutput::from(self.0.clone()))
     }
 }
 

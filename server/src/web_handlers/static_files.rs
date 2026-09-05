@@ -61,10 +61,6 @@ fn get_static_file_from(d: &'static Dir, path: &str, ext: &str) -> Static {
         .unwrap_or(Static::NotFound)
 }
 
-async fn index_page() -> Static {
-    get_static_file_from(&CLIENT_DIR, "root/index.html", "html")
-}
-
 async fn favicon() -> Static {
     get_static_file_from(&CLIENT_DIR, "root/favicon.ico", "ico")
 }
@@ -102,8 +98,6 @@ async fn static_content(req: Request) -> Static {
 pub fn routes() -> Router<MooseWebData> {
     Router::new()
         .route("/favicon.ico", get(favicon))
-        .route("/", get(index_page))
-        .route("/index.html", get(index_page))
         .route("/public/const/{const}", get(const_js_modules))
         .fallback(static_content)
 }

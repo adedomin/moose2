@@ -210,7 +210,7 @@ function init() {
     painter.replacePainting(oldPainting);
   }
 
-  PAINTER_AREA.appendChild(painter.canvas);
+  PAINTER_AREA.replaceChildren(painter.canvas);
 
   PAINTER = painter;
 
@@ -260,7 +260,7 @@ function init() {
   });
 
   const dbtn = createPaletteBtn(DEFAULT_COLOR);
-  PALETTE.appendChild(dbtn);
+  PALETTE.replaceChildren(dbtn);
   for (let i = START_PAL; i < END_PAL; ++i) {
     const b = createPaletteBtn(i);
     PALETTE.appendChild(b);

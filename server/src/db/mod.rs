@@ -17,9 +17,10 @@
 use std::path::PathBuf;
 
 use crate::model::{
-    author::AuthenticatedAuthor,
+    author::{AuthenticatedAuthor, User},
     moose::Moose,
     pages::{MooseSearch, MooseSearchPage},
+    secret::InviteSecret,
 };
 
 pub mod query;
@@ -68,4 +69,16 @@ pub trait MooseDB<E> {
     ) -> Result<(), E>;
     async fn get_cache_key(&self) -> Result<String, E>;
     async fn check_pool(&self) -> Result<(), E>;
+
+    // user funcs
+    async fn invite_user(&self, user: User, hash: InviteSecret) -> Result<(), E>;
+    /// we don't bother salting passwords (min len is 16bytes anyway) and using a password hasher like argon2id would blow the
+    /// compute budget for this 1vcpu/1GiB server.
+    async fn check_user_hash(&self, user: User, hash: InviteSecret) -> Result<bool, E>;
+    async fn update_user_hash(
+        &self,
+        user: User,
+        old_hash: InviteSecret,
+        new_hash: InviteSecret,
+    ) -> Result<bool, E>;
 }

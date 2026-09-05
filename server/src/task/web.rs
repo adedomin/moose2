@@ -17,20 +17,19 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::{Router, extract::DefaultBodyLimit};
-use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl, basic::BasicClient};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::{net::TcpListener, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
-use tower_cookies::{CookieManagerLayer, Key};
+use tower_cookies::CookieManagerLayer;
 
 use crate::{
-    config::{GitHubOauth2, RunConfig},
+    config::RunConfig,
     db::sqlite3_impl::Pool,
     middleware::{csrf::HeaderCsrf, etag::EtagLayer},
-    model::app_data::{AppData, Oa},
-    web_handlers::{api, display, oauth2_gh, static_files},
+    model::app_data::AppData,
+    web_handlers::{api, auth, display, static_files},
 };
 
 pub fn web_task(
@@ -40,56 +39,17 @@ pub fn web_task(
 ) -> JoinHandle<Result<(), std::io::Error>> {
     let listen_addr = rc.get_bind_addr();
     log::info!("Attempting to listen on: http://{listen_addr}/");
-    let oauth2_client = match &rc.github_oauth2 {
-        Some(GitHubOauth2 {
-            id,
-            secret,
-            redirect,
-        }) => {
-            let client_id = ClientId::new(id.to_string());
-            let secret = ClientSecret::new(secret.to_string());
-            let auth_url =
-                AuthUrl::new("https://github.com/login/oauth/authorize".to_string()).unwrap();
-            let token_url =
-                TokenUrl::new("https://github.com/login/oauth/access_token".to_string()).unwrap();
-            let oa = BasicClient::new(client_id)
-                .set_client_secret(secret)
-                .set_auth_uri(auth_url)
-                .set_token_uri(token_url);
-            let oa = if let Some(redir) = redirect {
-                let redir = RedirectUrl::new(redir.clone()).unwrap();
-                oa.set_redirect_uri(redir)
-            } else {
-                oa
-            };
-            Some(Oa {
-                oa,
-                web: {
-                    reqwest::Client::builder()
-                        .user_agent(concat!(
-                            env!("CARGO_PKG_NAME"),
-                            "/",
-                            env!("CARGO_PKG_VERSION")
-                        ))
-                        .redirect(reqwest::redirect::Policy::none())
-                        .build()
-                        .unwrap()
-                },
-            })
-        }
-        None => None,
-    };
+    let moose_dump = rc.get_moose_dump();
     let app_data = Arc::new(AppData {
         db,
-        cookie_key: Key::from(&rc.cookie_key.0),
-        oauth2_client,
+        cookie_key: rc.cookie_key.into(),
+        invite_hash: rc.invite_hash,
     });
-    let moose_dump = rc.get_moose_dump();
 
     let app = Router::new()
         .merge(api::routes(rc.ratelim))
         .merge(api::dump_route(moose_dump))
-        .merge(oauth2_gh::routes())
+        .merge(auth::routes())
         .merge(display::routes())
         .merge(static_files::routes())
         .layer(

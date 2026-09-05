@@ -16,7 +16,7 @@ use pin_project_lite::pin_project;
 use sha2::Digest;
 use tower::{Layer, Service};
 
-/// Hash a response body into a strong MD5-based ETag.
+/// Hash a response body into a strong SHA2-based ETag.
 pub fn etag<T: AsRef<[u8]>>(body: T) -> String {
     let sum = sha2::Sha256::digest(body);
     let sum = BASE64_STANDARD_NO_PAD.encode(sum.as_slice());

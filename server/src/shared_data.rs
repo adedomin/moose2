@@ -112,13 +112,9 @@ pub const EXAMPLE_CONFIG: &[u8] = br###"{ "//": "OPTIONAL: default: $XDG_DATA_HO
 , "listen":        "[::1]:5921"
 , "//": "A symmetric secret key for session cookies; delete for random; is PBKDF padded to 64 bytes."
 , "cookie_secret": "super-duper-sekret"
-, "//": "github oauth2 client configuration details, omit whole object to disable authentication."
-, "github_oauth2":
-    { "id":     "client id"
-    , "secret": "client secret"
-    , "//": "OPTIONAL: defaults depend on oauth provider, gh will redirect to auth cb url."
-    , "redirect": "http://localhost:5921/auth"
-    }
+, "//": "Used by bots and admins to generate user invite links. Must be at least 20 bytes long."
+, "//": "Note: GitHub OAuth2 provider is dead."
+, "invite_secret": "http header safe, max compat (ascii 32..=126 + \\t), string."
 , "//": "You can set this to an empty object for the defaults or omit it to disable it."
 , "ratelim":
     { "//": "How long a user must wait between uploading moose."

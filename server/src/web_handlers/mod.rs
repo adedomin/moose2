@@ -23,8 +23,8 @@ use serde::Serialize;
 use crate::model::app_data::AppData;
 
 pub mod api;
+pub mod auth;
 pub mod display;
-pub mod oauth2_gh;
 pub mod static_files;
 
 pub type MooseWebData = Arc<AppData>;
@@ -94,6 +94,37 @@ impl IntoResponse for ApiError {
             .status(self.code)
             .header(JSON_TYPE.0, JSON_TYPE.1)
             .body(self.to_json().into())
+            .unwrap()
+    }
+}
+
+pub struct HtmlError {
+    code: StatusCode,
+    body: String,
+}
+
+impl HtmlError {
+    fn new(body: String) -> Self {
+        Self {
+            code: StatusCode::INTERNAL_SERVER_ERROR,
+            body,
+        }
+    }
+
+    fn new_auth_req(body: String) -> Self {
+        Self {
+            code: StatusCode::UNAUTHORIZED,
+            body,
+        }
+    }
+}
+
+impl IntoResponse for HtmlError {
+    fn into_response(self) -> axum::response::Response {
+        Response::builder()
+            .status(self.code)
+            .header(HTML_TYPE.0, HTML_TYPE.1)
+            .body(self.body.into())
             .unwrap()
     }
 }

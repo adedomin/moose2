@@ -16,7 +16,10 @@
 
 use super::{HTML_TYPE, MooseWebData};
 use crate::{
-    db::MooseDB, middleware::etag::etag, model::author::Author, templates::gallery,
+    db::MooseDB,
+    middleware::etag::etag,
+    model::author::Author,
+    templates::{gallery, index},
     web_handlers::ApiError,
 };
 use axum::{
@@ -64,12 +67,31 @@ async fn gallery_page(
     Path(page): Path<usize>,
     username: Author,
 ) -> Response {
-    let page_count = {
+    let (page_count, cache_key) = {
         let db = &db.db;
-        db.get_page_count().await.unwrap_or(page)
+        let pc = db.get_page_count().await.unwrap_or(page);
+        let ck = db.get_cache_key().await.unwrap_or_default();
+        (pc, ck)
     };
-    let body = gallery::gallery(&format!("Page {page}"), page, page_count, username).into_string();
+    let body = gallery::gallery(
+        &format!("Page {page}"),
+        page,
+        page_count,
+        username,
+        &cache_key,
+    )
+    .into_string();
 
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(HTML_TYPE.0, HTML_TYPE.1)
+        .header(ETAG, etag(&body))
+        .body(body.into())
+        .unwrap()
+}
+
+async fn index_page(username: Author) -> Response {
+    let body = index::index(username).into_string();
     Response::builder()
         .status(StatusCode::OK)
         .header(HTML_TYPE.0, HTML_TYPE.1)
@@ -80,6 +102,8 @@ async fn gallery_page(
 
 pub fn routes() -> Router<MooseWebData> {
     Router::new()
+        .route("/", get(index_page))
+        .route("/index.html", get(index_page))
         .route("/gallery", get(Redirect::permanent("/gallery/0")))
         .route("/gallery/", get(Redirect::permanent("/gallery/0")))
         .route("/gallery/latest", get(gallery_latest_redir))

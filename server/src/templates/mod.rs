@@ -16,9 +16,13 @@
 
 use maud::{Markup, html};
 
+use crate::model::author::Author;
+
 pub mod gallery;
+pub mod index;
 pub mod login;
 
+// TODO: add cache-busting query string to all static resources.
 pub fn header(page_title: &str, css: &'static str) -> Markup {
     html! {
         head {
@@ -32,37 +36,58 @@ pub fn header(page_title: &str, css: &'static str) -> Markup {
     }
 }
 
-pub fn navbar(
-    is_gallery: bool, /* TODO: fix this crap */
-    username: Option<String>,
-    is_login: bool,
-    is_auth: bool,
-) -> Markup {
+// TODO: add cache-busting query string to all static resources.
+pub fn script(script_src: &str) -> Markup {
     html! {
-        .nav {
-            .btn-grp {
-                a.btn href="/" { "Moose2" }
-                @if is_gallery {
-                    a.btn.selected href="/gallery" onclick="return false" { "Gallery" }
-                }
-                @else {
-                    a.btn href="/gallery" { "Gallery" }
-                }
-            }
-            @if is_gallery {
-                .btn-grp.float-right {
-                    input.btn type="submit" form="log-inout-form" id="login" data-login=(is_login) data-auth=(is_auth) value=(username.unwrap_or("Login".to_owned()));
-                }
-            }
+        script src=(script_src) type="module" {}
+    }
+}
+
+enum NavPage {
+    Index,
+    Gallery,
+    Login,
+}
+
+impl NavPage {
+    fn selected(&self, idx: usize) -> bool {
+        matches!((self, idx), (NavPage::Index, 0) | (NavPage::Gallery, 1))
+    }
+    fn onclick(&self, idx: usize) -> Option<&'static str> {
+        self.selected(idx).then_some("return false")
+    }
+}
+
+impl From<&str> for NavPage {
+    fn from(url: &str) -> Self {
+        match url {
+            "/" => Self::Index,
+            "/login" => Self::Login,
+            _ => Self::Gallery,
         }
     }
 }
 
-pub fn log_inout_form(redir_to: &str, is_login: bool) -> Markup {
-    let action_url = if is_login { "/logout" } else { "/login" };
+pub fn navbar(redir_to: &str, auth: Author) -> Markup {
+    let authlevel = auth.auth_level();
+    let display = auth.displayable().unwrap_or_else(|| "Login".to_owned());
+    let action_url = if authlevel > 0 { "/logout" } else { "/login" };
+    let page = NavPage::from(redir_to);
+
     html! {
-        form #log-inout-form action=(action_url) method="post" style="display: none;" {
-            input #lio-redir name="redirect" type="hidden" value=(redir_to);
+        .nav {
+            .btn-grp {
+                a.btn.selected[page.selected(0)] href="/"        onclick=[page.onclick(0)] { "Moose2" }
+                a.btn.selected[page.selected(1)] href="/gallery" onclick=[page.onclick(1)] { "Gallery" }
+            }
+            @if !matches!(page, NavPage::Login)  {
+                .btn-grp.float-right {
+                    input.btn type="submit" form="log-inout-form" id="login" data-authlevel=(authlevel) value=(display);
+                }
+                form #log-inout-form action=(action_url) method="post" style="display: none;" {
+                    input #lio-redir name="redirect" type="hidden" value=(redir_to);
+                }
+            }
         }
     }
 }

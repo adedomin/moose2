@@ -19,6 +19,7 @@ use crate::{
     config::SubComm,
     model::moose::moose_bulk_transform,
     task::{dump_moose_task, shutdown_task, web_task},
+    web_handlers::auth::gen_rand_ascii_pass_plus_hash,
 };
 
 use db::MooseDB;
@@ -183,11 +184,24 @@ fn real_main(stop_token: CancellationToken, win_service: bool) -> Result<(), con
         log::info!("Connecting to database: {:?}", rc.get_moose_path());
         let db = db::utils::open_db(&rc).await;
 
-        if let SubComm::Import(dup_behavior, moose_in) = subcmd {
-            log::info!("Importing moose. Shutting down after importing.");
-            db.bulk_import(moose_in, dup_behavior).await?;
-            return Ok(());
-        }
+        match subcmd {
+            SubComm::Import(dup_behavior, moose_in) => {
+                log::info!("Importing moose. Shutting down after importing.");
+                db.bulk_import(moose_in, dup_behavior).await?;
+                return Ok(());
+            }
+            SubComm::Invite(Some(user)) => {
+                let (pass, hash) = gen_rand_ascii_pass_plus_hash::<16>();
+                db.invite_user(user, hash).await?;
+                println!("Password: {pass}");
+                return Ok(());
+            }
+            SubComm::Invite(None) => {
+                return Err(config::ArgsError::Usage("No username given.".to_owned()));
+            }
+            SubComm::Convert(_) => unreachable!(),
+            _ => (),
+        };
 
         // make sure our DB actually works and we can open it (no permission issues for instance).
         db.check_pool().await?;

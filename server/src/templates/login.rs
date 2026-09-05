@@ -1,41 +1,36 @@
 use maud::{DOCTYPE, Markup, html};
 
-use crate::templates::{header, navbar};
+use crate::{
+    model::{
+        author::{Author, IRC_MAX_BYTE_LEN},
+        secret::PASS_MAX_LEN,
+    },
+    templates::{header, navbar},
+};
 
-fn alias_input(alias: Option<&str>) -> Markup {
-    // TODO: consider using pattern attribute? https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/pattern
-    html! {
-        input #alias name="alias" type="text" maxlength="39" placeholder="Alias" value=(alias.unwrap_or(""));
-    }
-}
-
-pub fn login_choice(
-    is_gh_enabled: bool,
-    alias: Option<&str>,
-    err_msg: Option<&'static str>,
-) -> Markup {
+pub fn login_choice(user: Option<&str>, err_msg: Option<&'static str>) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
-            (header("Login Choices", "/public/login/login.css"))
+            (header("Login", "/public/root/login.css"))
             body {
                 .divider {
-                    (navbar(false, None, false, false))
+                    (navbar("/login", Author::Anonymous))
                     .center-me {
-                        @if is_gh_enabled {
-                            a #gh-login .btn href="/login/gh" { "Login with GitHub" }
-                        }
-                        @else {
-                            a #gh-login .btn .err-bg-color href="/login/gh" onclick="return false" { "Auth Disabled" }
-                        }
-                        p .choice {"OR"}
-                        form #alias-form method="post" action="/login/alias" {
-                            .btn-grp {
-                                (alias_input(alias))
-                                input .btn #submit type="submit" value="Submit";
+                        form method="post" action="/login/submit" {
+                            fieldset {
+                                input #user .block.full-width name="user" type="text" maxlength=(IRC_MAX_BYTE_LEN) placeholder="Username or Alias" value=(user.unwrap_or(""));
+                                input #pass .block.full-width name="pass" type="password" maxlength=(PASS_MAX_LEN) placeholder="(Optional) Password";
+                                input #change type="checkbox";
+                                label for="change" { " Change Password" }
+                                input #newpass .block.full-width name="newpass" type="password" maxlength="64" placeholder="New Password";
+                                input .block.btn.full-width #submit type="submit" value="Submit";
                             }
                             @if let Some(err_msg) = err_msg {
                                 p.err-text { (err_msg) }
+                            } @else {
+                                // empty space, prevent reflow
+                                p { "\u{A0}" }
                             }
                         }
                     }
