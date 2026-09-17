@@ -15,75 +15,74 @@
  */
 
 use super::{ApiError, MooseWebData};
-use crate::{
-    model::mime::get_mime,
-    shared_data::{COLORS_JS, SIZ_JS},
-};
+use crate::shared_data::{COLORS_JS, SIZ_JS};
 use axum::{
     Router,
-    extract::{Path as AxumPath, Request},
+    extract::Request,
     response::{IntoResponse, Response},
     routing::get,
 };
 use http::{
     StatusCode,
-    header::{CACHE_CONTROL, CONTENT_TYPE},
+    header::{CACHE_CONTROL, CONTENT_TYPE, ETAG},
 };
-use include_dir::{Dir, include_dir};
+use include_static::{StaticContent, StaticContents, find_static_by_path, include_static};
 
-const CLIENT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../client/src");
+const CLIENT_DIR: StaticContents = include_static!("../client/src");
 
 enum Static {
-    Content(&'static [u8], &'static str),
+    Content(&'static [u8], &'static str, Option<&'static str>),
     NotFound,
 }
 
 impl IntoResponse for Static {
     fn into_response(self) -> Response {
-        let Static::Content(body, ctype) = self else {
+        let Static::Content(body, ctype, etag) = self else {
             return ApiError::new_with_status(StatusCode::NOT_FOUND, "No such file.")
                 .into_response();
         };
-        Response::builder()
+        let res = Response::builder()
             .header(
                 CACHE_CONTROL,
                 "public, immutable, max-age=86400, stale-while-revalidate=1209600, stale-if-error=1209600",
             )
-            .header(CONTENT_TYPE, ctype)
-            .status(StatusCode::OK)
-            .body(body.into()).unwrap()
+            .header(CONTENT_TYPE, ctype);
+        let res = if let Some(etag) = etag {
+            res.header(ETAG, etag)
+        } else {
+            res
+        };
+        res.status(StatusCode::OK).body(body.into()).unwrap()
     }
 }
 
-fn get_static_file_from(d: &'static Dir, path: &str, ext: &str) -> Static {
-    d.get_file(path)
-        .map(|file| Static::Content(file.contents(), get_mime(ext)))
-        .unwrap_or(Static::NotFound)
+const fn get_static_file_from(find: &str) -> Static {
+    if let Some(StaticContent {
+        content,
+        mime,
+        etag,
+        ..
+    }) = find_static_by_path(CLIENT_DIR, find)
+    {
+        Static::Content(content, mime, Some(etag))
+    } else {
+        Static::NotFound
+    }
 }
 
+const FAVICON: Static = get_static_file_from("root/favicon.ico");
 async fn favicon() -> Static {
-    get_static_file_from(&CLIENT_DIR, "root/favicon.ico", "ico")
+    FAVICON
 }
 
-async fn const_js_modules(AxumPath(const_js): AxumPath<String>) -> Static {
-    let body = match const_js.as_str() {
-        "colors.js" => COLORS_JS.as_ref(),
-        "sizes.js" => SIZ_JS,
-        _ => return Static::NotFound,
-    };
-    Static::Content(body, "application/javascript")
+const COLORS_JS_RESP: Static = Static::Content(&COLORS_JS, "application/javascript", None);
+async fn colors_js() -> Static {
+    COLORS_JS_RESP
 }
 
-fn get_ext(uri_path: &str) -> Option<&str> {
-    uri_path.rsplit('/').next().and_then(|fname| {
-        let mut itr = fname.rsplitn(2, '.');
-        let ext = itr.next();
-        let base = itr.next();
-        match base {
-            None | Some("") => None,
-            _ => ext,
-        }
-    })
+const SIZ_JS_RESP: Static = Static::Content(SIZ_JS, "application/javascript", None);
+async fn sizes_js() -> Static {
+    SIZ_JS_RESP
 }
 
 async fn static_content(req: Request) -> Static {
@@ -91,13 +90,13 @@ async fn static_content(req: Request) -> Static {
     let Some(loc) = loc.strip_prefix("/public/") else {
         return Static::NotFound;
     };
-    let ext = get_ext(loc).unwrap_or("");
-    get_static_file_from(&CLIENT_DIR, loc, ext)
+    get_static_file_from(loc)
 }
 
 pub fn routes() -> Router<MooseWebData> {
     Router::new()
         .route("/favicon.ico", get(favicon))
-        .route("/public/const/{const}", get(const_js_modules))
+        .route("/public/const/colors.js", get(colors_js))
+        .route("/public/const/sizes.js", get(sizes_js))
         .fallback(static_content)
 }

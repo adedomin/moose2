@@ -43,6 +43,9 @@ CREATE TRIGGER IF NOT EXISTS Moose_InsertTrigger
 AFTER INSERT ON Moose
 BEGIN
   INSERT INTO MooseSearch(moose_name) VALUES (NEW.name);
+  UPDATE CacheKey
+     SET ckey = hex(randomblob(16))
+   WHERE id = 0;
 END;
 
 -- Deletes happen through sqlite3 shell, not the app.
@@ -56,6 +59,10 @@ BEGIN
   -- Simply setting pos = pos - 1 will result in unique constraint error
   -- because updates may not occur in ORDER BY Moose.pos ASC
   UPDATE Moose SET pos = -(pos + 1) WHERE pos < 0;
+  -- Invalidate gallery page cache
+  UPDATE CacheKey
+     SET ckey = hex(randomblob(16))
+   WHERE id = 0;
 END;
 
 -- This key is intended for invalidating moose page views
