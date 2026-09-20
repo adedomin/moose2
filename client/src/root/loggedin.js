@@ -16,6 +16,7 @@ if (+login.dataset.authlevel > AUTHLVL_ANON) {
     }).then(res => {
       if (res.ok) {
         login.value = 'Login';
+        login.dataset.authlevel = '0';
         login_form.action = '/login';
         login_redir.value = window.location.pathname;
         login.removeEventListener('click', lev);

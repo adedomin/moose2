@@ -13,7 +13,9 @@ const login_redir = document.getElementById('lio-redir');
 
 const NO_MOOSE_ERR = 'No Moose!';
 
-const AUTHLVL_AUTH = 2;
+function is_auth() {
+  return +login.dataset.authlevel === 2;
+}
 
 let cache_key = moose_card_template.dataset.cachekey;
 
@@ -163,7 +165,7 @@ function build_cards(meese_) {
       }
 
       upvote.textContent = moose.upvotes;
-      if (+login.dataset.authlevel === AUTHLVL_AUTH) {
+      if (is_auth()) {
         if (voted === 'Up') {
           vote.classList.toggle('upvoted');
         }
@@ -284,16 +286,18 @@ function loading(is_loading) {
 }
 
 function search() {
-  let form = new URLSearchParams(new FormData(search_form));
+  const form = new URLSearchParams(new FormData(search_form));
+  // add _ to authenticated users so they fetch their votes (if any).
+  const local_cache_key = cache_key + (is_auth() ? '_' : '');
   if (form.get('q') !== '') {
     history.replaceState(null, '', `${window.location.pathname}?${form.toString()}`);
-    form.set('c', cache_key);
+    form.set('c', local_cache_key);
     fetch_moose_arr(SEARCH, `/search?${form.toString()}`);
   }
   else {
     history.replaceState(null, '', window.location.pathname);
     form.delete('q');
-    form.set('c', cache_key);
+    form.set('c', local_cache_key);
     fetch_moose_arr(PAGE, `/page/${current_page()}?${form.toString()}`);
   }
 }
