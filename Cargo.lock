@@ -682,14 +682,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "include_static"
+name = "include-static"
 version = "0.1.0"
 dependencies = [
- "include_static_macro",
+ "include-static-macro",
 ]
 
 [[package]]
-name = "include_static_macro"
+name = "include-static-macro"
 version = "0.1.0"
 dependencies = [
  "base64",
@@ -891,7 +891,7 @@ dependencies = [
  "env_logger",
  "governor",
  "http",
- "include_static",
+ "include-static",
  "libc",
  "log",
  "maud",

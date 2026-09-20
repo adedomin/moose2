@@ -39,7 +39,7 @@ tower-http = { version = "0.6", optional = true, features = ["fs"] }
 log = "0.4"
 pin-project-lite = "0.2"
 governor = { version = "0.10", default-features = false, features = ["std"] }
-include_static = { path = "../include_static" }
+include-static = { path = "../include-static" }
 
 [dependencies.axum]
 version = "0.8"

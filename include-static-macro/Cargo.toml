@@ -1,0 +1,17 @@
+[package]
+name = "include-static-macro"
+version = "0.1.0"
+edition = "2024"
+license = "ISC"
+
+[features]
+sha2sum = ["dep:sha2", "dep:base64"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+sha2 = { version = "0.10", optional = true }
+base64 = { version = "0.22", optional = true }

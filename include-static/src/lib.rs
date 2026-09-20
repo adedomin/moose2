@@ -21,7 +21,8 @@ pub use include_static_macro::include_static;
 pub struct StaticContent {
     pub path: &'static str,
     pub content: &'static [u8],
-    pub etag: &'static str,
+    #[cfg(feature = "sha2sum")]
+    pub hash: &'static str,
     pub mime: &'static str,
 }
 

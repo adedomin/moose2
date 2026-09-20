@@ -1,0 +1,11 @@
+[package]
+name = "include-static"
+version = "0.1.0"
+edition = "2024"
+license = "ISC"
+
+[features]
+sha2sum = ["include-static-macro/sha2sum"]
+
+[dependencies]
+include-static-macro = { path = "../include-static-macro" }

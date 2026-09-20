@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["include_static","include_static_macro","server"]
+members = ["include-static","include-static-macro","server"]
 
 [profile.release]
 lto = "fat"

@@ -1,8 +1,0 @@
-[package]
-name = "include_static"
-version = "0.1.0"
-edition = "2024"
-license = "ISC"
-
-[dependencies]
-include_static_macro = { path = "../include_static_macro" }

@@ -24,47 +24,36 @@ use axum::{
 };
 use http::{
     StatusCode,
-    header::{CACHE_CONTROL, CONTENT_TYPE, ETAG},
+    header::{CACHE_CONTROL, CONTENT_TYPE},
 };
 use include_static::{StaticContent, StaticContents, find_static_by_path, include_static};
 
 const CLIENT_DIR: StaticContents = include_static!("../client/src");
 
 enum Static {
-    Content(&'static [u8], &'static str, Option<&'static str>),
+    Content(&'static [u8], &'static str),
     NotFound,
 }
 
 impl IntoResponse for Static {
     fn into_response(self) -> Response {
-        let Static::Content(body, ctype, etag) = self else {
+        let Static::Content(body, ctype) = self else {
             return ApiError::new_with_status(StatusCode::NOT_FOUND, "No such file.")
                 .into_response();
         };
-        let res = Response::builder()
+        Response::builder()
             .header(
                 CACHE_CONTROL,
                 "public, immutable, max-age=86400, stale-while-revalidate=1209600, stale-if-error=1209600",
             )
-            .header(CONTENT_TYPE, ctype);
-        let res = if let Some(etag) = etag {
-            res.header(ETAG, etag)
-        } else {
-            res
-        };
-        res.status(StatusCode::OK).body(body.into()).unwrap()
+            .header(CONTENT_TYPE, ctype)
+            .status(StatusCode::OK).body(body.into()).unwrap()
     }
 }
 
 const fn get_static_file_from(find: &str) -> Static {
-    if let Some(StaticContent {
-        content,
-        mime,
-        etag,
-        ..
-    }) = find_static_by_path(CLIENT_DIR, find)
-    {
-        Static::Content(content, mime, Some(etag))
+    if let Some(StaticContent { content, mime, .. }) = find_static_by_path(CLIENT_DIR, find) {
+        Static::Content(content, mime)
     } else {
         Static::NotFound
     }
@@ -75,12 +64,12 @@ async fn favicon() -> Static {
     FAVICON
 }
 
-const COLORS_JS_RESP: Static = Static::Content(&COLORS_JS, "application/javascript", None);
+const COLORS_JS_RESP: Static = Static::Content(&COLORS_JS, "application/javascript");
 async fn colors_js() -> Static {
     COLORS_JS_RESP
 }
 
-const SIZ_JS_RESP: Static = Static::Content(SIZ_JS, "application/javascript", None);
+const SIZ_JS_RESP: Static = Static::Content(SIZ_JS, "application/javascript");
 async fn sizes_js() -> Static {
     SIZ_JS_RESP
 }
