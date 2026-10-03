@@ -36,7 +36,7 @@ pub fn login_choice(user: Option<&str>, err_msg: Option<&'static str>) -> Markup
                                 input #pass .block.full-width name="pass" type="password" placeholder="(Optional) Password";
                                 input #change type="checkbox";
                                 label for="change" { " Change Password" }
-                                input #newpass .block.full-width name="newpass" type="password" maxlength="64" placeholder="New Password";
+                                input #newpass .block.full-width name="newpass" type="password" placeholder="New Password";
                                 input .block.btn.full-width #submit type="submit" value="Submit";
                             }
                             @if let Some(err_msg) = err_msg {
