@@ -143,19 +143,6 @@ pub const GET_MOOSE: &str =
 pub const GET_MOOSE_IDX: &str =
     "SELECT name, image, dimensions, created, author, upvotes FROM Moose WHERE pos = ?";
 
-pub const GET_MOOSE_PAGE: &str = r###"
-    SELECT m.name
-         , m.image
-         , m.dimensions
-         , m.created
-         , m.author
-         , m.upvotes
-         , ?3
-      FROM Moose m
-     WHERE m.pos >= ?1 AND m.pos < ?2
-     ORDER BY pos
-"###;
-
 pub const GET_MOOSE_PAGE_AND_USER_VOTE: &str = r###"
     SELECT m.name
          , m.image
@@ -172,30 +159,6 @@ pub const GET_MOOSE_PAGE_AND_USER_VOTE: &str = r###"
 "###;
 
 pub const GET_CACHE_KEY: &str = "SELECT ckey FROM CacheKey WHERE id = 0";
-
-pub const SEARCH_MOOSE_PAGE: &str = const_format::formatcp!(
-    r###"
-    WITH search_res(moose_name) AS
-      ( SELECT moose_name
-          FROM MooseSearch
-         WHERE moose_name MATCH ?1
-         ORDER BY RANK
-         LIMIT {0}
-      )
-    SELECT m.name
-         , m.image
-         , m.dimensions
-         , m.created
-         , m.author
-         , m.upvotes
-         , m.pos
-         , ?2
-      FROM Moose m
-INNER JOIN search_res
-        ON m.name == moose_name
-"###,
-    crate::model::PAGE_SIZE * crate::model::PAGE_SEARCH_LIM
-);
 
 pub const SEARCH_MOOSE_PAGE_AND_USER_VOTE: &str = const_format::formatcp!(
     r###"

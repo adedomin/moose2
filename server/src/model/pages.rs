@@ -16,9 +16,7 @@
 
 use serde::Serialize;
 
-use crate::model::votes::VoteFlag;
-
-use super::moose::Moose;
+use super::{moose::Moose, votes::VoteFlag};
 
 #[derive(Debug, Serialize)]
 pub struct MooseSearch {

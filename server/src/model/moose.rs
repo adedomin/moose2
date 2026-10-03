@@ -14,9 +14,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use super::color::{SHADE_TO_EXTENDED, SHADE_TRNS};
-use super::dimensions::Dimensions;
-use super::{author::Author, color::TRANSPARENT};
+use super::{
+    author::Author,
+    color::{COLOR_MAP_SIGIL, SHADE_TO_EXTENDED, SHADE_TRNS, TRANSPARENT},
+    dimensions::Dimensions,
+};
 use base64::{DecodeError, Engine};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
@@ -263,13 +265,17 @@ fn parse_hexish(hex: u8) -> u8 {
         b'A'..=b'F' => (hex - 65) + 10,
         b't' => TRANSPARENT,
         // invalid color, including \n
-        _ => 100,
+        _ => COLOR_MAP_SIGIL,
     }
 }
 
 fn parse_hexish_opt(hex: u8) -> Option<u8> {
     let phex = parse_hexish(hex);
-    if phex == 100 { None } else { Some(phex) }
+    if phex == COLOR_MAP_SIGIL {
+        None
+    } else {
+        Some(phex)
+    }
 }
 
 /// Legacy Moose shaded color value to u8

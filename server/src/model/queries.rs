@@ -16,7 +16,7 @@
 
 use serde::{Deserialize, Deserializer};
 
-use super::PAGE_SEARCH_LIM;
+use super::{PAGE_SEARCH_LIM, QUERY_SEARCH_LIM};
 
 #[derive(Deserialize)]
 pub struct SearchQuery {
@@ -38,7 +38,7 @@ fn from_qstring<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D:
     String::deserialize(deserializer).and_then(|q| {
         if q.is_empty() {
             Err(serde::de::Error::custom("query is empty"))
-        } else if q.len() > 64 {
+        } else if q.len() > QUERY_SEARCH_LIM {
             Err(serde::de::Error::custom("query too large"))
         } else {
             Ok(q)
@@ -65,19 +65,3 @@ fn default_query() -> String {
 fn page_num_default() -> usize {
     0
 }
-
-// #[derive(Deserialize)]
-// pub struct LoginRedir {
-//     #[serde(default = "redir_default")]
-//     pub redir: String,
-//     #[serde(default = "debug_default")]
-//     pub debug: bool,
-// }
-
-// fn redir_default() -> String {
-//     "/".to_owned()
-// }
-
-// fn debug_default() -> bool {
-//     false
-// }

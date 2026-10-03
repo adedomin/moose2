@@ -197,7 +197,7 @@ async fn get_page_count(State(db): State<MooseWebData>) -> Response {
 
 async fn get_page(
     State(db): State<MooseWebData>,
-    author: Option<AuthenticatedAuthor>,
+    author: Author,
     Path(page_num): Path<usize>,
 ) -> ApiResp {
     let db = &db.db;
@@ -238,7 +238,7 @@ async fn get_page_nav_range(
 
 async fn get_search_page(
     State(db): State<MooseWebData>,
-    author: Option<AuthenticatedAuthor>,
+    author: Author,
     Query(SearchQuery { query, page, .. }): Query<SearchQuery>,
 ) -> ApiResp {
     let db = &db.db;
