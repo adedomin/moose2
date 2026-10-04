@@ -23,13 +23,13 @@ use crate::{
 
 fn modal() -> Markup {
     html! {
-       #modal-backdrop.close.center-me {
-           #modal.close {
-               p #modal-title { "header" }
-               button #modal-close { "×" }
-               p #modal-content { "None" }
-           }
-       }
+        dialog #modal closedby="any" {
+            .modal-header {
+                p #modal-title { "header" }
+                button #modal-close commandfor="modal" command="close" autofocus { "✕" }
+            }
+            p # modal-content { "None" }
+        }
     }
 }
 

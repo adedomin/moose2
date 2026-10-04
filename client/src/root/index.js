@@ -34,11 +34,9 @@ const PALETTE_SUB = document.getElementById('painter-palette-sub');
 const NAME_INPUT = document.getElementById('name');
 const SAVE = document.getElementById('save');
 
-const MODAL_BACKDROP = document.getElementById('modal-backdrop');
 const MODAL = document.getElementById('modal');
 const MODAL_TITLE = document.getElementById('modal-title');
 const MODAL_CONTENT = document.getElementById('modal-content');
-const MODAL_CLOSE = document.getElementById('modal-close');
 // end html elements
 
 // state
@@ -106,16 +104,10 @@ function addSelect(b, color) {
   b.classList.add(lightness(color));
 }
 
-function closeModal() {
-  MODAL_BACKDROP.classList.add('close');
-  MODAL.classList.add('close');
-}
-
 function openModal(title, content) {
   MODAL_TITLE.textContent = title;
   MODAL_CONTENT.textContent = content;
-  MODAL.classList.remove('close');
-  MODAL_BACKDROP.classList.remove('close');
+  MODAL.showModal();
 }
 
 function toggleHD() {
@@ -267,16 +259,6 @@ function init() {
   }
   dbtn.click();
 
-  MODAL.addEventListener('click', e => {
-    e.stopPropagation();
-  });
-
-  [MODAL_BACKDROP, MODAL_CLOSE].forEach(el => {
-    el.addEventListener('click', () => {
-      closeModal();
-    });
-  });
-
   SAVE.addEventListener('click', () => {
     let isOk = false;
     saveMoose().then(res => {
@@ -303,9 +285,6 @@ function init() {
     }
     else if (e.ctrlKey && e.key === 'y') {
       REDO.click();
-    }
-    else if (e.key === 'Escape') {
-      closeModal();
     }
   });
 }
