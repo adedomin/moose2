@@ -64,6 +64,7 @@ body {
   color: var(--fg);
   background-color: var(--bg);
   border: none;
+  border-radius: 6px;
   max-width: 80%;
   overflow: hidden;
 }
@@ -84,7 +85,7 @@ body {
   margin-left: auto;
   background: none;
   color: inherit;
-  border: 1px solid var(--fg);
+  border: none;
 }
 
 #modal-close:hover {

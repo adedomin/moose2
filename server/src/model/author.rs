@@ -16,6 +16,7 @@
 
 use axum::extract::{FromRef, FromRequestParts, OptionalFromRequestParts};
 use http::{StatusCode, request::Parts};
+use log::warn;
 use rusqlite::{
     ToSql,
     types::{FromSql, ToSqlOutput},
@@ -170,9 +171,12 @@ impl FromSql for Author {
                     Ok(Author::Alias(a.to_owned()))
                 } else if let Some(a) = author.strip_prefix("GitHub__") {
                     Ok(Author::GitHub(a.to_owned()))
+                } else if let Some(a) = author.strip_prefix("Builtin__") {
+                    Ok(Author::Builtin(a.to_owned()))
                 } else {
-                    // fallback for legacy
-                    Ok(Author::GitHub(author.to_owned()))
+                    // should not happen
+                    warn!("Invalid Author {author} in the database. Please check moose/votes!");
+                    Ok(Author::Anonymous)
                 }
             }
             None => Ok(Author::Anonymous),
