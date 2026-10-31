@@ -282,22 +282,21 @@ impl MooseDB<Sqlite3Error> for Pool {
             let r: u64 = rand::random();
             let tdir = tdir.join(format!(".moose.json.{r:x}"));
 
+            // TODO: Cleanup tempfile on error condition.
             let file = File::create(&tdir)?;
             let mut bufw = BufWriter::new(file);
-            let mut start = true;
 
+            bufw.write_all(b"[")?;
             let mut q = con.prepare_cached(DUMP_MOOSE)?;
             let mut w = q.query([])?;
-            while let Ok(Some(row)) = w.next() {
-                if start {
-                    bufw.write_all(b"[")?;
-                    start = false;
-                } else {
-                    bufw.write_all(b",")?;
-                }
+            if let Ok(Some(row)) = w.next() {
                 let moose: Moose = row.try_into()?;
-                let moose = serde_json::to_vec(&moose)?;
-                bufw.write_all(&moose)?;
+                serde_json::to_writer(&mut bufw, &moose)?;
+            }
+            while let Ok(Some(row)) = w.next() {
+                bufw.write_all(b",")?;
+                let moose: Moose = row.try_into()?;
+                serde_json::to_writer(&mut bufw, &moose)?;
             }
             bufw.write_all(b"]")?;
 
