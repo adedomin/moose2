@@ -28,7 +28,10 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     routing::get,
 };
-use http::{StatusCode, header::ETAG};
+use http::{
+    StatusCode,
+    header::{ETAG, LOCATION},
+};
 use rand::Rng;
 
 async fn gallery_random_redir(State(db): State<MooseWebData>) -> Response {
@@ -73,6 +76,16 @@ async fn gallery_page(
         let ck = db.get_cache_key().await.unwrap_or_default();
         (pc, ck)
     };
+    // some scrapers keep hitting ridiuclous pages like /gallery/3432
+    // these are nonsense and go nowhere, just push them to the latest page.
+    if page >= page_count && page != 0 {
+        return Response::builder()
+            .status(StatusCode::SEE_OTHER)
+            .header(LOCATION, format!("{}", page_count.saturating_sub(1)))
+            .body(().into())
+            .unwrap();
+    }
+
     let body = gallery::gallery(
         &format!("Page {page}"),
         page,

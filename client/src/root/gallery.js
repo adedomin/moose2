@@ -258,6 +258,8 @@ function fetch_moose_arr(type, path) {
     del_or_replace_cards();
     error_banner.classList.remove('hidden');
     error_banner.textContent = e.toString();
+    // renable nav if it is available.
+    loading(false);
   });
 }
 
